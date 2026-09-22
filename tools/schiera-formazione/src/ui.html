@@ -1,0 +1,80 @@
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Schiera</h1>
+      <small id="sub">formazione dal file .xls della lega</small>
+    </div>
+    <div class="menu" id="menuWrap" hidden>
+      <button class="icon-btn" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false">Opzioni</button>
+      <div class="menu-pop" id="menuPop" hidden>
+        <label for="freeToggle"><input type="checkbox" id="freeToggle"> Riserve in ordine libero (senza ruoli fissi)</label>
+        <hr>
+        <button type="button" id="restoreBtn">Ripristina l'ultima formazione salvata</button>
+        <button type="button" id="clearBtn">Svuota la formazione</button>
+        <button type="button" id="changeFileBtn2">Carica un altro file</button>
+        <button type="button" class="install-btn" hidden>Installa l'app sul telefono</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="upload" id="uploadCard">
+    <h2>Carica il file delle formazioni</h2>
+    <p>Apri l'Excel (.xls) che ti manda l'amministratore: schieri la squadra toccando i giocatori e io scrivo i numeri nella colonna D, come se avessi premuto “Schiera formazione”.</p>
+    <ol class="small">
+      <li>Carica il file .xls</li>
+      <li>Tocca i posti sul campo e in panchina</li>
+      <li>Salva il file e invialo all'amministratore</li>
+    </ol>
+    <button class="btn btn-primary" type="button" id="pickBtn">Scegli il file .xls</button>
+    <button class="btn btn-ghost install-btn" type="button" hidden>Installa l'app sul telefono</button>
+  </section>
+
+  <section class="filebar" id="fileBar" hidden>
+    <div style="min-width:0">
+      <div class="fname" id="fileName"></div>
+      <div class="fmeta" id="fileMeta"></div>
+    </div>
+    <div class="field">
+      <label for="sheetSel">Squadra</label>
+      <select id="sheetSel"></select>
+    </div>
+  </section>
+
+  <div id="notices" style="display:grid;gap:10px"></div>
+
+  <section id="editor" style="display:grid;gap:16px">
+    <div style="display:grid;gap:8px">
+      <div class="section-h"><h3>Modulo</h3><span id="modHint">titolari 1–11</span></div>
+      <div class="modules" id="modules" role="group" aria-label="Modulo"></div>
+    </div>
+
+    <div class="pitch" id="pitch" aria-label="Titolari"><div class="goal-top"></div></div>
+
+    <div style="display:grid;gap:8px">
+      <div class="section-h"><h3>Riserve</h3><span id="benchHint">12–18 · entrano in quest'ordine</span></div>
+      <div class="list" id="bench"></div>
+    </div>
+
+    <div style="display:grid;gap:8px">
+      <div class="section-h"><h3>Panchina extra</h3><span>19–22 · qualsiasi ruolo</span></div>
+      <div class="list" id="extra"></div>
+    </div>
+
+    <div style="display:grid;gap:8px" id="poolWrap">
+      <div class="section-h"><h3>Non schierati</h3><span>tocca per schierarli</span></div>
+      <div class="pool" id="pool"></div>
+    </div>
+  </section>
+
+  <p class="foot" id="foot">Il file resta sul tuo telefono: nessun dato viene inviato altrove.</p>
+</div>
+
+<div class="bar" id="bar">
+  <div class="bar-in">
+    <div class="progress"><b id="count">0/22</b><span id="countLbl">schierati</span></div>
+    <button class="btn btn-primary" type="button" id="saveBtn" disabled>Salva file Excel</button>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".xls,application/vnd.ms-excel" hidden>
+<div id="layer"></div>

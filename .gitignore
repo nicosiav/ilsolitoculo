@@ -1,0 +1,10 @@
+# File della lega: non vanno pubblicati
+*.xls
+*.xlsx
+*.xlsm
+*.ods
+# build locali (artifact / versione offline)
+tools/*/dist/
+node_modules/
+__pycache__/
+.DS_Store
