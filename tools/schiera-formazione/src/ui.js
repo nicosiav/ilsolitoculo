@@ -11,10 +11,16 @@
   const LS_KEY = 'schiera-formazione:v1';
 
   const S = {
+    mode: 'file',            // 'online' (database) oppure 'file' (.xls scelto a mano)
     bytes: null, fileName: '', wb: null, sheet: null, roster: [],
     module: '3-4-3', free: false,
-    starters: Array(11).fill(null), bench: Array(7).fill(null), extra: Array(4).fill(null)
+    starters: Array(11).fill(null), bench: Array(7).fill(null), extra: Array(4).fill(null),
+    profile: null, team: null, matchday: null, closed: false, savedAt: null
   };
+  const online = () => S.mode === 'online';
+  const loaded = () => online() ? !!S.team : !!S.wb;
+  const canEdit = () => loaded() && !(online() && S.closed);
+  const SBok = () => !!(window.SB && window.SB.configured());
 
   // ------------------------------------------------------------ storage
   function prefs() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { return {}; } }
@@ -214,9 +220,10 @@
 
   // ------------------------------------------------------------ render
   function render() {
-    const ready = !!S.wb;
+    const ready = loaded();
+    const locked = online() && S.closed;
     // moduli
-    $('#modules').innerHTML = MODULES.map(m => `<button type="button" class="chip" data-mod="${m}" aria-pressed="${m === S.module}" ${ready ? '' : 'disabled'}>${m}</button>`).join('');
+    $('#modules').innerHTML = MODULES.map(m => `<button type="button" class="chip" data-mod="${m}" aria-pressed="${m === S.module}" ${ready && !locked ? '' : 'disabled'}>${m}</button>`).join('');
     // campo
     const roles = starterRoles();
     const lines = ['A', 'C', 'D', 'P'].map(ro => {
@@ -241,21 +248,232 @@
     const st = S.starters.filter(x => x != null).length;
     $('#count').textContent = n + '/22';
     $('#countLbl').textContent = st === 11 ? 'schierati' : 'titolari ' + st + '/11';
-    $('#saveBtn').disabled = !ready || n === 0;
+    $('#saveBtn').disabled = !ready || n === 0 || locked;
+    $('#saveBtn').textContent = online() ? 'Salva formazione' : 'Salva file Excel';
     $('#editor').style.opacity = ready ? '' : '.55';
-    $('#sub').textContent = ready ? S.sheet + ' · ' + S.module : 'formazione dal file .xls della lega';
+    $('#sub').textContent = ready ? (S.sheet || '') + ' · ' + S.module : 'formazione dal file .xls della lega';
+    if (online()) renderOnlineBar();
+    document.querySelectorAll('#editor button').forEach(b => { if (locked) b.disabled = true; });
+  }
+
+  // ---------------------------------------------------------- modalità online
+  function fmtDate(d) {
+    return new Date(d).toLocaleString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  function timeLeft(deadline) {
+    const ms = new Date(deadline) - new Date();
+    if (ms <= 0) return null;
+    const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60;
+    if (h >= 24) return Math.floor(h / 24) + ' giorni';
+    return h ? h + ' ore e ' + m + ' min' : m + ' min';
+  }
+  function renderOnlineBar() {
+    const md = S.matchday;
+    $('#fileName').textContent = (S.team ? S.team.name : '') + (md ? ' · ' + (md.label || 'Giornata ' + md.id) : '');
+    const left = md && timeLeft(md.deadline);
+    $('#fileMeta').textContent = !md ? 'nessuna giornata aperta'
+      : left ? 'chiude ' + fmtDate(md.deadline) + ' · mancano ' + left
+      : 'chiusa il ' + fmtDate(md.deadline);
+    $('#fileMeta').style.color = left ? '' : 'var(--role-a)';
+    $('#teamField').hidden = true;
+  }
+
+  function rosterFromDb(players) {
+    const out = [];
+    for (let i = 0; i < 31; i++) out.push({ row: i, id: null, role: '', name: '', number: null });
+    players.forEach(p => {
+      const i = p.slot - 1;
+      if (i >= 0 && i < 31) out[i] = { row: i, id: p.id, role: String(p.role || '').toUpperCase(), name: p.name || '', number: null };
+    });
+    return out;
+  }
+
+  async function startOnline() {
+    clearNotices();
+    const uid = (SB.user() || {}).id || ((await SB.me()) || {}).id;
+    const prof = (await SB.select('profiles', 'select=display_name,role,team_id,teams(name,sheet_name)&id=eq.' + uid))[0];
+    if (!prof) throw new SB.SbError('Profilo non trovato: scrivi all\u2019amministratore.', 'no_profile');
+    S.profile = prof;
+    S.team = prof.teams ? Object.assign({ id: prof.team_id }, prof.teams) : null;
+    if (!S.team) throw new SB.SbError('Questo account non è ancora collegato a una squadra: scrivi all\u2019amministratore.', 'no_team');
+    S.sheet = S.team.sheet_name || S.team.name;
+    S.mode = 'online';
+    const mds = await SB.select('matchdays', 'select=id,label,deadline&is_current=is.true&limit=1');
+    S.matchday = mds[0] || null;
+    S.closed = !!(S.matchday && new Date(S.matchday.deadline) <= new Date());
+    const players = await SB.select('players', 'select=id,slot,role,name&team_id=eq.' + S.team.id + '&order=slot');
+    S.roster = rosterFromDb(players);
+    S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
+    S.savedAt = null;
+    if (S.matchday) {
+      const l = (await SB.select('lineups', 'select=id,module,bench_free,updated_at,lineup_slots(pos,player_id)&team_id=eq.' + S.team.id + '&matchday=eq.' + S.matchday.id))[0];
+      if (l) {
+        const byId = new Map(S.roster.filter(p => p.id).map(p => [p.id, p.row]));
+        const pos = new Map();
+        (l.lineup_slots || []).forEach(sl => { if (byId.has(sl.player_id)) pos.set(sl.pos, byId.get(sl.player_id)); });
+        if (l.module) S.module = l.module;
+        S.free = !!l.bench_free;
+        applyPositions(pos);
+        S.savedAt = l.updated_at;
+      }
+    }
+    $('#loginCard').hidden = true;
+    $('#uploadCard').hidden = true;
+    $('#fileBar').hidden = false;
+    $('#menuWrap').hidden = false;
+    $('#onlineMenu').hidden = false;
+    $('#freeToggle').checked = S.free;
+    if (!S.matchday) notice('Nessuna giornata aperta: l\u2019amministratore deve impostare la giornata corrente.');
+    else if (S.closed) notice('Giornata chiusa il ' + fmtDate(S.matchday.deadline) + ': la formazione non si può più cambiare.');
+    else if (S.savedAt) notice('Formazione salvata il ' + fmtDate(S.savedAt) + '. Puoi cambiarla fino alla scadenza.');
+    render();
+  }
+
+  async function saveOnline() {
+    const slots = [];
+    S.starters.forEach((r, i) => { if (r != null && P(r).id) slots.push({ pos: i + 1, player_id: P(r).id }); });
+    S.bench.forEach((r, i) => { if (r != null && P(r).id) slots.push({ pos: 12 + i, player_id: P(r).id }); });
+    S.extra.forEach((r, i) => { if (r != null && P(r).id) slots.push({ pos: 19 + i, player_id: P(r).id }); });
+    return SB.rpc('save_lineup', {
+      p_matchday: S.matchday.id, p_module: S.module, p_bench_free: S.free, p_slots: slots
+    });
+  }
+
+  function changesText(ch) {
+    if (!ch) return [];
+    const out = [];
+    (ch.entrati || []).forEach(x => out.push('↑ ' + x.nome + ' (posto ' + x.pos + ')'));
+    (ch.usciti || []).forEach(x => out.push('↓ ' + x.nome));
+    (ch.spostati || []).forEach(x => out.push('⇄ ' + x.nome + ': ' + x.da + ' → ' + x.a));
+    if (ch.modulo) out.push('Modulo: ' + (ch.modulo.da || '—') + ' → ' + ch.modulo.a);
+    return out;
+  }
+
+  function showSaved(res) {
+    const list = changesText(res && res.changes);
+    const snap = (res && res.snapshot) || [];
+    const line = k => {
+      const x = snap.find(v => v.pos === k);
+      return `<div class="xr"><span class="n">${k}</span><span class="badge" data-r="${esc(x ? x.ruolo : '')}">${esc(x ? x.ruolo : '·')}</span><span>${esc(x ? x.nome : '—')}</span></div>`;
+    };
+    const el = sheet(`
+      <div class="sheet-h"><div style="display:flex;gap:12px;align-items:center"><span class="done-mark" aria-hidden="true">✓</span>
+        <div><h4>Formazione salvata</h4><p>${esc(S.team.name)} · ${esc(S.matchday.label || 'Giornata ' + S.matchday.id)} · ${esc(S.module)}</p></div></div></div>
+      <div class="sheet-b">
+        <p style="margin:12px 16px 0">${res.action === 'creata' ? 'Registrata adesso.' : 'Ho aggiornato quella di prima.'} L\u2019amministratore la vede online: non devi inviare niente.</p>
+        ${list.length ? `<div class="xl">${list.map(t => `<div class="xr" style="grid-template-columns:1fr">${esc(t)}</div>`).join('')}</div>` : ''}
+        <div class="xl" aria-label="Formazione salvata">
+          <div class="xh">Titolari</div>${[1,2,3,4,5,6,7,8,9,10,11].map(line).join('')}
+          <div class="xh">Riserve</div>${[12,13,14,15,16,17,18].map(line).join('')}
+          <div class="xh">Panchina extra</div>${[19,20,21,22].map(line).join('')}
+        </div>
+      </div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="export">Esporta .xls</button><button type="button" class="btn btn-primary" data-act="close">Fatto</button></div>`);
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'close') closeSheet();
+      if (b.dataset.act === 'export') { closeSheet(); exportXls(); }
+    });
+  }
+
+  // Export .xls: prende il modello della lega da Supabase e ci scrive la formazione
+  async function exportXls() {
+    try {
+      toast('Preparo il file…');
+      const tpl = await SB.download('modelli', 'formazioni.xls');
+      const wb = X.load(tpl);
+      if (!wb.sheetNames.includes(S.sheet)) throw new X.XlsError('Nel modello non c\u2019è il foglio "' + S.sheet + '".');
+      const tplRoster = wb.roster(S.sheet);
+      const diff = S.roster.filter(p => p.name && tplRoster[p.row] && tplRoster[p.row].name !== p.name);
+      const nums = Array(31).fill(null);
+      S.starters.forEach((r, i) => { if (r != null) nums[r] = i + 1; });
+      S.bench.forEach((r, i) => { if (r != null) nums[r] = 12 + i; });
+      S.extra.forEach((r, i) => { if (r != null) nums[r] = 19 + i; });
+      const res = wb.build(S.sheet, nums);
+      const d = await deliver(res.bytes, outName());
+      if (diff.length) notice('Attenzione: nel modello ' + diff.length + ' giocatori hanno un nome diverso dalla rosa nel database. L\u2019amministratore dovrebbe aggiornare il modello.');
+      SB.rpc('log_export', { p_matchday: S.matchday.id }).catch(() => {});
+      showResult(res, d);
+    } catch (e) {
+      console.error(e);
+      notice(e && e.message ? e.message : 'Export non riuscito.', 'error');
+    }
+  }
+
+  async function showLog() {
+    try {
+      const rows = await SB.select('lineup_log', 'select=at,action,changes&team_id=eq.' + S.team.id + '&matchday=eq.' + S.matchday.id + '&order=at.desc&limit=30');
+      const body = rows.length ? rows.map(r => {
+        const list = changesText(r.changes);
+        return `<div class="xr" style="grid-template-columns:1fr"><div><b>${esc(fmtDate(r.at))}</b> · ${esc(r.action)}<div class="muted small">${list.length ? esc(list.join(' · ')) : 'nessun dettaglio'}</div></div></div>`;
+      }).join('') : '<p class="muted" style="padding:12px 16px">Ancora nessuna modifica per questa giornata.</p>';
+      sheet(`<div class="sheet-h"><div><h4>Storico modifiche</h4><p>${esc(S.team.name)} · ${esc(S.matchday.label || 'Giornata ' + S.matchday.id)}</p></div></div>
+        <div class="sheet-b"><div class="xl">${body}</div></div>
+        <div class="sheet-f"><button type="button" class="btn btn-primary" onclick="this.closest('.scrim').remove()">Chiudi</button></div>`);
+    } catch (e) { notice(e.message || 'Non riesco a leggere lo storico.', 'error'); }
+  }
+
+  // ------------------------------------------------------------- accesso
+  function showLogin(msg) {
+    S.mode = 'file';
+    $('#loginCard').hidden = false;
+    $('#uploadCard').hidden = true;
+    $('#fileBar').hidden = true;
+    $('#menuWrap').hidden = true;
+    if (msg) notice(msg);
+    render();
+  }
+
+  async function doLogin(ev) {
+    ev.preventDefault();
+    const btn = $('#loginBtn');
+    btn.disabled = true; btn.textContent = 'Entro…';
+    try {
+      await SB.signIn($('#email').value, $('#password').value);
+      $('#password').value = '';
+      await startOnline();
+    } catch (e) {
+      console.error(e);
+      notice(e.message || 'Accesso non riuscito.', 'error');
+      if (e.code === 'no_team' || e.code === 'no_profile') await SB.signOut();
+    }
+    btn.disabled = false; btn.textContent = 'Entra';
+  }
+
+  async function doRecover() {
+    const email = $('#email').value.trim();
+    if (!email) { notice('Scrivi prima la tua email, poi tocca di nuovo.'); return; }
+    try {
+      await SB.recover(email, location.origin + location.pathname);
+      notice('Ti ho mandato un\u2019email con il link per reimpostare la password.');
+    } catch (e) { notice(e.message || 'Invio non riuscito.', 'error'); }
+  }
+
+  function askNewPassword() {
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Nuova password</h4><p>Scegline una di almeno 8 caratteri.</p></div></div>
+      <div class="sheet-b"><div style="padding:12px 16px"><input id="newPwd" type="password" autocomplete="new-password" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)"></div></div>
+      <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="set">Salva password</button></div>`, { modal: true });
+    el.addEventListener('click', async ev => {
+      if (!ev.target.closest('[data-act="set"]')) return;
+      const pwd = el.querySelector('#newPwd').value;
+      if (!pwd || pwd.length < 8) { toast('Almeno 8 caratteri'); return; }
+      try { await SB.setPassword(pwd); closeSheet(); toast('Password aggiornata'); await startOnline(); }
+      catch (e) { notice(e.message || 'Non riesco a cambiare la password.', 'error'); }
+    });
   }
 
   function slotHtml(i, ro) {
     const r = S.starters[i];
-    const dis = S.wb ? '' : 'disabled';
+    const dis = canEdit() ? '' : 'disabled';
     if (r == null) return `<button type="button" class="slot empty" data-z="s" data-i="${i}" data-r="${ro}" ${dis} aria-label="${i + 1}: scegli ${ROLE[ro]}"><span class="token">${ro}</span><span class="nm">${i + 1} · ${ROLE[ro].slice(0, 3)}.</span></button>`;
     return `<button type="button" class="slot" data-z="s" data-i="${i}" data-r="${ro}" aria-label="${i + 1}: ${esc(P(r).name)}"><span class="token">${i + 1}</span><span class="nm">${esc(P(r).name)}</span></button>`;
   }
   function rowHtml(z, i, r) {
     const ro = slotRole(z, i);
     const num = slotNum(z, i);
-    const dis = S.wb ? '' : 'disabled';
+    const dis = canEdit() ? '' : 'disabled';
     if (r == null) {
       const badge = ro ? `<span class="badge" data-r="${ro}">${ro}</span>` : `<span class="badge any">·</span>`;
       const label = ro ? 'Scegli ' + ROLE[ro].toLowerCase() : 'Scegli giocatore';
@@ -368,6 +586,22 @@
   }
 
   async function doSave() {
+    if (online()) {
+      const btn = $('#saveBtn');
+      btn.disabled = true;
+      try {
+        const res = await saveOnline();
+        S.savedAt = new Date().toISOString();
+        clearNotices();
+        showSaved(res);
+      } catch (e) {
+        console.error(e);
+        notice(e && e.message ? e.message : 'Salvataggio non riuscito.', 'error');
+        if (e && e.code === 'P0002') { S.closed = true; }
+      }
+      render();
+      return;
+    }
     let res;
     try { res = S.wb.build(S.sheet, numbers()); }
     catch (e) { console.error(e); notice(e instanceof X.XlsError ? e.message : 'Errore durante la scrittura del file: ' + (e && e.message || e), 'error'); return; }
@@ -483,6 +717,19 @@
   }
 
   // ------------------------------------------------------------ eventi
+  $('#loginForm').addEventListener('submit', doLogin);
+  $('#recoverBtn').addEventListener('click', doRecover);
+  $('#fileModeBtn').addEventListener('click', () => { $('#loginCard').hidden = true; $('#uploadCard').hidden = false; });
+  $('#logoutBtn').addEventListener('click', async () => {
+    toggleMenu(false);
+    await SB.signOut();
+    S.mode = 'file'; S.team = null; S.wb = null; S.roster = [];
+    S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
+    clearNotices();
+    showLogin();
+  });
+  $('#exportBtn').addEventListener('click', () => { toggleMenu(false); exportXls(); });
+  $('#logBtn').addEventListener('click', () => { toggleMenu(false); showLog(); });
   $('#pickBtn').addEventListener('click', () => $('#fileInput').click());
   $('#changeFileBtn2').addEventListener('click', () => { toggleMenu(false); $('#fileInput').click(); });
   $('#fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
@@ -495,9 +742,9 @@
   $('#modules').addEventListener('click', e => { const b = e.target.closest('[data-mod]'); if (!b) return; setModule(b.dataset.mod); render(); });
   $('#editor').addEventListener('click', e => {
     const s = e.target.closest('[data-z]');
-    if (s && S.wb) { openPicker(s.dataset.z, +s.dataset.i); return; }
+    if (s && canEdit()) { openPicker(s.dataset.z, +s.dataset.i); return; }
     const a = e.target.closest('[data-add]');
-    if (a && S.wb) {
+    if (a && canEdit()) {
       const row = +a.dataset.add;
       const pl = autoPlace(row);
       if (!pl) { toast('Nessun posto libero per un ' + ROLE[P(row).role].toLowerCase()); return; }
@@ -558,6 +805,22 @@
     document.querySelectorAll('.install-btn').forEach(x => { x.hidden = true; });
   }));
   window.addEventListener('appinstalled', () => toast('App installata'));
+
+  // Avvio: se il database è configurato si entra con l'account, altrimenti resta la modalità file
+  (async function start() {
+    if (!SBok()) { $('#loginCard').hidden = true; $('#uploadCard').hidden = false; render(); return; }
+    const hash = SB.adoptFromHash();
+    try {
+      if (hash && hash.type === 'recovery') { $('#loginCard').hidden = true; askNewPassword(); render(); return; }
+      if (SB.session()) { await startOnline(); return; }
+    } catch (e) {
+      console.error(e);
+      await SB.signOut();
+      showLogin(e && e.message ? e.message : 'Devi entrare di nuovo.');
+      return;
+    }
+    showLogin();
+  })();
 
   render();
 })();

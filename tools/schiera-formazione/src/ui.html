@@ -11,11 +11,34 @@
         <hr>
         <button type="button" id="restoreBtn">Ripristina l'ultima formazione salvata</button>
         <button type="button" id="clearBtn">Svuota la formazione</button>
+        <span id="onlineMenu" hidden style="display:contents">
+          <button type="button" id="exportBtn">Esporta il file .xls</button>
+          <button type="button" id="logBtn">Storico modifiche</button>
+          <button type="button" id="logoutBtn">Esci</button>
+          <hr>
+        </span>
         <button type="button" id="changeFileBtn2">Carica un altro file</button>
         <button type="button" class="install-btn" hidden>Installa l'app sul telefono</button>
       </div>
     </div>
   </header>
+
+  <section class="upload" id="loginCard" hidden>
+    <h2>Entra con il tuo account</h2>
+    <p>La rosa e la formazione arrivano dal database della lega: schieri qui e l'amministratore la vede subito.</p>
+    <form id="loginForm" style="display:grid;gap:10px">
+      <label class="small muted" for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
+      <label class="small muted" for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
+      <button class="btn btn-primary" type="submit" id="loginBtn">Entra</button>
+    </form>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <button type="button" id="recoverBtn" class="small" style="border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:4px 0">Password dimenticata</button>
+      <button type="button" id="fileModeBtn" class="small" style="border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:4px 0">Usa un file .xls</button>
+    </div>
+    <button class="btn btn-ghost install-btn" type="button" hidden>Installa l'app sul telefono</button>
+  </section>
 
   <section class="upload" id="uploadCard">
     <h2>Carica il file delle formazioni</h2>
@@ -34,7 +57,7 @@
       <div class="fname" id="fileName"></div>
       <div class="fmeta" id="fileMeta"></div>
     </div>
-    <div class="field">
+    <div class="field" id="teamField">
       <label for="sheetSel">Squadra</label>
       <select id="sheetSel"></select>
     </div>

@@ -28,11 +28,13 @@ def read(name):
     return (SRC / name).read_text(encoding='utf-8')
 
 
-def body():
-    return f"{read('ui.html')}\n<script>\n{read('engine.js')}\n</script>\n<script>\n{read('ui.js')}\n</script>\n"
+def body(online=False):
+    cfg = f"<script>\n{read('config.js')}\n</script>\n" if online else ''
+    return (f"{read('ui.html')}\n{cfg}<script>\n{read('engine.js')}\n</script>\n"
+            f"<script>\n{read('sb.js')}\n</script>\n<script>\n{read('ui.js')}\n</script>\n")
 
 
-def standalone(head_extra='', tail_extra=''):
+def standalone(head_extra='', tail_extra='', online=False):
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -46,7 +48,7 @@ def standalone(head_extra='', tail_extra=''):
 </style>
 </head>
 <body>
-{body()}{tail_extra}</body>
+{body(online)}{tail_extra}</body>
 </html>
 """
 
@@ -69,7 +71,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
 def main():
     PAGES.mkdir(parents=True, exist_ok=True)
-    html = standalone(PWA_HEAD, PWA_TAIL)
+    html = standalone(PWA_HEAD, PWA_TAIL, online=True)
     manifest = read('manifest.webmanifest')
     version = hashlib.sha256((html + manifest + read('sw.js')).encode('utf-8')).hexdigest()[:10]
     (PAGES / 'index.html').write_text(html, encoding='utf-8')

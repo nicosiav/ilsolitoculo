@@ -6,7 +6,7 @@ Piattaforma su misura per gestire la lega: rose dei partecipanti (numero flessib
 
 | Strumento | Link | Descrizione |
 |---|---|---|
-| Schiera Formazione | https://nicosiav.github.io/ilsolitoculo/schiera/ | Schiera la formazione dal telefono sul file `.xls` della lega e salva il file da inviare all'amministratore. [Dettagli](tools/schiera-formazione/README.md) |
+| Schiera Formazione | https://nicosiav.github.io/ilsolitoculo/schiera/ | Entri col tuo account, schieri dal telefono e la formazione va nel database della lega (con log delle modifiche). L'export `.xls` resta su richiesta. [Dettagli](tools/schiera-formazione/README.md) |
 
 Home del sito: https://nicosiav.github.io/ilsolitoculo/
 

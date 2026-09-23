@@ -4,13 +4,20 @@ App web per schierare la formazione dal telefono sul file Excel (`.xls`) della l
 
 **Usala qui:** https://nicosiav.github.io/ilsolitoculo/schiera/
 
-## Come si usa
+## Come si usa (modalità online)
 
-1. Apri l'app e carica il file `.xls` ricevuto dall'amministratore (la prima volta scegli la tua squadra).
-2. Scegli il modulo e tocca i posti sul campo, in panchina e in panchina extra (oppure tocca i giocatori "non schierati" per metterli nel primo posto libero).
-3. Tocca **Salva file Excel**: scarichi `formazioni_AAAAMMGG_Squadra.xls`, da inviare all'amministratore.
+1. Apri l'app ed entra con email e password.
+2. Rosa e formazione della giornata arrivano dal [database della lega](../../db/README.md): niente file da scegliere.
+3. Scegli il modulo e tocca i posti sul campo, in panchina e in panchina extra (oppure tocca i giocatori "non schierati" per metterli nel primo posto libero).
+4. Tocca **Salva formazione**: la formazione finisce nel database, l'amministratore la vede subito e ogni modifica resta nel log.
 
-Il file viene letto e scritto **solo sul telefono**: non viene inviato a nessun server.
+Dopo la scadenza della giornata l'app diventa di sola lettura: il blocco lo applica il database, non solo l'app.
+
+Dal menu **Opzioni**: **Esporta il file .xls** (genera `formazioni_AAAAMMGG_Squadra.xls` dal modello della lega tenuto in Supabase Storage), **Storico modifiche**, **Esci**.
+
+## Modalità file (senza account)
+
+Dalla schermata di accesso, "Usa un file .xls" apre la vecchia modalità: carichi il file della lega, schieri e scarichi il file aggiornato. È anche quello che fa la versione offline a file singolo, che non parla con il database.
 
 ### Installarla come app (Android, Chrome)
 
@@ -38,6 +45,8 @@ Se mancano numeri, l'app avvisa: come con la macro, l'ordine "scala" e i posti v
 ## Sviluppo
 
 - `src/engine.js` — lettura/scrittura `.xls` (BIFF8 in contenitore CFB) senza librerie esterne, con valutatore delle formule del foglio.
+- `src/sb.js` — client minimo per Supabase (login, query, RPC, storage), senza librerie esterne.
+- `src/config.js` — indirizzo e chiave pubblica del progetto Supabase (la chiave `anon` è pubblica per scelta; la `service_role` non va mai qui).
 - `src/ui.html`, `src/ui.css`, `src/ui.js` — interfaccia.
 - `src/manifest.webmanifest`, `src/sw.js` — app installabile, funzionamento offline, ricezione file condivisi.
 - `icons/make_icons.py` — genera le icone in `docs/schiera/icons/`.

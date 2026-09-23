@@ -2,7 +2,7 @@
  * - rende l'app installabile e utilizzabile anche senza connessione
  * - riceve i file .xls condivisi da altre app (Condividi → Schiera)
  */
-const VERSION = '832a42b0c8';
+const VERSION = '270940b832';
 const CACHE = 'schiera-' + VERSION;
 const SHARED = 'schiera-condivisi';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/favicon-32.png'];
