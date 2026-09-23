@@ -456,6 +456,11 @@ button { cursor: pointer; }
         <hr>
         <button type="button" id="restoreBtn">Ripristina l'ultima formazione salvata</button>
         <button type="button" id="clearBtn">Svuota la formazione</button>
+        <span id="adminMenu" hidden style="display:contents">
+          <button type="button" id="rosterBtn">Aggiorna le rose da un .xls</button>
+          <button type="button" id="matchdayBtn">Giornata corrente</button>
+          <hr>
+        </span>
         <span id="onlineMenu" hidden style="display:contents">
           <button type="button" id="exportBtn">Esporta il file .xls</button>
           <button type="button" id="logBtn">Storico modifiche</button>
@@ -545,6 +550,7 @@ button { cursor: pointer; }
 </div>
 
 <input type="file" id="fileInput" accept=".xls,application/vnd.ms-excel" hidden>
+<input type="file" id="adminFile" accept=".xls,application/vnd.ms-excel" hidden>
 <div id="layer"></div>
 
 <script>
@@ -1780,6 +1786,7 @@ window.SCHIERA_CONFIG = {
   const online = () => S.mode === 'online';
   const loaded = () => online() ? !!S.team : !!S.wb;
   const canEdit = () => loaded() && !(online() && S.closed);
+  const isAdmin = () => !!(S.profile && S.profile.role === 'admin');
   const SBok = () => !!(window.SB && window.SB.configured());
 
   // ------------------------------------------------------------ storage
@@ -2082,6 +2089,7 @@ window.SCHIERA_CONFIG = {
     $('#fileBar').hidden = false;
     $('#menuWrap').hidden = false;
     $('#onlineMenu').hidden = false;
+    $('#adminMenu').hidden = !isAdmin();
     $('#freeToggle').checked = S.free;
     if (!S.matchday) notice('Nessuna giornata aperta: l\u2019amministratore deve impostare la giornata corrente.');
     else if (S.closed) notice('Giornata chiusa il ' + fmtDate(S.matchday.deadline) + ': la formazione non si può più cambiare.');
@@ -2172,6 +2180,84 @@ window.SCHIERA_CONFIG = {
         <div class="sheet-b"><div class="xl">${body}</div></div>
         <div class="sheet-f"><button type="button" class="btn btn-primary" onclick="this.closest('.scrim').remove()">Chiudi</button></div>`);
     } catch (e) { notice(e.message || 'Non riesco a leggere lo storico.', 'error'); }
+  }
+
+  // --------------------------------------------------- amministrazione
+  // Aggiorna le rose di tutte le squadre leggendo il file Excel della lega
+  // (dopo il mercato) e tiene allineato il modello usato per l'export.
+  async function importRosters(file) {
+    if (!file) return;
+    let wb, buf;
+    try { buf = new Uint8Array(await file.arrayBuffer()); wb = X.load(buf); }
+    catch (e) { notice(e.message || 'Non riesco a leggere il file.', 'error'); return; }
+    const teams = await SB.select('teams', 'select=id,name,sheet_name');
+    const known = new Set(teams.map(t => t.sheet_name || t.name));
+    const fogli = wb.sheetNames.filter(n => known.has(n));
+    const ignorati = wb.sheetNames.filter(n => !known.has(n));
+    if (!fogli.length) { notice('Nel file non trovo nessuna delle squadre della lega.', 'error'); return; }
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Aggiornare le rose?</h4><p>${esc(file.name)}</p></div></div>
+      <div class="sheet-b"><div class="xl">${fogli.map(n => {
+        const r = wb.roster(n).filter(p => p.name);
+        return `<div class="xr" style="grid-template-columns:1fr auto"><span>${esc(n)}</span><span class="muted">${r.length} giocatori</span></div>`;
+      }).join('')}</div>
+      ${ignorati.length ? `<p class="muted small" style="margin:8px 16px 0">Fogli ignorati: ${esc(ignorati.join(', '))}</p>` : ''}
+      <p class="muted small" style="margin:8px 16px 0">Le rose nel database vengono allineate a questo file e il file diventa il modello per gli export. Le formazioni già salvate restano, ma un giocatore ceduto sparisce dai posti in cui era schierato.</p></div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Annulla</button><button type="button" class="btn btn-primary" data-act="go">Aggiorna</button></div>`);
+    el.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'close') { closeSheet(); return; }
+      b.disabled = true; b.textContent = 'Aggiorno…';
+      const esiti = [];
+      try {
+        for (const n of fogli) {
+          const rows = wb.roster(n).filter(p => p.name).map(p => ({ slot: p.row + 1, role: p.role, name: p.name }));
+          esiti.push(await SB.rpc('import_players', { p_sheet: n, p_players: rows }));
+        }
+        try { await SB.upload('modelli', 'formazioni.xls', new Blob([buf]), 'application/vnd.ms-excel'); }
+        catch (e) { console.error(e); esiti.push({ squadra: 'modello .xls', errore: e.message }); }
+        closeSheet();
+        const tot = esiti.reduce((a, x) => ({ nuovi: a.nuovi + (x.nuovi || 0), aggiornati: a.aggiornati + (x.aggiornati || 0), rimossi: a.rimossi + (x.rimossi || 0) }), { nuovi: 0, aggiornati: 0, rimossi: 0 });
+        await startOnline();
+        notice('Rose aggiornate: ' + tot.nuovi + ' nuovi, ' + tot.aggiornati + ' confermati, ' + tot.rimossi + ' rimossi.');
+      } catch (e) {
+        console.error(e);
+        closeSheet();
+        notice(e.message || 'Aggiornamento non riuscito.', 'error');
+      }
+    });
+  }
+
+  function askMatchday() {
+    const md = S.matchday;
+    const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+    const val = md ? new Date(new Date(md.deadline) - new Date().getTimezoneOffset() * 60000) : now;
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Giornata corrente</h4><p>Dopo la scadenza le formazioni si bloccano da sole.</p></div></div>
+      <div class="sheet-b"><div style="padding:12px 16px;display:grid;gap:10px">
+        <label class="small muted" for="mdId">Numero</label>
+        <input id="mdId" type="number" min="1" max="38" value="${md ? md.id : 1}" style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
+        <label class="small muted" for="mdLabel">Etichetta</label>
+        <input id="mdLabel" type="text" value="${esc(md && md.label || '')}" placeholder="Giornata" style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
+        <label class="small muted" for="mdDeadline">Scadenza</label>
+        <input id="mdDeadline" type="datetime-local" value="${val.toISOString().slice(0, 16)}" style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
+      </div></div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Annulla</button><button type="button" class="btn btn-primary" data-act="go">Salva</button></div>`);
+    el.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'close') { closeSheet(); return; }
+      const id = +el.querySelector('#mdId').value;
+      const dl = el.querySelector('#mdDeadline').value;
+      if (!id || !dl) { toast('Servono numero e scadenza'); return; }
+      try {
+        await SB.rpc('set_current_matchday', { p_id: id, p_label: el.querySelector('#mdLabel').value, p_deadline: new Date(dl).toISOString() });
+        closeSheet();
+        await startOnline();
+        toast('Giornata aggiornata');
+      } catch (e) { notice(e.message || 'Non riesco a cambiare la giornata.', 'error'); }
+    });
   }
 
   // ------------------------------------------------------------- accesso
@@ -2489,6 +2575,9 @@ window.SCHIERA_CONFIG = {
     showLogin();
   });
   $('#exportBtn').addEventListener('click', () => { toggleMenu(false); exportXls(); });
+  $('#rosterBtn').addEventListener('click', () => { toggleMenu(false); $('#adminFile').click(); });
+  $('#adminFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; importRosters(f); });
+  $('#matchdayBtn').addEventListener('click', () => { toggleMenu(false); askMatchday(); });
   $('#logBtn').addEventListener('click', () => { toggleMenu(false); showLog(); });
   $('#pickBtn').addEventListener('click', () => $('#fileInput').click());
   $('#changeFileBtn2').addEventListener('click', () => { toggleMenu(false); $('#fileInput').click(); });

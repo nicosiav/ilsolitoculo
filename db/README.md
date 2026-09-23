@@ -31,6 +31,7 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
    - `01_schema.sql`
    - `02_policies.sql`
    - `03_seed_rose.sql` — prima di eseguirlo **modifica l'ultima query**: numero, etichetta e scadenza della giornata corrente.
+   - `04_functions.sql` — salvataggio della formazione, log e bucket per il modello .xls.
 3. In **Authentication → Users → Add user** crea un account per ogni partecipante (email + password, spunta "Auto Confirm User"). Il profilo viene creato da solo.
 4. Torna nel **SQL Editor** e collega ogni account alla sua squadra:
 
@@ -44,19 +45,24 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
    update public.profiles set role = 'admin'
    where id = (select id from auth.users where email = 'email.admin@esempio.it');
    ```
-5. In **Project Settings → API** copia **Project URL** e chiave **anon public**: servono all'app. Sono valori pubblici: la protezione dei dati sta nelle policy, non nella chiave. La chiave `service_role` invece non va mai messa nel sito.
+5. Esegui `05_admin.sql`: assegna il ruolo `admin` agli amministratori della lega e aggiunge le funzioni di amministrazione (aggiornamento rose e giornata corrente).
+6. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
+7. In **Authentication → URL Configuration** aggiungi `https://nicosiav.github.io/ilsolitoculo/schiera/` fra le Redirect URLs, per il link di recupero password.
+8. In **Storage** carica il file Excel della lega nel bucket `modelli` con nome `formazioni.xls` (serve solo all'export; in alternativa lo carica l'app quando un amministratore aggiorna le rose).
+9. In **Project Settings → API** copia **Project URL** e chiave **anon public**: servono all'app. Sono valori pubblici: la protezione dei dati sta nelle policy, non nella chiave. La chiave `service_role` invece non va mai messa nel sito.
 
 ## Ogni settimana
 
-L'amministratore apre una nuova giornata:
+L'amministratore apre la nuova giornata dall'app: menu **Opzioni → Giornata corrente**, numero e scadenza, salva.
+Le formazioni della giornata precedente restano dove sono, insieme al loro log.
+
+Dall'app, sempre come amministratore, **Opzioni → Aggiorna le rose da un .xls** allinea le rose al file Excel della lega dopo il mercato e aggiorna il modello usato per gli export.
+
+A mano, se serve:
 
 ```sql
-update public.matchdays set is_current = false where is_current;
-insert into public.matchdays (id, label, deadline, is_current)
-values (2, 'Giornata 2', '2026-10-03 18:00+02', true);
+select public.set_current_matchday(2::smallint, 'Giornata 2', '2026-10-03 18:00+02'::timestamptz);
 ```
-
-Le formazioni della giornata precedente restano dove sono, insieme al loro log.
 
 ## Controlli utili
 

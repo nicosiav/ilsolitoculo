@@ -11,6 +11,11 @@
         <hr>
         <button type="button" id="restoreBtn">Ripristina l'ultima formazione salvata</button>
         <button type="button" id="clearBtn">Svuota la formazione</button>
+        <span id="adminMenu" hidden style="display:contents">
+          <button type="button" id="rosterBtn">Aggiorna le rose da un .xls</button>
+          <button type="button" id="matchdayBtn">Giornata corrente</button>
+          <hr>
+        </span>
         <span id="onlineMenu" hidden style="display:contents">
           <button type="button" id="exportBtn">Esporta il file .xls</button>
           <button type="button" id="logBtn">Storico modifiche</button>
@@ -100,4 +105,5 @@
 </div>
 
 <input type="file" id="fileInput" accept=".xls,application/vnd.ms-excel" hidden>
+<input type="file" id="adminFile" accept=".xls,application/vnd.ms-excel" hidden>
 <div id="layer"></div>
