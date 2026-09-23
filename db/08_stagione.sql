@@ -388,7 +388,7 @@ grant execute on function public.import_round(jsonb) to authenticated;
 
 -- 12) Qualche vista comoda per il sito -------------------------------------
 -- Statistiche per giocatore sulla stagione (media voto, fantamedia, presenze)
-create or replace view public.player_stats as
+create or replace view public.player_stats with (security_invoker = on) as
 select v.team_id, t.name squadra, v.nome, max(v.ruolo) ruolo,
        count(*) filter (where v.voto is not null and v.voto > 0) presenze,
        round(avg(v.voto) filter (where v.voto is not null and v.voto > 0), 2) media,
@@ -400,6 +400,11 @@ join public.teams t on t.id = v.team_id
 group by v.team_id, t.name, v.nome;
 
 grant select on public.player_stats to authenticated;
+
+-- 13) Avvisa PostgREST che lo schema è cambiato --------------------------
+-- Senza questo l'app può rispondere "Could not find the table 'public.rounds'
+-- in the schema cache" finché la cache non si aggiorna da sola.
+notify pgrst, 'reload schema';
 
 -- Controlli utili ----------------------------------------------------------
 -- select * from public.rounds order by id;

@@ -44,6 +44,19 @@ con cui sono stati calcolati i punteggi.
 La giornata 1 della lega è la 3ª di Serie A (regolamento, punto 5.1): il
 collegamento lo fa il sito da solo.
 
+## Se il sito dice che manca una tabella
+
+*"Could not find the table 'public.rounds' in the schema cache"* vuol dire che
+il database della stagione non c'è ancora: esegui `db/08_stagione.sql` nel SQL
+Editor di Supabase. Se le tabelle ci sono già, è solo la cache di PostgREST:
+
+```sql
+notify pgrst, 'reload schema';
+```
+
+Il sito in quel caso entra lo stesso e lo dice in chiaro all'amministratore: le
+sezioni restano vuote finché le tabelle non ci sono.
+
 ## Sviluppo
 
 - `src/index.html`, `src/app.css`, `src/app.js` — il sito.

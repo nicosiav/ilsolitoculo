@@ -146,6 +146,11 @@ http.createServer((req, res) => {
       });
     }
     const m = /^\/rest\/v1\/(\w+)$/.exec(p);
+    // NOSTAGIONE: simula il database senza le tabelle di 08_stagione.sql
+    if (m && process.env.NOSTAGIONE && ['rounds', 'matches', 'standings', 'round_teams', 'team_season',
+        'scorers', 'roster_costs', 'player_votes', 'player_stats', 'albo'].includes(m[1])) {
+      return json(res, 404, { code: 'PGRST205', message: "Could not find the table 'public." + m[1] + "' in the schema cache" });
+    }
     if (m && TAB[m[1]]) {
       let righe = filtra(TAB[m[1]], q);
       if (q.limit) righe = righe.slice(0, +q.limit);

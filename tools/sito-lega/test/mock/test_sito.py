@@ -131,4 +131,16 @@ async def main():
                   '| partite:', await pg.locator('.esito').count(), '| grafici:', await pg.locator('svg.chart').count())
         await apri(pw, {}, s6, '6 squadra e testa a testa')
 
+        # 7) il database della stagione non c'è ancora
+        async def s7(pg):
+            await login(pg)
+            print('  entrato lo stesso:', await pg.is_visible('#nav'), '| sezioni:', await pg.locator('#nav a').count())
+            print('  avviso:', (await pg.inner_text('#notices')).strip().replace(chr(10), ' | ')[:190])
+            print('  home:', (await pg.inner_text('#view')).strip().replace(chr(10), ' | ')[:110])
+            for sez in ['rose', 'calendario', 'classifiche', 'statistiche', 'albo']:
+                await pg.goto(BASE + '#/' + sez)
+                await pg.wait_for_timeout(600)
+                print(f'  {sez}:', (await pg.inner_text('#view')).strip().replace(chr(10), ' | ')[:80])
+        await apri(pw, {'ADMIN': '1', 'NOSTAGIONE': '1'}, s7, "7 database della stagione mancante")
+
 asyncio.run(main())

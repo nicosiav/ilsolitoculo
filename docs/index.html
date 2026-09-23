@@ -2056,7 +2056,7 @@ window.SCHIERA_CONFIG = {
 
   const S = {
     profile: null, team: null, teams: [], rounds: [], matches: [],
-    cache: {}, sezione: '', pronta: false
+    cache: {}, sezione: '', pronta: false, mancanti: []
   };
 
   const prefs = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; } };
@@ -2077,6 +2077,21 @@ window.SCHIERA_CONFIG = {
     return S.cache[chiave];
   }
 
+  // Se il database della stagione non è ancora stato creato, il sito non deve
+  // piantarsi: segna la tabella mancante e va avanti con quello che c'è.
+  const NON_CE = e => !!(e && (e.code === 'PGRST205' || e.code === '42P01' ||
+    /schema cache|does not exist|non trovat/i.test(e.message || '')));
+
+  async function forse(tabella, query) {
+    try {
+      return await SB.select(tabella, query);
+    } catch (e) {
+      if (!NON_CE(e)) throw e;
+      if (S.mancanti.indexOf(tabella) < 0) S.mancanti.push(tabella);
+      return [];
+    }
+  }
+
   async function caricaBase() {
     const uid = (SB.user() || {}).id || ((await SB.me()) || {}).id;
     const prof = (await SB.select('profiles', 'select=display_name,role,team_id&id=eq.' + uid))[0];
@@ -2084,29 +2099,30 @@ window.SCHIERA_CONFIG = {
     S.profile = prof;
     S.teams = await SB.select('teams', 'select=id,name,sheet_name&order=name');
     S.team = S.teams.find(t => t.id === prof.team_id) || null;
-    S.rounds = await SB.select('rounds', 'select=id,serie_a,fase,label,giocata,caricata_at&order=id');
-    S.matches = await SB.select('matches', 'select=round,slot,casa,fuori,pos_casa,pos_fuori,gol_casa,gol_fuori,punti_casa,punti_fuori,totale_casa,totale_fuori,modulo_casa,modulo_fuori&competizione=eq.campionato&order=round,slot');
+    S.mancanti = [];
+    S.rounds = await forse('rounds', 'select=id,serie_a,fase,label,giocata,caricata_at&order=id');
+    S.matches = await forse('matches', 'select=round,slot,casa,fuori,pos_casa,pos_fuori,gol_casa,gol_fuori,punti_casa,punti_fuori,totale_casa,totale_fuori,modulo_casa,modulo_fuori&competizione=eq.campionato&order=round,slot');
     S.cache = {};
     S.pronta = true;
   }
 
   const classifiche = tipo => carica('st:' + tipo, () =>
-    SB.select('standings', 'select=round,team_id,pos,valore,dati&tipo=eq.' + tipo + '&order=round,pos'));
+    forse('standings', 'select=round,team_id,pos,valore,dati&tipo=eq.' + tipo + '&order=round,pos'));
   const tabellini = round => carica('rt:' + round, () =>
-    SB.select('round_teams', 'select=*&round=eq.' + round));
+    forse('round_teams', 'select=*&round=eq.' + round));
   const rose = () => carica('players', () =>
-    SB.select('players', 'select=id,team_id,slot,role,name,club&order=team_id,slot'));
-  const costi = () => carica('costi', () => SB.select('roster_costs', 'select=team_id,slot,nome,costo,valore'));
-  const statGiocatori = () => carica('pstats', () => SB.select('player_stats', 'select=*'));
+    forse('players', 'select=id,team_id,slot,role,name,club&order=team_id,slot'));
+  const costi = () => carica('costi', () => forse('roster_costs', 'select=team_id,slot,nome,costo,valore'));
+  const statGiocatori = () => carica('pstats', () => forse('player_stats', 'select=*'));
   const marcatori = () => carica('scorers', async () => {
     const u = ultima();
-    return u ? SB.select('scorers', 'select=team_id,nome,gol,gol_sfruttati&round=eq.' + u.id + '&order=gol.desc') : [];
+    return u ? forse('scorers', 'select=team_id,nome,gol,gol_sfruttati&round=eq.' + u.id + '&order=gol.desc') : [];
   });
   const stagione = () => carica('season', async () => {
     const u = ultima();
-    return u ? SB.select('team_season', 'select=team_id,crediti,gol_totali,gol_sfruttati&round=eq.' + u.id) : [];
+    return u ? forse('team_season', 'select=team_id,crediti,gol_totali,gol_sfruttati&round=eq.' + u.id) : [];
   });
-  const alboDoro = () => carica('albo', () => SB.select('albo', 'select=*&order=stagione.desc'));
+  const alboDoro = () => carica('albo', () => forse('albo', 'select=*&order=stagione.desc'));
 
   // ------------------------------------------------- calcoli fatti in casa
   // Punti accumulati giornata per giornata (3 vittoria, 1 pareggio): serve al grafico.
@@ -2672,7 +2688,9 @@ window.SCHIERA_CONFIG = {
       } catch (e) {
         console.error(e);
         closeSheet();
-        notice(e && e.message ? e.message : 'Caricamento non riuscito.', 'error');
+        notice(NON_CE(e)
+          ? 'Manca la parte di database della stagione: esegui db/08_stagione.sql nel SQL Editor di Supabase, poi riprova.'
+          : (e && e.message ? e.message : 'Caricamento non riuscito.'), 'error');
       }
     });
   }
@@ -2934,6 +2952,14 @@ window.SCHIERA_CONFIG = {
     $('#sub').textContent = 'stagione 2026/27';
     clearNotices();
     await render();
+    avvisaTabelleMancanti();
+  }
+
+  function avvisaTabelleMancanti() {
+    if (!S.mancanti.length) return;
+    notice(isAdmin()
+      ? 'Il database della stagione non c\u2019è ancora (manca ' + S.mancanti.join(', ') + '). Esegui db/08_stagione.sql nel SQL Editor di Supabase e ricarica: se le tabelle ci sono gi\u00e0, basta "notify pgrst, \'reload schema\';".'
+      : 'Il sito è in attesa dei dati della stagione: l\u2019amministratore deve ancora completare l\u2019installazione.');
   }
 
   // -------------------------------------------------------------------- eventi

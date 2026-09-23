@@ -51,6 +51,10 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
    - `04_functions.sql` — salvataggio della formazione, log e bucket per il modello .xls.
    - `06_calendario.sql` — calendario, giornate automatiche, blocco partita per partita, formazioni pubbliche.
    - `08_stagione.sql` — giornate, partite, voti, classifiche e caricamento del file .xls di giornata.
+     In fondo c'è `notify pgrst, 'reload schema';`: serve a far vedere subito le
+     tabelle nuove all'app. Se il sito dice *"Could not find the table
+     'public.rounds' in the schema cache"*, o questo file non è stato eseguito,
+     oppure basta rieseguire quella riga.
 3. In **Authentication → Users → Add user** crea un account per ogni partecipante (email + password, spunta "Auto Confirm User"). Il profilo viene creato da solo.
 4. Torna nel **SQL Editor** e collega ogni account alla sua squadra:
 
