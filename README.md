@@ -13,12 +13,17 @@ Home del sito: https://nicosiav.github.io/ilsolitoculo/
 ## Struttura della repo
 
 ```
+db/                      database della lega su Supabase: schema, permessi, rose iniziali
 docs/                    sito pubblicato con GitHub Pages (branch main, cartella /docs)
   index.html             home della lega
   schiera/               app Schiera Formazione (generata da tools/schiera-formazione)
 tools/
   schiera-formazione/    sorgenti, build e test dell'app
 ```
+
+## Dove stanno i dati
+
+Le rose, le formazioni di ogni giornata e il log delle modifiche vivono in un database Postgres su Supabase, con un account per partecipante e permessi applicati dal database stesso: [istruzioni in `db/`](db/README.md). Il file Excel della lega resta come formato di export.
 
 ## Pubblicazione
 
