@@ -10,11 +10,14 @@ pg_ctl -D /var/tmp/pg/data -o "-k /var/tmp/pg -p 5433" start
 createdb -h /var/tmp/pg -p 5433 -U postgres lega
 
 for f in db/test/00_finto_supabase.sql db/01_schema.sql db/02_policies.sql \
-         db/04_functions.sql db/05_admin.sql db/06_calendario.sql; do
+         db/04_functions.sql db/05_admin.sql db/06_calendario.sql db/08_stagione.sql; do
   psql -h /var/tmp/pg -p 5433 -U postgres -d lega -v ON_ERROR_STOP=1 -f "$f"
 done
 psql -h /var/tmp/pg -p 5433 -U postgres -d lega -f db/test/01_prova_regole.sql
 ```
+
+`02_prova_giornata.sql` prova il caricamento del file di giornata: in testa al
+file c'è il comando che genera il payload dal `.xls`.
 
 `00_finto_supabase.sql` rifà le poche cose che su Supabase ci sono già
 (`auth.users`, `auth.uid()`, i ruoli, lo storage). `01_prova_regole.sql` crea
@@ -25,3 +28,6 @@ due squadre, importa tre partite (una già giocata) e verifica che:
 - uno scambio fra giocatori non ancora scesi in campo passi;
 - il log registri entrati, usciti, spostati e cambio modulo;
 - a partite finite la giornata corrente passi alla successiva.
+
+Con `02_prova_giornata.sql` si verifica che dal file di giornata escano giornate,
+partite, voti, classifiche e statistiche per giocatore.

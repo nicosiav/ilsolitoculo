@@ -15,6 +15,12 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 | `lineups` | una formazione per squadra e giornata (si sovrascrive) |
 | `lineup_slots` | i 22 posti: 1–11 titolari, 12–18 riserve, 19–22 panchina extra |
 | `lineup_log` | ogni salvataggio: quando, chi, cosa è cambiato, formazione completa |
+| `rounds` | le giornate della lega (1–20) e la giornata di Serie A corrispondente |
+| `matches` | le partite di campionato con risultato e punteggi |
+| `round_teams` | il tabellino di ogni squadra per giornata: formazione, subentri, marcatori |
+| `player_votes` | voto e fantavoto di ogni giocatore, giornata per giornata |
+| `standings` | le classifiche fotografate a ogni giornata (campionato, Coppa di Lega, sfigometro, gol reali, Coppa) |
+| `team_season`, `scorers`, `roster_costs`, `albo` | crediti, gol reali per giocatore, costo delle rose, albo d'oro |
 
 ## Regole applicate dal database (non solo dall'app)
 
@@ -44,6 +50,7 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
    - `03_seed_rose.sql` — prima di eseguirlo **modifica l'ultima query**: numero, etichetta e scadenza della giornata corrente.
    - `04_functions.sql` — salvataggio della formazione, log e bucket per il modello .xls.
    - `06_calendario.sql` — calendario, giornate automatiche, blocco partita per partita, formazioni pubbliche.
+   - `08_stagione.sql` — giornate, partite, voti, classifiche e caricamento del file .xls di giornata.
 3. In **Authentication → Users → Add user** crea un account per ogni partecipante (email + password, spunta "Auto Confirm User"). Il profilo viene creato da solo.
 4. Torna nel **SQL Editor** e collega ogni account alla sua squadra:
 
@@ -75,6 +82,10 @@ ora e passa alla giornata successiva appena finisce l'ultima partita di quella
 in corso; il calendario si riscarica ogni notte, così orari spostati e recuperi
 arrivano da soli. Le formazioni delle giornate passate restano dove sono,
 insieme al loro log.
+
+Dopo ogni giornata, dal sito come amministratore: **menu → Carica la giornata**
+con il file `.xls` della lega. Da quel file nascono risultati, voti, classifiche,
+statistiche, rose e crediti (`import_round()`).
 
 Dopo il mercato, dall'app come amministratore: **Opzioni → Aggiorna le rose da
 un .xls** (allinea le rose e il modello per gli export) e **Opzioni → Aggiorna

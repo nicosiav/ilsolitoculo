@@ -1,0 +1,44 @@
+<div class="site">
+  <header class="top">
+    <div class="brand">
+      <span class="crest" aria-hidden="true"></span>
+      <div>
+        <h1>Il Solito Culo</h1>
+        <small id="sub">fantacalcio dal 1991</small>
+      </div>
+    </div>
+    <button class="icon-btn" id="userBtn" type="button" aria-haspopup="true" aria-expanded="false" hidden></button>
+    <div class="menu-pop" id="userPop" hidden>
+      <div class="menu-head" id="userHead"></div>
+      <a class="menu-link" id="schieraLink" href="schiera/">Schiera la formazione</a>
+      <button type="button" id="adminBtn" hidden>Carica la giornata</button>
+      <button type="button" id="themeBtn">Tema chiaro / scuro</button>
+      <button type="button" id="logoutBtn">Esci</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="nav" aria-label="Sezioni" hidden></nav>
+
+  <section class="card login" id="loginCard" hidden>
+    <h2>Entra con il tuo account</h2>
+    <p>Rose, calendario, classifiche e statistiche della lega, sempre aggiornati.</p>
+    <form id="loginForm">
+      <label class="small muted" for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label class="small muted" for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="btn btn-primary" type="submit" id="loginBtn">Entra</button>
+    </form>
+    <div class="row-links">
+      <button type="button" id="recoverBtn" class="linkish">Password dimenticata</button>
+      <a class="linkish" href="schiera/">Vai a Schiera Formazione</a>
+    </div>
+  </section>
+
+  <div id="notices"></div>
+  <main id="view" aria-live="polite"></main>
+
+  <footer class="foot" id="foot"></footer>
+</div>
+<div id="layer"></div>
+<input type="file" id="roundFile" accept=".xls,application/vnd.ms-excel" hidden>

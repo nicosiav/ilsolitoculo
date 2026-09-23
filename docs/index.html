@@ -4,78 +4,2876 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D6A3E">
-<title>Il Solito Culo</title>
-<meta name="description" content="Gli strumenti della lega di fantacalcio Il Solito Culo.">
+<title>Il Solito Culo — fantacalcio</title>
+<meta name="description" content="Rose, calendario, classifiche e statistiche della lega Il Solito Culo.">
 <link rel="icon" type="image/png" sizes="32x32" href="schiera/icons/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap">
 <style>
+:root{padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
 :root {
-  --bg: #EDF1EA; --surface: #FFFFFF; --ink: #14201A; --muted: #5B6960; --line: #D5DCD2;
-  --pitch-1: #1D6A3E; --pitch-2: #217547; --accent: #E08A08;
+  --bg: #EDF1EA;
+  --surface: #FFFFFF;
+  --surface-2: #F5F7F2;
+  --ink: #14201A;
+  --muted: #5B6960;
+  --line: #D5DCD2;
+  --pitch-1: #1D6A3E;
+  --pitch-2: #217547;
+  --role-p: #E08A08;
+  --role-d: #1C9651;
+  --role-c: #1E6BCB;
+  --role-a: #D2372C;
+  --primary: #14201A;
+  --on-primary: #FFFFFF;
+  --warn-bg: #FFF4DA;
+  --warn-ink: #7A4B00;
+  --ok: #1C9651;
+  --ko: #D2372C;
+  --scrim: rgba(10, 18, 13, .45);
+  --shadow: 0 1px 2px rgba(20, 32, 26, .08), 0 6px 20px rgba(20, 32, 26, .08);
   --display: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
   --body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* grafici: tinte scelte per ogni tema, non "schiarite" in automatico */
+  --chart-accent: #1E6BCB;
+  --chart-mute: #9AA79F;
+  --chart-grid: rgba(20, 32, 26, .10);
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0C120E; --surface: #141C17; --ink: #E6EDE7; --muted: #93A298; --line: #28342D; --pitch-1: #154D2D; --pitch-2: #185533; --accent: #F2A42C; }
+  :root:not([data-theme="light"]) {
+    --bg: #0C120E; --surface: #141C17; --surface-2: #1A241E; --ink: #E6EDE7;
+    --muted: #93A298; --line: #28342D; --pitch-1: #154D2D; --pitch-2: #185533;
+    --role-p: #F2A42C; --role-d: #39BE74; --role-c: #4A93EE; --role-a: #EF5A4E;
+    --primary: #E6EDE7; --on-primary: #0C120E; --warn-bg: #3A2B0C; --warn-ink: #F6D48C;
+    --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    --chart-accent: #4A93EE; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+  }
 }
+:root[data-theme="dark"] {
+  --bg: #0C120E; --surface: #141C17; --surface-2: #1A241E; --ink: #E6EDE7;
+  --muted: #93A298; --line: #28342D; --pitch-1: #154D2D; --pitch-2: #185533;
+  --role-p: #F2A42C; --role-d: #39BE74; --role-c: #4A93EE; --role-a: #EF5A4E;
+  --primary: #E6EDE7; --on-primary: #0C120E; --warn-bg: #3A2B0C; --warn-ink: #F6D48C;
+  --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+  --chart-accent: #4A93EE; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+}
+
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.5 var(--body); }
-.wrap { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; }
-header {
-  margin-inline: -16px;
-  padding: calc(40px + env(safe-area-inset-top, 0px)) 16px 36px;
-  background: repeating-linear-gradient(180deg, var(--pitch-1) 0 40px, var(--pitch-2) 40px 80px);
-  color: #fff;
+html, body { background: var(--bg); }
+body { margin: 0; color: var(--ink); font: 400 15px/1.45 var(--body); -webkit-tap-highlight-color: transparent; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--role-c); outline-offset: 2px; }
+a { color: inherit; }
+
+.site { max-width: 760px; margin: 0 auto; padding: 12px 16px 96px; display: flex; flex-direction: column; gap: 14px; }
+
+/* intestazione */
+.top { display: flex; align-items: center; gap: 12px; position: relative; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.crest {
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  background: linear-gradient(160deg, var(--pitch-2), var(--pitch-1));
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .22);
 }
-header .in { max-width: 640px; margin: 0 auto; }
-.kicker { font: 700 13px/1 var(--display); letter-spacing: .16em; text-transform: uppercase; opacity: .8; }
-h1 { margin: 8px 0 6px; font: 700 clamp(40px, 11vw, 64px)/.95 var(--display); text-transform: uppercase; letter-spacing: .01em; }
-header p { margin: 0; max-width: 46ch; opacity: .9; }
-h2 { font: 700 15px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; margin: 32px 0 12px; }
-.card {
-  display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
-  padding: 14px 16px; color: inherit; text-decoration: none;
+.brand h1 { margin: 0; font: 700 23px/1.05 var(--display); letter-spacing: .01em; text-transform: uppercase; white-space: nowrap; }
+.brand small { color: var(--muted); font-size: 12.5px; }
+.icon-btn {
+  border: 1px solid var(--line); background: var(--surface); color: inherit;
+  border-radius: 999px; padding: 7px 13px; font-weight: 600; font-size: 14px; white-space: nowrap;
 }
-.card img { width: 56px; height: 56px; border-radius: 14px; }
-.card b { font: 700 22px/1.1 var(--display); display: block; }
-.card span { color: var(--muted); font-size: 14px; }
-.card .go { font: 700 24px/1 var(--display); color: var(--muted); }
-.card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-ul { margin: 0; padding-left: 20px; color: var(--muted); display: grid; gap: 4px; }
-footer { margin-top: 40px; color: var(--muted); font-size: 13px; }
-footer a { color: inherit; }
+.menu-pop {
+  position: absolute; right: 0; top: 46px; z-index: 40; min-width: 230px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow); padding: 6px; display: grid; gap: 2px;
+}
+.menu-pop button, .menu-pop .menu-link {
+  text-align: left; background: transparent; border: 0; border-radius: 10px;
+  padding: 11px 12px; font-size: 15px; text-decoration: none; display: block;
+}
+.menu-pop button:hover, .menu-pop .menu-link:hover { background: var(--surface-2); }
+.menu-head { padding: 10px 12px 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.menu-head b { display: block; font-size: 15px; }
+.menu-head span { color: var(--muted); font-size: 12.5px; }
+
+/* navigazione */
+.tabs {
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  padding-bottom: 2px; position: sticky; top: 0; z-index: 20;
+  background: linear-gradient(var(--bg) 70%, transparent);
+  padding-top: 6px; margin: -6px -16px 0; padding-inline: 16px;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a {
+  flex: none; text-decoration: none; padding: 8px 13px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 14px;
+}
+.tabs a[aria-current="page"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+
+/* superfici */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; }
+.card > h2, .card > h3 { margin: 0; font: 700 18px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sec-h > span, .sec-h > a { margin-left: auto; text-align: right; }
+.sec-h h2, .sec-h h3 { margin: 0; font: 700 19px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.sec-h span, .muted { color: var(--muted); }
+.small { font-size: 13px; }
+.stack { display: grid; gap: 14px; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 11px 14px; font-weight: 600; }
+.btn-primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn-ghost { background: var(--surface-2); }
+.btn:disabled { opacity: .45; cursor: default; }
+.linkish { border: 0; background: transparent; color: var(--muted); text-decoration: underline; padding: 4px 0; font-size: 13px; }
+
+/* accesso */
+.login form { display: grid; gap: 8px; }
+.login input { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.row-links { display: flex; gap: 16px; flex-wrap: wrap; }
+
+/* riquadri con i numeri */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; }
+.tile b { display: block; font: 700 27px/1.05 var(--display); font-variant-numeric: tabular-nums; }
+.tile span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.tile.good b { color: var(--ok); }
+.tile.bad b { color: var(--ko); }
+
+/* tabelle */
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: right; font: 700 12px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 8px 5px; }
+.tbl th:first-child, .tbl td:first-child { text-align: left; }
+.tbl th.l, .tbl td.l { text-align: left; }
+.tbl td { padding: 9px 5px; border-top: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.tbl tr.me td { background: var(--surface-2); font-weight: 600; }
+.tbl tr.clickable { cursor: pointer; }
+.tbl .nm { font-weight: 600; }
+.tbl .pos { color: var(--muted); width: 22px; }
+.scroll-x { overflow-x: auto; margin-inline: -14px; padding-inline: 14px; }
+
+.badge {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px;
+  background: var(--rc, var(--muted)); color: #fff; font: 700 11px/1 var(--display); flex: none;
+}
+[data-r="P"] { --rc: var(--role-p); } [data-r="D"] { --rc: var(--role-d); }
+[data-r="C"] { --rc: var(--role-c); } [data-r="A"] { --rc: var(--role-a); }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 7px 12px; font-size: 13.5px; font-weight: 600;
+}
+.chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+
+/* partite */
+.match {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
+  padding: 11px 12px; border-top: 1px solid var(--line); background: transparent; width: 100%;
+  border-left: 0; border-right: 0; border-bottom: 0; text-align: left;
+}
+.match:first-child { border-top: 0; }
+.match .t { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.match .t.a { text-align: right; }
+.match .score {
+  font: 700 19px/1 var(--display); font-variant-numeric: tabular-nums;
+  background: var(--surface-2); border-radius: 9px; padding: 6px 10px; white-space: nowrap;
+}
+.match .pts { display: block; font: 400 11px/1.3 var(--body); color: var(--muted); }
+.match.win-h .t:first-child, .match.win-a .t.a { font-weight: 700; }
+.match.win-h .t.a, .match.win-a .t:first-child { color: var(--muted); }
+
+/* grafico */
+.chart { width: 100%; height: auto; display: block; touch-action: pan-y; }
+.chart text { font: 400 10px/1 var(--body); fill: var(--muted); }
+.chart .lbl { font-weight: 600; fill: var(--ink); }
+.chart-wrap { position: relative; }
+.tip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--shadow); padding: 7px 10px; font-size: 13px; white-space: nowrap;
+  transform: translate(-50%, -110%); opacity: 0; transition: opacity .12s;
+}
+.tip b { font-variant-numeric: tabular-nums; }
+
+/* elenco giocatori */
+.plist { display: grid; }
+.prow {
+  display: grid; grid-template-columns: 20px 1fr auto; gap: 9px; align-items: center;
+  padding: 9px 2px; border-top: 1px solid var(--line);
+}
+.prow:first-child { border-top: 0; }
+.prow .who { min-width: 0; }
+.prow .who b { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .who span { color: var(--muted); font-size: 12px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 84px; }
+.prow .val b { font-weight: 700; }
+.prow .val span { display: block; color: var(--muted); font-size: 11.5px; }
+.group-h { font: 700 12px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 12px 2px 4px; }
+
+/* avvisi */
+.notice {
+  display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
+  background: var(--warn-bg); color: var(--warn-ink); border-radius: 12px; padding: 11px 12px; font-size: 14px;
+}
+.notice.error { background: color-mix(in srgb, var(--ko) 14%, var(--surface)); color: var(--ko); }
+.notice button { border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; }
+#notices { display: grid; gap: 8px; }
+
+/* foglio modale */
+.scrim { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 60; }
+.sheet {
+  background: var(--surface); width: min(760px, 100%); max-height: 92vh; overflow: auto;
+  border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (min-width: 720px) { .scrim { align-items: center; } .sheet { border-radius: 18px; } }
+.sheet-h { padding: 16px 16px 10px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.sheet-h h4 { margin: 0; font: 700 19px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.sheet-h p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+.sheet-b { padding: 4px 16px 12px; }
+.sheet-f { display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: var(--surface); }
+.sheet-f .btn { flex: 1; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 80;
+  background: var(--primary); color: var(--on-primary); padding: 10px 16px; border-radius: 12px;
+  font-size: 14px; font-weight: 600; box-shadow: var(--shadow); max-width: calc(100% - 32px);
+}
+
+.foot { color: var(--muted); font-size: 12px; text-align: center; padding-top: 6px; }
+.empty { color: var(--muted); padding: 18px 2px; text-align: center; }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: sp .7s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="in">
-      <div class="kicker">Lega di fantacalcio</div>
-      <h1>Il Solito Culo</h1>
-      <p>Gli strumenti della lega, in attesa della piattaforma completa.</p>
+<div class="site">
+  <header class="top">
+    <div class="brand">
+      <span class="crest" aria-hidden="true"></span>
+      <div>
+        <h1>Il Solito Culo</h1>
+        <small id="sub">fantacalcio dal 1991</small>
+      </div>
+    </div>
+    <button class="icon-btn" id="userBtn" type="button" aria-haspopup="true" aria-expanded="false" hidden></button>
+    <div class="menu-pop" id="userPop" hidden>
+      <div class="menu-head" id="userHead"></div>
+      <a class="menu-link" id="schieraLink" href="schiera/">Schiera la formazione</a>
+      <button type="button" id="adminBtn" hidden>Carica la giornata</button>
+      <button type="button" id="themeBtn">Tema chiaro / scuro</button>
+      <button type="button" id="logoutBtn">Esci</button>
     </div>
   </header>
 
-  <h2>Strumenti</h2>
-  <a class="card" href="schiera/">
-    <img src="schiera/icons/icon-192.png" alt="">
-    <div><b>Schiera Formazione</b><span>Carichi l'Excel delle formazioni, schieri la squadra dal telefono e salvi il file da inviare all'amministratore.</span></div>
-    <span class="go" aria-hidden="true">›</span>
-  </a>
+  <nav class="tabs" id="nav" aria-label="Sezioni" hidden></nav>
 
-  <h2>In arrivo</h2>
-  <ul>
-    <li>Rose dei partecipanti</li>
-    <li>Formazioni di ogni giornata</li>
-    <li>Campionato e coppe</li>
-    <li>Sessioni di mercato</li>
-    <li>Calcolo delle giornate</li>
-  </ul>
+  <section class="card login" id="loginCard" hidden>
+    <h2>Entra con il tuo account</h2>
+    <p>Rose, calendario, classifiche e statistiche della lega, sempre aggiornati.</p>
+    <form id="loginForm">
+      <label class="small muted" for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label class="small muted" for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="btn btn-primary" type="submit" id="loginBtn">Entra</button>
+    </form>
+    <div class="row-links">
+      <button type="button" id="recoverBtn" class="linkish">Password dimenticata</button>
+      <a class="linkish" href="schiera/">Vai a Schiera Formazione</a>
+    </div>
+  </section>
 
-  <footer>Codice su <a href="https://github.com/nicosiav/ilsolitoculo">GitHub</a>.</footer>
+  <div id="notices"></div>
+  <main id="view" aria-live="polite"></main>
+
+  <footer class="foot" id="foot"></footer>
 </div>
+<div id="layer"></div>
+<input type="file" id="roundFile" accept=".xls,application/vnd.ms-excel" hidden>
+
+<script>
+/* Collegamento al database della lega (Supabase).
+ * Questi due valori sono pubblici per scelta: le protezioni stanno nelle policy
+ * del database, non nella chiave. La chiave "service_role" non va MAI messa qui. */
+window.SCHIERA_CONFIG = {
+  url: 'https://digonsptxuawnehebotw.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpZ29uc3B0eHVhd25laGVib3R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNTU1OTYsImV4cCI6MjEwNTczMTU5Nn0.wVbu4qEJO6CGkbBaSGLRL-l6qooNoUyHZC5TiqJAhrA'
+};
+
+</script>
+<script>
+/* Client minimo per Supabase (autenticazione, dati, storage).
+ * Nessuna libreria esterna: sono le stesse chiamate HTTP che farebbe supabase-js. */
+(function (root) {
+  'use strict';
+
+  const KEY = 'schiera-sessione:v1';
+  const cfg = () => root.SCHIERA_CONFIG || {};
+  const base = () => String(cfg().url || '').replace(/\/+$/, '').replace(/\/rest\/v1$/, '');
+  const anon = () => cfg().anonKey || '';
+
+  let session = null;
+  try { session = JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { session = null; }
+
+  function store(s) {
+    session = s;
+    try { s ? localStorage.setItem(KEY, JSON.stringify(s)) : localStorage.removeItem(KEY); } catch (e) { /* ok */ }
+  }
+
+  class SbError extends Error {
+    constructor(message, code, status) { super(message); this.code = code; this.status = status; }
+  }
+
+  const MESSAGES = {
+    invalid_credentials: 'Email o password non corretti.',
+    email_not_confirmed: 'Account non ancora confermato: chiedi all’amministratore.',
+    over_request_rate_limit: 'Troppi tentativi: riprova tra qualche minuto.',
+    P0001: 'Questo account non è collegato a nessuna squadra: scrivi all’amministratore.',
+    P0002: 'La giornata è finita: la formazione non si può più cambiare.',
+    P0004: 'Puoi schierare solo giocatori della tua rosa.',
+    P0005: 'Serve un account da amministratore per questa operazione.',
+    '42501': 'Non hai i permessi per questa operazione.'
+  };
+
+  function fail(status, body) {
+    const code = body && (body.error_code || body.code || body.error) || String(status);
+    const msg = MESSAGES[code] ||
+      (body && (body.message || body.msg || body.errore || body.error_description || body.error)) ||
+      ('Errore di rete (' + status + ')');
+    return new SbError(msg, code, status);
+  }
+
+  async function call(path, opts = {}) {
+    const res = await fetch(base() + path, {
+      method: opts.method || 'GET',
+      headers: Object.assign({ apikey: anon(), 'Content-Type': 'application/json' }, opts.headers || {}),
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body)
+    });
+    const text = await res.text();
+    let data = null;
+    if (text) { try { data = JSON.parse(text); } catch (e) { data = text; } }
+    if (!res.ok) throw fail(res.status, data);
+    return data;
+  }
+
+  async function refresh() {
+    if (!session || !session.refresh_token) throw new SbError('Sessione scaduta: entra di nuovo.', 'no_session', 401);
+    const d = await call('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: session.refresh_token } });
+    store(normalize(d));
+    return session;
+  }
+
+  function normalize(d) {
+    return {
+      access_token: d.access_token,
+      refresh_token: d.refresh_token,
+      expires_at: d.expires_at || Math.floor(Date.now() / 1000) + (d.expires_in || 3600),
+      user: d.user || (session && session.user) || null
+    };
+  }
+
+  async function authed(path, opts = {}) {
+    if (!session) throw new SbError('Devi entrare con il tuo account.', 'no_session', 401);
+    if (session.expires_at && session.expires_at - 60 < Math.floor(Date.now() / 1000)) await refresh();
+    const withToken = () => Object.assign({ Authorization: 'Bearer ' + session.access_token }, opts.headers || {});
+    try {
+      return await call(path, Object.assign({}, opts, { headers: withToken() }));
+    } catch (e) {
+      if (e.status === 401) { await refresh(); return call(path, Object.assign({}, opts, { headers: withToken() })); }
+      throw e;
+    }
+  }
+
+  const api = {
+    SbError,
+    configured: () => !!(base() && anon()),
+    session: () => session,
+    user: () => session && session.user,
+
+    async signIn(email, password) {
+      const d = await call('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: String(email).trim(), password } });
+      store(normalize(d));
+      return session;
+    },
+
+    async signOut() {
+      try { if (session) await authed('/auth/v1/logout', { method: 'POST', body: {} }); } catch (e) { /* esco comunque */ }
+      store(null);
+    },
+
+    // Invia l'email per reimpostare la password
+    recover(email, redirectTo) {
+      const q = redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : '';
+      return call('/auth/v1/recover' + q, { method: 'POST', body: { email: String(email).trim() } });
+    },
+
+    // Dopo il link ricevuto per email: la sessione arriva nel fragment dell'URL
+    adoptFromHash() {
+      const h = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
+      if (!h.get('access_token')) return null;
+      store({
+        access_token: h.get('access_token'),
+        refresh_token: h.get('refresh_token'),
+        expires_at: Math.floor(Date.now() / 1000) + (+h.get('expires_in') || 3600),
+        user: null
+      });
+      const type = h.get('type');
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ok */ }
+      return { type };
+    },
+
+    async me() {
+      const u = await authed('/auth/v1/user');
+      if (session) store(Object.assign({}, session, { user: u }));
+      return u;
+    },
+
+    setPassword(password) {
+      return authed('/auth/v1/user', { method: 'PUT', body: { password } });
+    },
+
+    select(table, query) {
+      return authed('/rest/v1/' + table + (query ? '?' + query : ''));
+    },
+
+    rpc(fn, args) {
+      return authed('/rest/v1/rpc/' + fn, { method: 'POST', body: args || {} });
+    },
+
+    // Funzioni sul server (Edge Functions), es. l'aggiornamento del calendario
+    fn(name, query, body) {
+      return authed('/functions/v1/' + name + (query ? '?' + query : ''), { method: 'POST', body: body || {} });
+    },
+
+    async download(bucket, path) {
+      if (!session) throw new SbError('Devi entrare con il tuo account.', 'no_session', 401);
+      if (session.expires_at && session.expires_at - 60 < Math.floor(Date.now() / 1000)) await refresh();
+      const res = await fetch(base() + '/storage/v1/object/' + bucket + '/' + path, {
+        headers: { apikey: anon(), Authorization: 'Bearer ' + session.access_token }
+      });
+      if (!res.ok) throw fail(res.status, await res.json().catch(() => null));
+      return new Uint8Array(await res.arrayBuffer());
+    },
+
+    async upload(bucket, path, blob, contentType) {
+      if (!session) throw new SbError('Devi entrare con il tuo account.', 'no_session', 401);
+      if (session.expires_at && session.expires_at - 60 < Math.floor(Date.now() / 1000)) await refresh();
+      const res = await fetch(base() + '/storage/v1/object/' + bucket + '/' + path, {
+        method: 'POST',
+        headers: {
+          apikey: anon(),
+          Authorization: 'Bearer ' + session.access_token,
+          'Content-Type': contentType || 'application/octet-stream',
+          'x-upsert': 'true'
+        },
+        body: blob
+      });
+      if (!res.ok) throw fail(res.status, await res.json().catch(() => null));
+      return true;
+    }
+  };
+
+  root.SB = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Motore .xls (BIFF8 dentro CFB) per schierare la formazione.
+ * Modifica solo le celle necessarie e conserva macro, pulsanti, formati e fogli. */
+(function (root) {
+  'use strict';
+
+  const FREESECT = 0xFFFFFFFF, ENDOFCHAIN = 0xFFFFFFFE, FATSECT = 0xFFFFFFFD;
+
+  class XlsError extends Error {}
+
+  // ---------------------------------------------------------------- CFB ----
+  function readCFB(u8) {
+    if (u8.length < 1024) throw new XlsError('Il file è troppo piccolo per essere un .xls.');
+    const sig = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+    for (let i = 0; i < 8; i++) {
+      if (u8[i] !== sig[i]) {
+        if (u8[0] === 0x50 && u8[1] === 0x4B) throw new XlsError('Questo è un file .xlsx/.xlsm: serve il file .xls ricevuto dall\u2019amministratore.');
+        throw new XlsError('Il file non è un Excel .xls valido.');
+      }
+    }
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    const u32 = o => dv.getUint32(o, true);
+    const ss = 1 << dv.getUint16(0x1E, true);
+    const mss = 1 << dv.getUint16(0x20, true);
+    const csectFat = u32(0x2C), dirStart = u32(0x30), miniCutoff = u32(0x38);
+    const miniFatStart = u32(0x3C), difatStart = u32(0x44), csectDifat = u32(0x48);
+    const secOff = s => (s + 1) * ss;
+
+    const difat = [];
+    for (let i = 0; i < Math.min(csectFat, 109); i++) difat.push(u32(0x4C + i * 4));
+    let ds = difatStart, guard = 0;
+    while (difat.length < csectFat && ds < 0xFFFFFFFA && guard++ < csectDifat + 2) {
+      const per = ss / 4 - 1;
+      for (let i = 0; i < per && difat.length < csectFat; i++) difat.push(u32(secOff(ds) + i * 4));
+      ds = u32(secOff(ds) + per * 4);
+    }
+    const fat = [];
+    for (const s of difat) for (let i = 0; i < ss / 4; i++) fat.push(u32(secOff(s) + i * 4));
+
+    const chainOf = (start, table) => {
+      const out = [];
+      let s = start;
+      while (s < 0xFFFFFFFA) {
+        if (out.length > table.length) throw new XlsError('Struttura del file danneggiata (catena di settori ciclica).');
+        out.push(s);
+        s = table[s];
+        if (s === undefined) throw new XlsError('Struttura del file danneggiata (settore fuori tabella).');
+      }
+      return out;
+    };
+
+    const dirChain = chainOf(dirStart, fat);
+    const entries = [];
+    for (let k = 0; k < dirChain.length; k++) {
+      for (let j = 0; j < ss / 128; j++) {
+        const o = secOff(dirChain[k]) + j * 128;
+        const nl = dv.getUint16(o + 64, true);
+        let name = '';
+        for (let c = 0; c < Math.max(0, nl - 2); c += 2) name += String.fromCharCode(dv.getUint16(o + c, true));
+        entries.push({ index: entries.length, name, type: u8[o + 66], start: u32(o + 116), size: u32(o + 120), fileOff: o });
+      }
+    }
+    const cfb = { u8, dv, ss, mss, miniCutoff, difat, fat, entries, dirChain, secOff, chainOf };
+    cfb.find = name => entries.find(e => e.type === 2 && e.name === name);
+    cfb.read = ent => {
+      if (ent.size < miniCutoff) {
+        const rootEnt = entries[0];
+        const miniData = readChain(chainOf(rootEnt.start, fat), rootEnt.size);
+        const miniFat = [];
+        for (const s of chainOf(miniFatStart, fat)) for (let i = 0; i < ss / 4; i++) miniFat.push(u32(secOff(s) + i * 4));
+        const out = new Uint8Array(ent.size);
+        let p = 0;
+        for (const m of chainOf(ent.start, miniFat)) {
+          const n = Math.min(mss, ent.size - p);
+          out.set(miniData.subarray(m * mss, m * mss + n), p);
+          p += n;
+        }
+        return out;
+      }
+      return readChain(chainOf(ent.start, fat), ent.size);
+    };
+    function readChain(chain, size) {
+      const out = new Uint8Array(size);
+      let p = 0;
+      for (const s of chain) {
+        if (p >= size) break;
+        const n = Math.min(ss, size - p);
+        out.set(u8.subarray(secOff(s), secOff(s) + n), p);
+        p += n;
+      }
+      if (p < size) throw new XlsError('Il file è troncato.');
+      return out;
+    }
+    return cfb;
+  }
+
+  // Sostituisce uno stream "grande" lasciando intatto tutto il resto del contenitore.
+  function cfbReplaceStream(cfb, ent, data) {
+    const { u8, ss, secOff } = cfb;
+    if (ent.size < cfb.miniCutoff || data.length < cfb.miniCutoff) throw new XlsError('Stream troppo piccolo: struttura non supportata.');
+    const fat = cfb.fat.slice();
+    const difat = cfb.difat.slice();
+    const oldChain = cfb.chainOf(ent.start, cfb.fat);
+    const need = Math.ceil(data.length / ss);
+    const chain = oldChain.slice(0, need);
+    for (const s of oldChain.slice(need)) fat[s] = FREESECT;
+    const taken = new Set(chain);
+    const alloc = () => {
+      for (;;) {
+        for (let i = 0; i < fat.length; i++) {
+          if (fat[i] === FREESECT && !taken.has(i)) { taken.add(i); return i; }
+        }
+        if (difat.length >= 109) throw new XlsError('File troppo grande per essere aggiornato.');
+        const base = fat.length;
+        for (let i = 0; i < ss / 4; i++) fat.push(FREESECT);
+        fat[base] = FATSECT;
+        taken.add(base);
+        difat.push(base);
+      }
+    };
+    while (chain.length < need) chain.push(alloc());
+    for (let i = 0; i < chain.length; i++) fat[chain[i]] = i + 1 < chain.length ? chain[i + 1] : ENDOFCHAIN;
+
+    let maxSec = Math.ceil((u8.length - ss) / ss) - 1;
+    for (let i = 0; i < fat.length; i++) if (fat[i] !== FREESECT && i > maxSec) maxSec = i;
+    const outLen = Math.max(u8.length, ss + (maxSec + 1) * ss);
+    const out = new Uint8Array(outLen);
+    out.set(u8);
+    const dv = new DataView(out.buffer);
+    for (let i = 0; i < chain.length; i++) {
+      const o = secOff(chain[i]);
+      out.fill(0, o, o + ss);
+      out.set(data.subarray(i * ss, Math.min((i + 1) * ss, data.length)), o);
+    }
+    for (let k = 0; k < difat.length; k++) {
+      const o = secOff(difat[k]);
+      for (let i = 0; i < ss / 4; i++) dv.setUint32(o + i * 4, fat[k * (ss / 4) + i], true);
+    }
+    dv.setUint32(0x2C, difat.length, true);
+    for (let i = 0; i < 109; i++) dv.setUint32(0x4C + i * 4, i < difat.length ? difat[i] : FREESECT, true);
+    dv.setUint32(ent.fileOff + 116, chain[0], true);
+    dv.setUint32(ent.fileOff + 120, data.length, true);
+    dv.setUint32(ent.fileOff + 124, 0, true);
+    return out;
+  }
+
+  // --------------------------------------------------------------- BIFF ----
+  const SID = {
+    BOF: 0x0809, EOF: 0x000A, BOUNDSHEET: 0x0085, SST: 0x00FC, CONTINUE: 0x003C, FILEPASS: 0x002F,
+    ROW: 0x0208, DBCELL: 0x00D7, INDEX: 0x020B, DIMENSIONS: 0x0200, DEFCOLWIDTH: 0x0055, COLINFO: 0x007D,
+    LABELSST: 0x00FD, NUMBER: 0x0203, RK: 0x027E, MULRK: 0x00BD, BLANK: 0x0201, MULBLANK: 0x00BE,
+    FORMULA: 0x0006, STRING: 0x0207, BOOLERR: 0x0205, LABEL: 0x0204, RSTRING: 0x00D6,
+    SHRFMLA: 0x04BC, ARRAY: 0x0221, TABLE: 0x0236, UNCALCED: 0x005E
+  };
+  const CELL_SIDS = new Set([SID.LABELSST, SID.NUMBER, SID.RK, SID.MULRK, SID.BLANK, SID.MULBLANK, SID.FORMULA, SID.BOOLERR, SID.LABEL, SID.RSTRING]);
+  const ATTACHED_SIDS = new Set([SID.STRING, SID.SHRFMLA, SID.ARRAY, SID.TABLE, SID.CONTINUE]);
+
+  const rd16 = (d, o) => d[o] | (d[o + 1] << 8);
+  const rd32 = (d, o) => (d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24)) >>> 0;
+  const wr16 = (d, o, v) => { d[o] = v & 255; d[o + 1] = (v >>> 8) & 255; };
+  const wr32 = (d, o, v) => { d[o] = v & 255; d[o + 1] = (v >>> 8) & 255; d[o + 2] = (v >>> 16) & 255; d[o + 3] = (v >>> 24) & 255; };
+  const rdF64 = (d, o) => new DataView(d.buffer, d.byteOffset + o, 8).getFloat64(0, true);
+
+  function parseRecords(wb) {
+    const recs = [];
+    let p = 0;
+    while (p + 4 <= wb.length) {
+      const sid = rd16(wb, p), len = rd16(wb, p + 2);
+      if (p + 4 + len > wb.length) break;
+      recs.push({ sid, off: p, len, data: wb.subarray(p + 4, p + 4 + len) });
+      p += 4 + len;
+    }
+    return { recs, tail: wb.subarray(p) };
+  }
+
+  function decodeRK(rk) {
+    let v;
+    if (rk & 2) v = (rk >> 2);
+    else {
+      const b = new DataView(new ArrayBuffer(8));
+      b.setUint32(4, rk & 0xFFFFFFFC, true);
+      v = b.getFloat64(0, true);
+    }
+    return (rk & 1) ? v / 100 : v;
+  }
+
+  function decodeChars(d, o, cch, high) {
+    let s = '';
+    if (high) { for (let i = 0; i < cch; i++) s += String.fromCharCode(rd16(d, o + i * 2)); }
+    else { for (let i = 0; i < cch; i++) s += String.fromCharCode(d[o + i]); }
+    return s;
+  }
+
+  // XLUnicodeString (cch a 16 bit) con eventuali formattazioni
+  function readXLString(d, o) {
+    const cch = rd16(d, o), fl = d[o + 2];
+    let p = o + 3;
+    let runs = 0, ext = 0;
+    if (fl & 8) { runs = rd16(d, p); p += 2; }
+    if (fl & 4) { ext = rd32(d, p); p += 4; }
+    return decodeChars(d, p, cch, fl & 1);
+  }
+
+  function parseSST(recs, i) {
+    const segs = [recs[i].data];
+    for (let k = i + 1; k < recs.length && recs[k].sid === SID.CONTINUE; k++) segs.push(recs[k].data);
+    let si = 0, p = 8;
+    const unique = rd32(segs[0], 4);
+    const out = [];
+    const need = () => { while (si < segs.length && p >= segs[si].length) { si++; p = 0; } if (si >= segs.length) throw new XlsError('Tabella stringhe (SST) troncata.'); };
+    const u8 = () => { need(); return segs[si][p++]; };
+    const u16 = () => u8() | (u8() << 8);
+    const u32 = () => (u16() | (u16() << 16)) >>> 0;
+    const skip = n => { while (n > 0) { need(); const k = Math.min(n, segs[si].length - p); p += k; n -= k; } };
+    for (let s = 0; s < unique; s++) {
+      if (si >= segs.length || (si === segs.length - 1 && p >= segs[si].length)) break;
+      const cch = u16();
+      let fl = u8();
+      let runs = 0, ext = 0;
+      if (fl & 8) runs = u16();
+      if (fl & 4) ext = u32();
+      let str = '', left = cch;
+      while (left > 0) {
+        if (p >= segs[si].length) { si++; p = 0; if (si >= segs.length) throw new XlsError('SST troncata.'); fl = segs[si][p++]; }
+        const d = segs[si];
+        const w = (fl & 1) ? 2 : 1;
+        const n = Math.min(left, Math.floor((d.length - p) / w));
+        str += decodeChars(d, p, n, fl & 1);
+        p += n * w; left -= n;
+      }
+      skip(runs * 4 + ext);
+      out.push(str);
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------ Workbook ----
+  function openWorkbook(u8) {
+    const cfb = readCFB(u8);
+    const ent = cfb.find('Workbook') || cfb.find('Book');
+    if (!ent) throw new XlsError('Nel file non c\u2019è una cartella di lavoro Excel.');
+    if (ent.name === 'Book') throw new XlsError('Formato Excel 5/95 non supportato: salva il file come Excel 97-2003 (.xls).');
+    const wb = cfb.read(ent);
+    const { recs, tail } = parseRecords(wb);
+    if (!recs.length || recs[0].sid !== SID.BOF || rd16(recs[0].data, 0) !== 0x0600) throw new XlsError('Versione di Excel non supportata (serve .xls 97-2003).');
+    let sst = [];
+    const sheets = [];
+    const supbooks = [];
+    let xti = [];
+    for (let i = 0; i < recs.length; i++) {
+      const r = recs[i];
+      if (r.sid === SID.FILEPASS) throw new XlsError('Il file è protetto da password: non posso modificarlo.');
+      if (r.sid === SID.SST) sst = parseSST(recs, i);
+      if (r.sid === 0x01AE) supbooks.push({ self: r.data.length === 4 && rd16(r.data, 2) === 0x0401 });
+      if (r.sid === 0x0017) {
+        const n = rd16(r.data, 0);
+        xti = [];
+        for (let k = 0; k < n && 2 + k * 6 + 6 <= r.data.length; k++) {
+          const o = 2 + k * 6;
+          xti.push({ sup: rd16(r.data, o), first: (rd16(r.data, o + 2) << 16) >> 16, last: (rd16(r.data, o + 4) << 16) >> 16 });
+        }
+      }
+      if (r.sid === SID.BOUNDSHEET) {
+        const d = r.data;
+        const cch = d[6], hi = d[7] & 1;
+        sheets.push({ name: decodeChars(d, 8, cch, hi), pos: rd32(d, 0), type: d[5], hidden: d[4] & 3, rec: r });
+      }
+      if (r.sid === SID.EOF) break;
+    }
+    const byOff = new Map(recs.map((r, i) => [r.off, i]));
+    for (const s of sheets) {
+      const i0 = byOff.get(s.pos);
+      if (i0 === undefined || recs[i0].sid !== SID.BOF) throw new XlsError('Indice dei fogli non valido nel file.');
+      let depth = 0, i = i0;
+      for (; i < recs.length; i++) {
+        if (recs[i].sid === SID.BOF) depth++;
+        else if (recs[i].sid === SID.EOF && --depth === 0) break;
+      }
+      s.start = i0; s.end = i;
+    }
+    for (const x of xti) x.self = !!(supbooks[x.sup] && supbooks[x.sup].self);
+    return { cfb, ent, wb, recs, tail, sst, sheets, xti, models: new Map() };
+  }
+
+  // ---------------------------------------------------------- Sheet model ----
+  function cellFromRec(r) {
+    const d = r.data;
+    const c = { sid: r.sid, data: d, row: rd16(d, 0), col: rd16(d, 2), extra: [] };
+    if (r.sid === SID.MULRK || r.sid === SID.MULBLANK) c.colLast = rd16(d, d.length - 2);
+    else c.colLast = c.col;
+    return c;
+  }
+
+  function buildSheet(book, sh) {
+    const recs = book.recs;
+    // la tabella delle celle: sequenza contigua di ROW / celle (+ record collegati) / DBCELL
+    let first = -1, last = -1, depth = 0;
+    for (let i = sh.start; i <= sh.end; i++) {
+      const s = recs[i].sid;
+      if (s === SID.BOF) depth++;
+      if (s === SID.EOF) depth--;
+      if (depth !== 1) continue;
+      if (first < 0) { if (s === SID.ROW || CELL_SIDS.has(s)) first = i; else continue; }
+      const prev = recs[i - 1].sid;
+      const attached = (s === SID.STRING || s === SID.SHRFMLA || s === SID.ARRAY || s === SID.TABLE) ||
+        (s === SID.CONTINUE && (prev === SID.STRING || prev === SID.CONTINUE) && last === i - 1);
+      if (s === SID.ROW || s === SID.DBCELL || CELL_SIDS.has(s) || attached) last = i;
+      else break;
+    }
+    if (first < 0) throw new XlsError('Il foglio "' + sh.name + '" è vuoto.');
+    const blocks = [];
+    let cur = null;
+    const open = () => { cur = { rows: [], cells: [], dbOld: null }; blocks.push(cur); };
+    for (let i = first; i <= last; i++) {
+      const r = recs[i];
+      if (r.sid === SID.ROW) {
+        if (!cur || cur.cells.length || cur.dbOld) open();
+        cur.rows.push({ rw: rd16(r.data, 0), data: r.data.slice() });
+      } else if (r.sid === SID.DBCELL) {
+        if (!cur || cur.dbOld) throw new XlsError('Struttura del foglio non riconosciuta (DBCELL).');
+        cur.dbOld = r;
+      } else if (CELL_SIDS.has(r.sid)) {
+        if (!cur || cur.dbOld) open();
+        cur.cells.push(cellFromRec(r));
+      } else if (cur && cur.cells.length) {
+        cur.cells[cur.cells.length - 1].extra.push({ sid: r.sid, data: r.data });
+      } else {
+        throw new XlsError('Record inatteso (0x' + r.sid.toString(16) + ') nella tabella delle celle.');
+      }
+    }
+    const before = recs.slice(sh.start, first);
+    const after = recs.slice(last + 1, sh.end + 1);
+    const colinfo = before.filter(r => r.sid === SID.COLINFO).map(r => ({ c1: rd16(r.data, 0), c2: rd16(r.data, 2), xf: rd16(r.data, 6) }));
+    const model = { book, sh, sheetIndex: book.sheets.indexOf(sh), blocks, before, after, colinfo, dirtyCells: new Map() };
+    reindex(model);
+    return model;
+  }
+
+  function reindex(m) {
+    m.idx = new Map();
+    m.rowInfo = new Map();
+    m.blocks.forEach((b, bi) => {
+      b.rows.forEach(r => m.rowInfo.set(r.rw, { block: bi, row: r }));
+      b.cells.forEach(c => { for (let k = c.col; k <= c.colLast; k++) m.idx.set(c.row * 256 + k, c); });
+    });
+  }
+
+  const key = (r, c) => r * 256 + c;
+
+  function cellValue(m, r, c) {
+    const k = key(r, c);
+    if (m.dirtyCells.has(k)) return m.dirtyCells.get(k);
+    const cell = m.idx.get(k);
+    if (!cell) return { t: 'blank' };
+    const d = cell.data;
+    switch (cell.sid) {
+      case SID.LABELSST: return { t: 's', v: m.book.sst[rd32(d, 6)] ?? '' };
+      case SID.NUMBER: return { t: 'n', v: rdF64(d, 6) };
+      case SID.RK: return { t: 'n', v: decodeRK(rd32(d, 6)) };
+      case SID.MULRK: return { t: 'n', v: decodeRK(rd32(d, 4 + (c - cell.col) * 6 + 2)) };
+      case SID.BOOLERR: return d[7] ? { t: 'e', v: d[6] } : { t: 'b', v: !!d[6] };
+      case SID.LABEL: case SID.RSTRING: return { t: 's', v: readXLString(d, 6) };
+      case SID.FORMULA: return formulaCached(cell);
+      default: return { t: 'blank' };
+    }
+  }
+
+  function formulaCached(cell) {
+    const d = cell.data;
+    if (rd16(d, 12) !== 0xFFFF) return { t: 'n', v: rdF64(d, 6) };
+    switch (d[6]) {
+      case 0: { const s = cell.extra.find(x => x.sid === SID.STRING); return { t: 's', v: s ? readXLString(s.data, 0) : '' }; }
+      case 1: return { t: 'b', v: !!d[8] };
+      case 2: return { t: 'e', v: d[8] };
+      case 3: return { t: 's', v: '' };
+      default: return { t: 'blank' };
+    }
+  }
+
+  function cellXf(m, r, c) {
+    const cell = m.idx.get(key(r, c));
+    if (cell) {
+      if (cell.sid === SID.MULBLANK) return rd16(cell.data, 4 + (c - cell.col) * 2);
+      if (cell.sid === SID.MULRK) return rd16(cell.data, 4 + (c - cell.col) * 6);
+      return rd16(cell.data, 4);
+    }
+    const ri = m.rowInfo.get(r);
+    if (ri) {
+      const fl = rd32(ri.row.data, 12);
+      if (fl & 0x80) return (fl >>> 16) & 0x0FFF;
+    }
+    const ci = m.colinfo.find(x => c >= x.c1 && c <= x.c2);
+    return ci ? ci.xf : 15;
+  }
+
+  function splitMul(m, cell) {
+    const b = m.blocks[m.rowInfo.get(cell.row).block];
+    const at = b.cells.indexOf(cell);
+    const singles = [];
+    for (let k = cell.col; k <= cell.colLast; k++) {
+      if (cell.sid === SID.MULBLANK) {
+        const d = new Uint8Array(6);
+        wr16(d, 0, cell.row); wr16(d, 2, k); wr16(d, 4, rd16(cell.data, 4 + (k - cell.col) * 2));
+        singles.push({ sid: SID.BLANK, data: d, row: cell.row, col: k, colLast: k, extra: [] });
+      } else {
+        const d = new Uint8Array(10);
+        wr16(d, 0, cell.row); wr16(d, 2, k); d.set(cell.data.subarray(4 + (k - cell.col) * 6, 10 + (k - cell.col) * 6), 4);
+        singles.push({ sid: SID.RK, data: d, row: cell.row, col: k, colLast: k, extra: [] });
+      }
+    }
+    b.cells.splice(at, 1, ...singles);
+    for (const s of singles) m.idx.set(key(s.row, s.col), s);
+  }
+
+  function encodeStringRecordBody(s) {
+    const wide = /[^\x00-\xff]/.test(s);
+    const d = new Uint8Array(3 + s.length * (wide ? 2 : 1));
+    wr16(d, 0, s.length); d[2] = wide ? 1 : 0;
+    for (let i = 0; i < s.length; i++) {
+      if (wide) wr16(d, 3 + i * 2, s.charCodeAt(i)); else d[3 + i] = s.charCodeAt(i);
+    }
+    return d;
+  }
+
+  function sstIndex(m, s) {
+    if (!m._sstMap) { m._sstMap = new Map(); m.book.sst.forEach((v, i) => { if (!m._sstMap.has(v)) m._sstMap.set(v, i); }); }
+    return m._sstMap.get(s);
+  }
+
+  // Scrive un valore costante in una cella (come "Incolla valori"), conservando il formato.
+  function setValue(m, r, c, val) {
+    const k = key(r, c);
+    let cell = m.idx.get(k);
+    if (cell && (cell.sid === SID.MULBLANK || cell.sid === SID.MULRK)) { splitMul(m, cell); cell = m.idx.get(k); }
+    const old = cellValue(m, r, c);
+    const xf = cellXf(m, r, c);
+    if (cell && cell.sid === SID.FORMULA && cell.extra.some(x => x.sid !== SID.STRING)) throw new XlsError('Cella ' + colName(c) + (r + 1) + ': formula condivisa, non posso sovrascriverla.');
+    let rec = null;
+    if (val.t === 'n') {
+      const v = val.v;
+      if (Number.isInteger(v) && v >= -(1 << 29) && v < (1 << 29)) {
+        rec = { sid: SID.RK, data: new Uint8Array(10) };
+        wr32(rec.data, 6, ((v << 2) | 2) >>> 0);
+      } else {
+        rec = { sid: SID.NUMBER, data: new Uint8Array(14) };
+        new DataView(rec.data.buffer).setFloat64(6, v, true);
+      }
+    } else if (val.t === 's' && val.v !== '') {
+      const i = sstIndex(m, val.v);
+      if (i !== undefined) { rec = { sid: SID.LABELSST, data: new Uint8Array(10) }; wr32(rec.data, 6, i); }
+      else {
+        const body = encodeStringRecordBody(val.v);
+        rec = { sid: SID.LABEL, data: new Uint8Array(6 + body.length) };
+        rec.data.set(body, 6);
+      }
+    } else if (cell) {
+      rec = { sid: SID.BLANK, data: new Uint8Array(6) };
+    }
+    const changed = !sameVal(old, val.t === 's' && val.v === '' ? { t: 'blank' } : val);
+    if (!rec) { return changed; }
+    wr16(rec.data, 0, r); wr16(rec.data, 2, c); wr16(rec.data, 4, xf);
+    const nc = { sid: rec.sid, data: rec.data, row: r, col: c, colLast: c, extra: [] };
+    const ri = m.rowInfo.get(r);
+    let b;
+    if (ri) b = m.blocks[ri.block];
+    else if (cell) b = m.blocks.find(x => x.cells.includes(cell));
+    else b = m.blocks.find(x => x.cells.some(y => y.row === r)) || m.blocks.find(x => x.cells.some(y => y.row > r)) || m.blocks[m.blocks.length - 1];
+    if (!b) throw new XlsError('Riga ' + (r + 1) + ' mancante nel foglio.');
+    if (cell) b.cells.splice(b.cells.indexOf(cell), 1, nc);
+    else {
+      let at = b.cells.findIndex(x => x.row > r || (x.row === r && x.col > c));
+      if (at < 0) at = b.cells.length;
+      b.cells.splice(at, 0, nc);
+      if (ri) {
+        const rd = ri.row.data;
+        if (c < rd16(rd, 2)) wr16(rd, 2, c);
+        if (c + 1 > rd16(rd, 4)) wr16(rd, 4, c + 1);
+      }
+    }
+    m.idx.set(k, nc);
+    if (changed) m.dirtyCells.set(k, val.t === 's' && val.v === '' ? { t: 'blank' } : val);
+    return changed;
+  }
+
+  function setFormulaCache(m, r, c, val) {
+    const cell = m.idx.get(key(r, c));
+    const d = cell.data.slice();
+    d.fill(0, 6, 14);
+    const extra = cell.extra.filter(x => x.sid !== SID.STRING);
+    if (val.t === 'n') new DataView(d.buffer).setFloat64(6, val.v, true);
+    else {
+      wr16(d, 12, 0xFFFF);
+      if (val.t === 's') {
+        if (val.v === '') d[6] = 3;
+        else { d[6] = 0; extra.push({ sid: SID.STRING, data: encodeStringRecordBody(val.v) }); }
+      } else if (val.t === 'b') { d[6] = 1; d[8] = val.v ? 1 : 0; }
+      else if (val.t === 'e') { d[6] = 2; d[8] = val.v; }
+    }
+    cell.data = d;
+    cell.extra = extra;
+    m.dirtyCells.set(key(r, c), val);
+  }
+
+  function sameVal(a, b) {
+    const na = a.t === 's' && a.v === '' ? { t: 'blank' } : a;
+    const nb = b.t === 's' && b.v === '' ? { t: 'blank' } : b;
+    return na.t === nb.t && (na.t === 'blank' || na.v === nb.v);
+  }
+
+  function colName(c) { let s = ''; c++; while (c > 0) { const k = (c - 1) % 26; s = String.fromCharCode(65 + k) + s; c = Math.floor((c - 1) / 26); } return s; }
+
+  // ------------------------------------------------------ Formula engine ----
+  const FIXED_ARGC = { 2: 1, 3: 1, 24: 1, 25: 1, 26: 1, 27: 2, 38: 1, 129: 1, 346: 2, 31: 3, 32: 1, 33: 1 };
+  const ERR = { NULL: 0x00, DIV0: 0x07, VALUE: 0x0F, REF: 0x17, NAME: 0x1D, NUM: 0x24, NA: 0x2A };
+
+  class Unsupported extends Error {}
+
+  function tokenize(rgce, baseRow, baseCol, rel, book) {
+    const toks = [];
+    let p = 0;
+    const loc = (rw, cl) => {
+      const rowRel = !!(cl & 0x8000), colRel = !!(cl & 0x4000);
+      let r = rw, c = cl & 0x3FFF;
+      if (rel) {
+        if (rowRel) r = (baseRow + ((rw << 16) >> 16)) & 0xFFFF;
+        if (colRel) c = (baseCol + ((c & 0xFF) << 24 >> 24)) & 0xFF;
+      }
+      return { r, c };
+    };
+    while (p < rgce.length) {
+      const t = rgce[p++];
+      const base = t & 0x1F | (t >= 0x20 ? 0x20 : 0);
+      const cls = t < 0x20 ? t : (t & 0x9F) | 0x20;
+      if (t >= 0x03 && t <= 0x0E) { toks.push({ k: 'op', op: t }); continue; }
+      switch (t) {
+        case 0x01: toks.push({ k: 'exp', r: rd16(rgce, p), c: rd16(rgce, p + 2) }); p += 4; continue;
+        case 0x12: toks.push({ k: 'uplus' }); continue;
+        case 0x13: toks.push({ k: 'uminus' }); continue;
+        case 0x14: toks.push({ k: 'pct' }); continue;
+        case 0x15: continue;
+        case 0x16: toks.push({ k: 'lit', v: { t: 'miss' } }); continue;
+        case 0x17: { const cch = rgce[p], hi = rgce[p + 1] & 1; toks.push({ k: 'lit', v: { t: 's', v: decodeChars(rgce, p + 2, cch, hi) } }); p += 2 + cch * (hi ? 2 : 1); continue; }
+        case 0x19: {
+          const g = rgce[p], dat = rd16(rgce, p + 1); p += 3;
+          if (g & 0x04) { p += (dat + 1) * 2; throw new Unsupported('CHOOSE'); }
+          if (g & 0x10) toks.push({ k: 'attrsum' });
+          continue;
+        }
+        case 0x1C: toks.push({ k: 'lit', v: { t: 'e', v: rgce[p] } }); p += 1; continue;
+        case 0x1D: toks.push({ k: 'lit', v: { t: 'b', v: !!rgce[p] } }); p += 1; continue;
+        case 0x1E: toks.push({ k: 'lit', v: { t: 'n', v: rd16(rgce, p) } }); p += 2; continue;
+        case 0x1F: toks.push({ k: 'lit', v: { t: 'n', v: rdF64(rgce, p) } }); p += 8; continue;
+      }
+      switch (cls) {
+        case 0x21: { const f = rd16(rgce, p); p += 2; if (!(f in FIXED_ARGC)) throw new Unsupported('func ' + f); toks.push({ k: 'fn', f, argc: FIXED_ARGC[f] }); continue; }
+        case 0x22: { const argc = rgce[p] & 0x7F, f = rd16(rgce, p + 1); p += 3; if (f & 0x8000) throw new Unsupported('macro fn'); toks.push({ k: 'fn', f, argc }); continue; }
+        case 0x24: case 0x2C: { const a = loc(rd16(rgce, p), rd16(rgce, p + 2)); p += 4; if (cls === 0x2C && !rel) throw new Unsupported('refN'); toks.push({ k: 'ref', r1: a.r, c1: a.c, r2: a.r, c2: a.c }); continue; }
+        case 0x25: case 0x2D: {
+          const a = loc(rd16(rgce, p), rd16(rgce, p + 4)), b = loc(rd16(rgce, p + 2), rd16(rgce, p + 6)); p += 8;
+          toks.push({ k: 'area', r1: a.r, c1: a.c, r2: b.r, c2: b.c }); continue;
+        }
+        case 0x3A: case 0x3B: {
+          const x = book && book.xti[rd16(rgce, p)];
+          if (!x || !x.self || x.first !== x.last || x.first < 0) throw new Unsupported('3d');
+          if (cls === 0x3A) { const a = loc(rd16(rgce, p + 2), rd16(rgce, p + 4)); p += 6; toks.push({ k: 'ref', sheet: x.first, r1: a.r, c1: a.c, r2: a.r, c2: a.c }); }
+          else { const a = loc(rd16(rgce, p + 2), rd16(rgce, p + 6)), b = loc(rd16(rgce, p + 4), rd16(rgce, p + 8)); p += 10; toks.push({ k: 'area', sheet: x.first, r1: a.r, c1: a.c, r2: b.r, c2: b.c }); }
+          continue;
+        }
+        case 0x3C: p += 6; toks.push({ k: 'lit', v: { t: 'e', v: ERR.REF } }); continue;
+        case 0x3D: p += 10; toks.push({ k: 'lit', v: { t: 'e', v: ERR.REF } }); continue;
+        case 0x2A: p += 4; toks.push({ k: 'lit', v: { t: 'e', v: ERR.REF } }); continue;
+        case 0x2B: p += 8; toks.push({ k: 'lit', v: { t: 'e', v: ERR.REF } }); continue;
+      }
+      throw new Unsupported('ptg 0x' + t.toString(16) + (base ? '' : ''));
+    }
+    return toks;
+  }
+
+  function formulaTokens(m, cell) {
+    if (cell._toks !== undefined) return cell._toks;
+    const d = cell.data;
+    const cce = rd16(d, 20);
+    const rgce = d.subarray(22, 22 + cce);
+    try {
+      if (rgce[0] === 0x01 && cce === 5) {
+        const ar = rd16(rgce, 1), ac = rd16(rgce, 3);
+        const anchor = m.idx.get(key(ar, ac));
+        const shr = anchor && anchor.extra.find(x => x.sid === SID.SHRFMLA);
+        if (!shr) throw new Unsupported('array/table');
+        const sd = shr.data;
+        const scce = rd16(sd, 8);
+        cell._toks = tokenize(sd.subarray(10, 10 + scce), cell.row, cell.col, true, m.book);
+      } else {
+        cell._toks = tokenize(rgce, cell.row, cell.col, false, m.book);
+      }
+    } catch (e) {
+      if (!(e instanceof Unsupported)) throw e;
+      cell._toks = null;
+    }
+    return cell._toks;
+  }
+
+  // Riferimenti "grezzi" (anche per formule non valutabili), per sapere cosa dipende da cosa.
+  function modelOf(book, idx) {
+    if (!book.models.has(idx)) book.models.set(idx, buildSheet(book, book.sheets[idx]));
+    return book.models.get(idx);
+  }
+
+  function formulaRects(m, cell) {
+    const toks = formulaTokens(m, cell);
+    if (toks) return toks.filter(t => (t.k === 'ref' || t.k === 'area') && (t.sheet === undefined || t.sheet === m.sheetIndex));
+    // formula non valutabile: prova a leggere almeno i riferimenti locali
+    return null;
+  }
+
+  function evaluate(m, cell) {
+    const toks = formulaTokens(m, cell);
+    if (!toks) throw new Unsupported('tokens');
+    const st = [];
+    const mod = x => (x.sheet === undefined || x.sheet === m.sheetIndex) ? m : modelOf(m.book, x.sheet);
+    const val = x => {
+      if (x.k === 'ref') return cellValue(mod(x), x.r1, x.c1);
+      if (x.k === 'area') {
+        if (x.r1 === x.r2 && x.c1 === x.c2) return cellValue(mod(x), x.r1, x.c1);
+        throw new Unsupported('area as value');
+      }
+      return x;
+    };
+    const cells = x => {
+      if (x.k === 'ref' || x.k === 'area') {
+        const mm = mod(x), out = [];
+        if ((Math.abs(x.r2 - x.r1) + 1) * (Math.abs(x.c2 - x.c1) + 1) > 100000) throw new Unsupported('area too big');
+        for (let r = Math.min(x.r1, x.r2); r <= Math.max(x.r1, x.r2); r++)
+          for (let c = Math.min(x.c1, x.c2); c <= Math.max(x.c1, x.c2); c++) out.push(cellValue(mm, r, c));
+        return out;
+      }
+      return null;
+    };
+    for (const t of toks) {
+      if (t.k === 'lit') st.push(t.v);
+      else if (t.k === 'ref' || t.k === 'area') st.push(t);
+      else if (t.k === 'op') { const b = val(st.pop()), a = val(st.pop()); st.push(binop(t.op, a, b)); }
+      else if (t.k === 'uminus') { const a = toNum(val(st.pop())); st.push(a.t === 'e' ? a : { t: 'n', v: -a.v }); }
+      else if (t.k === 'uplus') { st.push(val(st.pop())); }
+      else if (t.k === 'pct') { const a = toNum(val(st.pop())); st.push(a.t === 'e' ? a : { t: 'n', v: a.v / 100 }); }
+      else if (t.k === 'attrsum') { st.push(fnSum([st.pop()], cells, val)); }
+      else if (t.k === 'fn') {
+        const args = st.splice(st.length - t.argc, t.argc);
+        st.push(callFn(t.f, args, cells, val));
+      }
+    }
+    if (st.length !== 1) throw new Unsupported('stack');
+    let res = val(st[0]);
+    if (res.t === 'blank' || res.t === 'miss') res = { t: 'n', v: 0 };
+    return res;
+  }
+
+  function toNum(a) {
+    switch (a.t) {
+      case 'n': return a;
+      case 'blank': case 'miss': return { t: 'n', v: 0 };
+      case 'b': return { t: 'n', v: a.v ? 1 : 0 };
+      case 'e': return a;
+      case 's': { const s = a.v.trim(); if (s !== '' && !isNaN(Number(s))) return { t: 'n', v: Number(s) }; return { t: 'e', v: ERR.VALUE }; }
+    }
+    return { t: 'e', v: ERR.VALUE };
+  }
+  function toStr(a) {
+    if (a.t === 's') return a.v;
+    if (a.t === 'n') return String(+a.v.toPrecision(15));
+    if (a.t === 'b') return a.v ? 'VERO' : 'FALSO';
+    return '';
+  }
+  function toBool(a) {
+    switch (a.t) {
+      case 'b': return a;
+      case 'n': return { t: 'b', v: a.v !== 0 };
+      case 'blank': case 'miss': return { t: 'b', v: false };
+      case 'e': return a;
+      case 's': { const u = a.v.toUpperCase(); if (u === 'TRUE' || u === 'VERO') return { t: 'b', v: true }; if (u === 'FALSE' || u === 'FALSO') return { t: 'b', v: false }; return { t: 'e', v: ERR.VALUE }; }
+    }
+    return { t: 'e', v: ERR.VALUE };
+  }
+  function compare(a, b) {
+    if (a.t === 'miss') a = { t: 'blank' };
+    if (b.t === 'miss') b = { t: 'blank' };
+    if (a.t === 'blank' && b.t === 'blank') return 0;
+    const empty = t => t === 'n' ? { t: 'n', v: 0 } : t === 's' ? { t: 's', v: '' } : { t: 'b', v: false };
+    if (a.t === 'blank') a = empty(b.t);
+    if (b.t === 'blank') b = empty(a.t);
+    const rank = { n: 0, s: 1, b: 2 };
+    if (a.t !== b.t) return rank[a.t] - rank[b.t];
+    if (a.t === 's') { const x = a.v.toLowerCase(), y = b.v.toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; }
+    const x = +a.v, y = +b.v;
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+  function binop(op, a, b) {
+    if (a.t === 'e') return a;
+    if (b.t === 'e') return b;
+    if (op >= 0x09) {
+      const c = compare(a, b);
+      const r = op === 0x09 ? c < 0 : op === 0x0A ? c <= 0 : op === 0x0B ? c === 0 : op === 0x0C ? c >= 0 : op === 0x0D ? c > 0 : c !== 0;
+      return { t: 'b', v: r };
+    }
+    if (op === 0x08) return { t: 's', v: toStr(a) + toStr(b) };
+    const x = toNum(a), y = toNum(b);
+    if (x.t === 'e') return x;
+    if (y.t === 'e') return y;
+    let v;
+    switch (op) {
+      case 0x03: v = x.v + y.v; break;
+      case 0x04: v = x.v - y.v; break;
+      case 0x05: v = x.v * y.v; break;
+      case 0x06: if (y.v === 0) return { t: 'e', v: ERR.DIV0 }; v = x.v / y.v; break;
+      case 0x07: v = Math.pow(x.v, y.v); if (!isFinite(v)) return { t: 'e', v: ERR.NUM }; break;
+    }
+    return { t: 'n', v };
+  }
+  function numbersOf(args, cells, val, direct) {
+    const out = [];
+    for (const a of args) {
+      const list = cells(a);
+      if (list) { for (const v of list) { if (v.t === 'e') return v; if (v.t === 'n') out.push(v.v); } }
+      else {
+        const v = val(a);
+        if (v.t === 'miss') continue;
+        const n = direct ? toNum(v) : v;
+        if (n.t === 'e') return n;
+        if (n.t === 'n') out.push(n.v);
+      }
+    }
+    return out;
+  }
+  function fnSum(args, cells, val) { const ns = numbersOf(args, cells, val, true); if (!Array.isArray(ns)) return ns; return { t: 'n', v: ns.reduce((s, x) => s + x, 0) }; }
+  function critMatch(crit) {
+    let op = '=', rhs = crit;
+    if (crit.t === 's') {
+      const mm = /^(<=|>=|<>|=|<|>)(.*)$/s.exec(crit.v);
+      if (mm) { op = mm[1]; rhs = { t: 's', v: mm[2] }; }
+      if (rhs.t === 's' && rhs.v.trim() !== '' && !isNaN(Number(rhs.v))) rhs = { t: 'n', v: Number(rhs.v) };
+    }
+    if (crit.t === 'blank' || crit.t === 'miss') rhs = { t: 'n', v: 0 };
+    return v => {
+      if (rhs.t === 's' && op === '=' ) {
+        if (rhs.v === '') return v.t === 'blank' || (v.t === 's' && v.v === '');
+        if (v.t !== 's') return false;
+        const re = new RegExp('^' + rhs.v.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/~\*/g, '\u0001').replace(/~\?/g, '\u0002').replace(/\*/g, '.*').replace(/\?/g, '.').replace(/\u0001/g, '\\*').replace(/\u0002/g, '\\?') + '$', 'is');
+        return re.test(v.v);
+      }
+      if (rhs.t === 's' && op === '<>') { if (rhs.v === '') return !(v.t === 'blank' || (v.t === 's' && v.v === '')); return !(v.t === 's' && v.v.toLowerCase() === rhs.v.toLowerCase()); }
+      if (v.t !== rhs.t) return op === '<>';
+      const c = compare(v, rhs);
+      return op === '=' ? c === 0 : op === '<>' ? c !== 0 : op === '<' ? c < 0 : op === '<=' ? c <= 0 : op === '>' ? c > 0 : c >= 0;
+    };
+  }
+  function callFn(f, args, cells, val) {
+    switch (f) {
+      case 1: { // IF
+        const c = toBool(val(args[0]));
+        if (c.t === 'e') return c;
+        if (c.v) { const r = args.length > 1 ? val(args[1]) : { t: 'b', v: true }; return r.t === 'miss' ? { t: 'n', v: 0 } : r; }
+        if (args.length < 3) return { t: 'b', v: false };
+        const r = val(args[2]); return r.t === 'miss' ? { t: 'n', v: 0 } : r;
+      }
+      case 4: return fnSum(args, cells, val);
+      case 5: { const ns = numbersOf(args, cells, val, true); if (!Array.isArray(ns)) return ns; return ns.length ? { t: 'n', v: ns.reduce((s, x) => s + x, 0) / ns.length } : { t: 'e', v: ERR.DIV0 }; }
+      case 6: case 7: { const ns = numbersOf(args, cells, val, true); if (!Array.isArray(ns)) return ns; return { t: 'n', v: ns.length ? (f === 6 ? Math.min(...ns) : Math.max(...ns)) : 0 }; }
+      case 0: { let n = 0; for (const a of args) { const l = cells(a); if (l) n += l.filter(v => v.t === 'n').length; else if (val(a).t === 'n') n++; } return { t: 'n', v: n }; }
+      case 169: { let n = 0; for (const a of args) { const l = cells(a); if (l) n += l.filter(v => v.t !== 'blank').length; else if (val(a).t !== 'miss') n++; } return { t: 'n', v: n }; }
+      case 24: case 25: case 26: {
+        const a = toNum(val(args[0])); if (a.t === 'e') return a;
+        return { t: 'n', v: f === 24 ? Math.abs(a.v) : f === 25 ? Math.floor(a.v) : Math.sign(a.v) };
+      }
+      case 27: { const a = toNum(val(args[0])), d = toNum(val(args[1])); if (a.t === 'e') return a; if (d.t === 'e') return d; const k = Math.pow(10, Math.trunc(d.v)); return { t: 'n', v: Math.sign(a.v) * Math.round(Math.abs(a.v) * k + 1e-9) / k }; }
+      case 36: case 37: {
+        let any = false, all = true, seen = false;
+        for (const a of args) {
+          const l = cells(a) || [val(a)];
+          for (const v of l) { if (v.t === 'blank' || v.t === 'miss' || v.t === 's') continue; const b = toBool(v); if (b.t === 'e') return b; seen = true; any = any || b.v; all = all && b.v; }
+        }
+        if (!seen) return { t: 'e', v: ERR.VALUE };
+        return { t: 'b', v: f === 36 ? all : any };
+      }
+      case 38: { const b = toBool(val(args[0])); return b.t === 'e' ? b : { t: 'b', v: !b.v }; }
+      case 129: { const a = args[0]; const v = (a.k === 'ref' || a.k === 'area') ? val(a) : a; return { t: 'b', v: v.t === 'blank' }; }
+      case 346: {
+        const list = cells(args[0]); if (!list) return { t: 'e', v: ERR.VALUE };
+        const test = critMatch(val(args[1]));
+        return { t: 'n', v: list.filter(test).length };
+      }
+    }
+    throw new Unsupported('fn ' + f);
+  }
+
+  // Ricalcola le formule del foglio (come farebbe Excel) e aggiorna i valori memorizzati che cambiano.
+  function recalc(m) {
+    const formulas = [];
+    for (const b of m.blocks) for (const c of b.cells) if (c.sid === SID.FORMULA) formulas.push(c);
+    const same = (x, y) => {
+      if (x.t === 'n' && y.t === 'n') return x.v === y.v || Math.abs(x.v - y.v) <= 1e-12 * Math.max(1, Math.abs(x.v));
+      return sameVal(x, y);
+    };
+    const unsupported = new Set();
+    const updated = new Set();
+    for (let pass = 0; pass < 25; pass++) {
+      let changed = false;
+      for (const f of formulas) {
+        if (unsupported.has(f)) continue;
+        let v;
+        try { v = evaluate(m, f); }
+        catch (e) { if (!(e instanceof Unsupported)) throw e; unsupported.add(f); continue; }
+        if (!same(v, cellValue(m, f.row, f.col))) { setFormulaCache(m, f.row, f.col, v); updated.add(f); changed = true; }
+      }
+      if (!changed) break;
+    }
+    return { updated: updated.size, skipped: [...unsupported].map(f => colName(f.col) + (f.row + 1)) };
+  }
+
+  // ---------------------------------------------------------- Serialize ----
+  function serialize(book, model, addUncalced = true) {
+    const { recs, sheets } = book;
+    const out = []; // {sid, data, oldOff, tag}
+    const push = (sid, data, oldOff, tag) => out.push({ sid, data, oldOff, tag });
+    const sh = model ? model.sh : null;
+    for (let i = 0; i < recs.length; i++) {
+      const r = recs[i];
+      if (sh && i === sh.start) {
+        for (const x of model.before) {
+          push(x.sid, x.data, x.off);
+          if (addUncalced && x.sid === SID.BOF && x === model.before[0] && !model.before.some(y => y.sid === SID.UNCALCED)) push(SID.UNCALCED, new Uint8Array(2), null);
+        }
+        model.blocks.forEach(b => {
+          b.rows.forEach(rw => push(SID.ROW, rw.data, null, { rowOf: b }));
+          b.cells.forEach(c => {
+            push(c.sid, c.data, null, { cellOf: b, row: c.row });
+            c.extra.forEach(x => push(x.sid, x.data, null, { cellOf: b, row: c.row }));
+          });
+          if (b.dbOld) push(SID.DBCELL, new Uint8Array(4 + 2 * b.rows.length), b.dbOld.off, { dbcell: b });
+        });
+        for (const x of model.after) push(x.sid, x.data, x.off);
+        i = sh.end;
+        continue;
+      }
+      push(r.sid, r.data, r.off);
+    }
+    // posizioni
+    let pos = 0;
+    const map = new Map();
+    for (const o of out) { o.newOff = pos; if (o.oldOff !== null && o.oldOff !== undefined) map.set(o.oldOff, pos); pos += 4 + o.data.length; }
+    const total = pos + book.tail.length;
+    const mapOff = old => {
+      if (map.has(old)) return map.get(old);
+      let best = null;
+      for (const [k, v] of map) if (k >= old && (best === null || k < best[0])) best = [k, v];
+      if (!best) throw new XlsError('Impossibile ricalcolare gli indici del file.');
+      return best[1] - (best[0] - old);
+    };
+    // DBCELL del foglio modificato
+    if (model) {
+      model.blocks.filter(b => b.dbOld && b.rows.length).forEach(b => {
+        const rowsRecs = out.filter(o => o.tag && o.tag.rowOf === b);
+        const cellRecs = out.filter(o => o.tag && o.tag.cellOf === b);
+        const db = out.find(o => o.tag && o.tag.dbcell === b);
+        const d = db.data;
+        const first = rowsRecs[0].newOff;
+        wr32(d, 0, db.newOff - first);
+        // come Excel: per ogni riga, distanza tra l'inizio delle sue celle e quello della riga precedente
+        // (la prima distanza parte dal secondo record ROW; una riga senza celle "inizia" dove inizierebbe)
+        let ref = first + 20;
+        let cur = rowsRecs[rowsRecs.length - 1].newOff + 4 + rowsRecs[rowsRecs.length - 1].data.length;
+        b.rows.forEach((rw, i) => {
+          wr16(d, 4 + i * 2, cur - ref);
+          ref = cur;
+          for (const o of cellRecs) if (o.tag.row === rw.rw) cur += 4 + o.data.length;
+        });
+      });
+    }
+    // BOUNDSHEET e INDEX
+    const buf = new Uint8Array(total);
+    for (const o of out) {
+      let d = o.data;
+      if (o.sid === SID.BOUNDSHEET) { d = d.slice(); wr32(d, 0, mapOff(rd32(d, 0))); }
+      else if (o.sid === SID.INDEX) {
+        d = d.slice();
+        wr32(d, 12, mapOff(rd32(d, 12)));
+        for (let k = 16; k + 4 <= d.length; k += 4) wr32(d, k, mapOff(rd32(d, k)));
+      }
+      wr16(buf, o.newOff, o.sid); wr16(buf, o.newOff + 2, d.length);
+      buf.set(d, o.newOff + 4);
+    }
+    buf.set(book.tail, pos);
+    return buf;
+  }
+
+  // ------------------------------------------------------------- Public ----
+  const ROLES = ['P', 'D', 'C', 'A'];
+
+  function looksLikeTeamSheet(book, sh) {
+    if (sh.type !== 0) return false;
+    let ok = 0;
+    try {
+      const m = buildSheet(book, sh);
+      for (let r = 0; r < 31; r++) {
+        const a = cellValue(m, r, 0), b = cellValue(m, r, 1);
+        if (a.t === 'n' && a.v === r + 1 && b.t === 's' && ROLES.includes(b.v.trim().toUpperCase())) ok++;
+      }
+      const h = m.idx.get(key(4, 8));
+      return ok >= 25 && !!h && h.sid === SID.FORMULA;
+    } catch (e) { return false; }
+  }
+
+  function load(u8) {
+    const book = openWorkbook(u8);
+    const teamSheets = book.sheets.filter(s => looksLikeTeamSheet(book, s)).map(s => s.name);
+    return {
+      sheetNames: teamSheets,
+      allSheets: book.sheets.map(s => s.name),
+      roster(name) { return readRoster(book, name); },
+      clubs() { return readListone(book); },
+      has(name) { return book.sheets.some(s => s.name === name); },
+      // Lettura libera di un foglio: serve al file di giornata (classifiche, calendario, voti...)
+      grid(name) {
+        const m = buildSheet(book, sheetByName(book, name));
+        const get = (r, c) => { const v = freshValue(m, r, c); return v.t === 'blank' || v.t === 'e' ? null : v.v; };
+        return {
+          get,
+          num(r, c) { const v = get(r, c); return typeof v === 'number' ? v : null; },
+          str(r, c) { const v = get(r, c); return typeof v === 'string' ? v.trim() : (v == null || v === false ? '' : String(v)); },
+          // cerca un testo nella zona indicata e ritorna {r, c}
+          find(re, r0, r1, c0, c1) {
+            for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
+              const v = get(r, c);
+              if (typeof v === 'string' && re.test(v.trim())) return { r, c };
+            }
+            return null;
+          },
+          findAll(re, r0, r1, c0, c1) {
+            const out = [];
+            for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
+              const v = get(r, c);
+              if (typeof v === 'string' && re.test(v.trim())) out.push({ r, c });
+            }
+            return out;
+          }
+        };
+      },
+      build(name, numbers) { return buildFile(book, name, numbers); },
+      _book: book
+    };
+  }
+
+  function sheetByName(book, name) {
+    const sh = book.sheets.find(s => s.name === name);
+    if (!sh) throw new XlsError('Foglio "' + name + '" non trovato.');
+    return sh;
+  }
+
+  // Valore "fresco" di una cella: se è una formula valutabile la ricalcola (utile con file salvati
+  // da programmi che non memorizzano i risultati testuali), altrimenti usa il valore memorizzato.
+  function freshValue(m, r, c) {
+    const cell = m.idx.get(key(r, c));
+    if (cell && cell.sid === SID.FORMULA && !m.dirtyCells.has(key(r, c))) {
+      try { return evaluate(m, cell); } catch (e) { if (!(e instanceof Unsupported)) throw e; }
+    }
+    return cellValue(m, r, c);
+  }
+
+  function readRoster(book, name) {
+    const m = buildSheet(book, sheetByName(book, name));
+    const players = [];
+    for (let r = 0; r < 31; r++) {
+      const a = freshValue(m, r, 0), b = freshValue(m, r, 1), c = freshValue(m, r, 2), d = cellValue(m, r, 3);
+      players.push({
+        row: r,
+        a: a.t === 'n' ? a.v : r + 1,
+        role: b.t === 's' ? b.v.trim().toUpperCase() : '',
+        name: c.t === 's' ? c.v.trim() : (c.t === 'n' ? String(c.v) : ''),
+        number: d.t === 'n' ? d.v : null
+      });
+    }
+    return players;
+  }
+
+  // Listone: un foglio con le colonne Ruolo | Nome | Squadra. Serve solo a sapere
+  // in che squadra di Serie A gioca chi è in rosa (per il blocco partita per partita).
+  // Ritorna una mappa "nome|ruolo" -> squadra, più la chiave "nome" da sola.
+  const plainName = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[.'`’-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  function readListone(book) {
+    const out = new Map();
+    for (const sh of book.sheets) {
+      if (sh.type !== 0) continue;
+      let m;
+      try { m = buildSheet(book, sh); } catch (e) { continue; }
+      let head = -1;
+      for (let r = 0; r < 6 && head < 0; r++) {
+        const a = cellValue(m, r, 0), b = cellValue(m, r, 1), c = cellValue(m, r, 2);
+        if (a.t === 's' && b.t === 's' && c.t === 's' &&
+            /ruol/i.test(a.v) && /nom/i.test(b.v) && /squadr/i.test(c.v)) head = r;
+      }
+      if (head < 0) continue;
+      let vuote = 0;
+      for (let r = head + 1; vuote < 40 && r < head + 2000; r++) {
+        const ro = freshValue(m, r, 0), nm = freshValue(m, r, 1), cl = freshValue(m, r, 2);
+        const name = nm.t === 's' ? nm.v.trim() : '';
+        const club = cl.t === 's' ? cl.v.trim() : '';
+        if (!name || !club) { vuote++; continue; }
+        vuote = 0;
+        const role = ro.t === 's' ? ro.v.trim().toUpperCase() : '';
+        const k = plainName(name);
+        out.set(k + '|' + role, club);
+        if (!out.has(k)) out.set(k, club);
+      }
+    }
+    return out;
+  }
+
+  // numbers: array di 31 elementi (numero o null) per le righe 1..31 della colonna D.
+  function buildFile(book, name, numbers) {
+    const sh = sheetByName(book, name);
+    const m = buildSheet(book, sh);
+    // 0) allinea i valori memorizzati delle formule in A1:G31 (se il file li ha persi)
+    for (let r = 0; r < 31; r++) for (let c = 0; c < 7; c++) {
+      if (c === 3) continue;
+      const cell = m.idx.get(key(r, c));
+      if (!cell || cell.sid !== SID.FORMULA) continue;
+      const f = freshValue(m, r, c);
+      if (!sameVal(f, cellValue(m, r, c))) setFormulaCache(m, r, c, f);
+    }
+    // 1) colonna D
+    for (let r = 0; r < 31; r++) {
+      const n = numbers[r];
+      setValue(m, r, 3, n === null || n === undefined || n === '' ? { t: 'blank' } : { t: 'n', v: +n });
+    }
+    // 2) replica della macro "Formazioni": ordina A1:G31 per D (vuoti in fondo) poi A,
+    //    copia valori B1:C22 -> H31:I52 e F1:G22 -> J31:K52
+    const rows = [];
+    for (let r = 0; r < 31; r++) {
+      const vals = [];
+      for (let c = 0; c < 7; c++) vals.push(cellValue(m, r, c));
+      rows.push({ r, vals });
+    }
+    const sortKey = v => v.t === 'blank' ? [4] : v.t === 'n' ? [0, v.v] : v.t === 's' ? [1, v.v.toLowerCase()] : v.t === 'b' ? [2, +v.v] : [3, 0];
+    const cmpKeys = (x, y) => {
+      for (let i = 0; i < Math.max(x.length, y.length); i++) {
+        if (x[i] === undefined) return -1;
+        if (y[i] === undefined) return 1;
+        if (x[i] < y[i]) return -1;
+        if (x[i] > y[i]) return 1;
+      }
+      return 0;
+    };
+    rows.sort((p, q) => cmpKeys(sortKey(p.vals[3]), sortKey(q.vals[3])) || cmpKeys(sortKey(p.vals[0]), sortKey(q.vals[0])) || p.r - q.r);
+    const pasteVal = v => (v.t === 'n' || v.t === 's' || v.t === 'b') ? (v.t === 'b' ? { t: 'n', v: +v.v } : v) : { t: 'blank' };
+    for (let i = 0; i < 22; i++) {
+      const src = rows[i].vals;
+      setValue(m, 30 + i, 7, pasteVal(src[1]));
+      setValue(m, 30 + i, 8, pasteVal(src[2]));
+      setValue(m, 30 + i, 9, pasteVal(src[5]));
+      setValue(m, 30 + i, 10, pasteVal(src[6]));
+    }
+    // 3) aggiorna i valori calcolati delle formule che dipendono dalle celle cambiate
+    const rc = recalc(m);
+    // 4) serializza
+    const wb = serialize(book, m);
+    const outFile = cfbReplaceStream(book.cfb, book.ent, wb);
+    // 5) verifica: rileggi il file e controlla le celle scritte
+    const check = openWorkbook(outFile);
+    const m2 = buildSheet(check, sheetByName(check, name));
+    for (let r = 0; r < 31; r++) {
+      const d = cellValue(m2, r, 3);
+      const want = numbers[r];
+      if ((want === null || want === undefined || want === '') ? d.t !== 'blank' : !(d.t === 'n' && d.v === +want)) throw new XlsError('Verifica fallita sulla cella D' + (r + 1) + '.');
+    }
+    for (const s of check.sheets) if (check.recs[s.start].sid !== SID.BOF) throw new XlsError('Verifica fallita sugli indici dei fogli.');
+    const lineup = [];
+    for (let i = 0; i < 22; i++) {
+      const h = cellValue(m2, 30 + i, 7), n = cellValue(m2, 30 + i, 8);
+      lineup.push({ pos: i + 1, role: h.t === 's' ? h.v : '', name: n.t === 's' ? n.v : '' });
+    }
+    const shown = [];
+    for (let r = 4; r <= 28; r++) { const v = cellValue(m2, r, 8); shown.push(v.t === 's' ? v.v : v.t === 'n' ? String(v.v) : ''); }
+    const modulo = [cellValue(m2, 1, 8), cellValue(m2, 1, 9), cellValue(m2, 1, 10)].map(v => v.t === 'n' ? v.v : null);
+    return { bytes: outFile, lineup, shown, modulo, recalc: rc };
+  }
+
+  const api = { load, XlsError, norm: plainName, _internals: { readCFB, openWorkbook, buildSheet, serialize, cfbReplaceStream, cellValue, recalc, parseRecords, evaluate, SID } };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.XlsFormazione = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Lettura del file .xls di giornata della lega ("03 Campionato - Terza Giornata.xls").
+ *
+ * Da un solo file escono tutti i dati del sito: voti dei giocatori, risultati e
+ * calendario, formazioni realmente schierate con subentri e marcatori,
+ * classifiche, superclassifica, gol reali, rose e crediti.
+ *
+ * Nessuna libreria: legge i fogli con il motore .xls già usato da Schiera.
+ * I fogli non vengono cercati per posizione fissa ma per intestazione, così il
+ * file può cambiare qualche riga senza rompere tutto.
+ */
+(function (root) {
+  'use strict';
+
+  const X = root.XlsFormazione || (typeof require === 'function' ? require('../../schiera-formazione/src/engine.js') : null);
+
+  class GiornataError extends Error {}
+
+  const NOSPACE = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const num = v => (typeof v === 'number' && isFinite(v) ? v : null);
+  const txt = v => (typeof v === 'string' ? v.trim() : (typeof v === 'number' ? String(v) : ''));
+
+  // I fogli squadra del file: quelli con la rosa numerata 1..31
+  function teamSheets(wb) {
+    return wb.sheetNames.slice();
+  }
+
+  // ------------------------------------------------------------------ voti
+  // Foglio "voti": ID | SQUADRA | RUOLO | NOME | V | FV
+  function readVoti(wb) {
+    if (!wb.has('voti')) return [];
+    const g = wb.grid('voti');
+    const out = [];
+    for (let r = 1; r < 600; r++) {
+      const id = g.num(r, 0);
+      if (id == null) break;
+      const nome = g.str(r, 3);
+      if (!nome) continue;
+      out.push({
+        squadra: g.str(r, 1),
+        ruolo: g.str(r, 2).toUpperCase(),
+        nome,
+        voto: g.num(r, 4),
+        fantavoto: g.num(r, 5)
+      });
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------- calendario
+  // Blocchi "GIORNATA n" con 4 partite: casa | trasferta | gol | gol.
+  // Nella fase a orologio, finché la classifica non è definitiva, al posto dei
+  // nomi ci sono le posizioni (1..8): le teniamo come sono.
+  function readCalendario(wb) {
+    if (!wb.has('CALENDARIO')) return [];
+    const g = wb.grid('CALENDARIO');
+    const out = [];
+    g.findAll(/^GIORNATA$/i, 0, 60, 0, 24).forEach(({ r, c }) => {
+      const n = g.num(r, c + 2);
+      if (n == null) return;
+      for (let k = 3; k <= 6; k++) {
+        const casa = g.get(r + k, c), fuori = g.get(r + k, c + 1);
+        if (casa == null && fuori == null) continue;
+        const gc = g.num(r + k, c + 2), gf = g.num(r + k, c + 3);
+        out.push({
+          giornata: n,
+          casa: typeof casa === 'number' ? null : txt(casa),
+          fuori: typeof fuori === 'number' ? null : txt(fuori),
+          pos_casa: typeof casa === 'number' ? casa : null,
+          pos_fuori: typeof fuori === 'number' ? fuori : null,
+          gol_casa: gc, gol_fuori: gf,
+          giocata: gc != null && gf != null
+        });
+      }
+    });
+    out.sort((a, b) => a.giornata - b.giornata);
+    return out;
+  }
+
+  // -------------------------------------------------- foglio di una squadra
+  // Restituisce formazione risultante, punteggi, sostituzioni e marcatori.
+  function readTeamSheet(wb, name) {
+    const g = wb.grid(name);
+
+    // rosa + numeri schierati + voti (colonne A..G)
+    const rosa = [];
+    for (let r = 0; r < 31; r++) {
+      const nome = g.str(r, 2);
+      rosa.push({
+        slot: r + 1,
+        ruolo: g.str(r, 1).toUpperCase(),
+        nome,
+        numero: g.num(r, 3),
+        voto: g.num(r, 5),
+        fantavoto: g.num(r, 6)
+      });
+    }
+
+    // blocco del risultato: "Nome | Voto | Fantavoto" con i 18 posti in ordine
+    const head = g.find(/^Nome$/i, 0, 12, 6, 14);
+    const formazione = [];
+    let totali = null;
+    if (head) {
+      const c = head.c;                     // colonna dei nomi
+      for (let k = 1; k <= 24; k++) {
+        const r = head.r + k;
+        const et = g.str(r, c);
+        if (/^totale$/i.test(et)) {
+          totali = { voti: g.num(r, c + 1), fantavoti: g.num(r, c + 2), avversario: g.num(r, c + 3) };
+          break;
+        }
+        if (!et) continue;
+        formazione.push({
+          pos: formazione.length + 1,
+          ruolo: g.str(r, c - 1).toUpperCase(),
+          nome: et,
+          voto: g.num(r, c + 1),
+          fantavoto: g.num(r, c + 2),
+          giocato: g.num(r, c + 2) != null
+        });
+      }
+    }
+
+    // riquadro della partita: l'etichetta "Coppa di Lega" con i due valori a fianco
+    const partita = { casa: null, fuori: null };
+    const lab = g.find(/^Coppa di Lega$/i, 0, 14, 10, 20);
+    if (lab) {
+      const c = lab.c, r = lab.r;
+      const nomi = [g.str(r - 1, c + 1), g.str(r - 1, c + 2)];
+      const leggi = re => { const x = g.find(re, r - 1, r + 12, c, c + 1); return x ? [g.num(x.r, c + 1), g.num(x.r, c + 2)] : [null, null]; };
+      const cdl = [g.num(r, c + 1), g.num(r, c + 2)];
+      const campo = leggi(/^Fattore campo$/i);
+      const modulo = leggi(/^Modulo$/i);
+      const totale = leggi(/^Totale$/i);
+      const risultato = leggi(/^RISULTATO$/i);
+      partita.casa = { squadra: nomi[0], punteggio: cdl[0], fattore_campo: campo[0], bonus_modulo: modulo[0], totale: totale[0], gol: risultato[0] };
+      partita.fuori = { squadra: nomi[1], punteggio: cdl[1], fattore_campo: campo[1], bonus_modulo: modulo[1], totale: totale[1], gol: risultato[1] };
+    }
+
+    // sostituzioni per reparto
+    const sost = {};
+    const sl = g.find(/^Sostituzioni$/i, 0, 30, 10, 20);
+    if (sl) {
+      const mappa = { 'portieri:': 'P', 'difensori:': 'D', 'centrocampisti:': 'C', 'attaccanti:': 'A', 'totale:': 'tot' };
+      for (let k = 1; k <= 8; k++) {
+        const et = g.str(sl.r + k, sl.c).toLowerCase();
+        const key = mappa[et];
+        if (key) sost[key] = g.num(sl.r + k, sl.c + 1);
+      }
+    }
+
+    // marcatori: una riga con i nomi separati da virgola, oppure un nome per riga
+    const marcatori = [];
+    const ml = g.find(/^Marcatori$/i, 0, 40, 10, 20);
+    if (ml) {
+      for (let k = 1; k <= 12; k++) {
+        const v = g.str(ml.r + k, ml.c);
+        if (!v) { if (k > 1) break; else continue; }
+        v.split(',').forEach(x => { if (x.trim()) marcatori.push(x.trim()); });
+      }
+    }
+
+    const modulo = (() => {
+      const m = g.find(/^Modulo$/i, 0, 4, 6, 14);
+      if (!m) return '';
+      const a = g.num(m.r + 1, m.c - 1), b = g.num(m.r + 1, m.c), c = g.num(m.r + 1, m.c + 1);
+      return [a, b, c].every(x => x != null) ? [a, b, c].join('-') : '';
+    })();
+
+    return { squadra: name, rosa, formazione, totali, partita, sostituzioni: sost, marcatori, modulo };
+  }
+
+  // ------------------------------------------------------------- classifiche
+  function readClassifiche(wb) {
+    const out = { giornata: null, campionato: [], coppa_lega: null, sfigometro: null, cannonieri: [] };
+    if (!wb.has('CLASSIFICHE')) return out;
+    const g = wb.grid('CLASSIFICHE');
+
+    const camp = g.find(/^CAMPIONATO$/i, 0, 6, 0, 3);
+    if (camp) {
+      out.giornata = g.num(camp.r, camp.c + 4);
+      for (let k = 3; k <= 12; k++) {
+        const nome = g.str(camp.r + k, 0);
+        if (!nome) continue;
+        if (g.num(camp.r + k, 3) == null) continue;
+        out.campionato.push({
+          squadra: nome,
+          punti: g.num(camp.r + k, 1), mi: g.num(camp.r + k, 2),
+          g: g.num(camp.r + k, 3), v: g.num(camp.r + k, 4), n: g.num(camp.r + k, 5), p: g.num(camp.r + k, 6),
+          gf: g.num(camp.r + k, 7), gs: g.num(camp.r + k, 8), dr: g.num(camp.r + k, 9),
+          casa: { g: g.num(camp.r + k, 10), v: g.num(camp.r + k, 11), n: g.num(camp.r + k, 12), p: g.num(camp.r + k, 13), gf: g.num(camp.r + k, 14), gs: g.num(camp.r + k, 15) },
+          fuori: { g: g.num(camp.r + k, 16), v: g.num(camp.r + k, 17), n: g.num(camp.r + k, 18), p: g.num(camp.r + k, 19), gf: g.num(camp.r + k, 20), gs: g.num(camp.r + k, 21) }
+        });
+      }
+    }
+
+    // Coppa di Lega e Sfigometro: due tabelle uguali (settimanali + totali)
+    const serie = (titolo) => {
+      const h = g.find(titolo, 0, 120, 0, 2);
+      if (!h) return null;
+      const blocco = (re) => {
+        const b = g.find(re, h.r, h.r + 20, 0, 2);
+        if (!b) return null;
+        const giornate = [];
+        for (let c = 7; c < 30; c++) { const n = g.num(b.r, c); if (n == null) break; giornate.push({ n, c }); }
+        const righe = [];
+        for (let k = 1; k <= 12; k++) {
+          const squadra = g.str(b.r + k, 5);
+          if (!squadra) continue;
+          const per = {};
+          giornate.forEach(({ n, c }) => { const v = g.num(b.r + k, c); if (v != null) per[n] = v; });
+          righe.push({ squadra, per_giornata: per });
+        }
+        const ordine = [];
+        for (let k = 1; k <= 12; k++) {
+          const squadra = g.str(b.r + k, 0);
+          const v = g.num(b.r + k, 1);
+          if (squadra && v != null) ordine.push({ squadra, valore: v });
+        }
+        return { righe, ordine };
+      };
+      return { settimanali: blocco(/^SETTIMANALI$/i), totali: blocco(/^TOTALI$/i) };
+    };
+    out.coppa_lega = serie(/^COPPA DI LEGA$/i);
+    out.sfigometro = serie(/^SFIGOMETRO$/i);
+
+    // cannonieri: "n | Nome (SG)" ripetuto su più colonne
+    const can = g.find(/^CLASSIFICA CANNONIERI/i, 0, 200, 0, 2);
+    if (can) {
+      let gol = null;
+      for (let r = can.r + 1; r < can.r + 80; r++) {
+        const n = g.num(r, 0);
+        if (n != null) gol = n;
+        if (gol == null) continue;
+        for (let c = 1; c < 16; c++) {
+          const v = g.str(r, c);
+          const m = /^(.+?)\s*\(([A-Z0-9]{2})\)$/.exec(v);
+          if (m) out.cannonieri.push({ nome: m[1].trim(), sigla: m[2], gol });
+        }
+      }
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------- superclassifica
+  function readSuperclassifica(wb) {
+    const out = {};
+    if (!wb.has('SUPERCLASSIFICA')) return out;
+    const g = wb.grid('SUPERCLASSIFICA');
+    const semplice = (re, cols) => {
+      const h = g.find(re, 0, 80, 0, 2);
+      if (!h) return [];
+      const righe = [];
+      for (let k = 1; k <= 12; k++) {
+        const squadra = g.str(h.r + k, 0);
+        if (!squadra) { if (righe.length) break; else continue; }
+        const o = { squadra };
+        Object.keys(cols).forEach(nome => { o[nome] = g.num(h.r + k, cols[nome]); });
+        righe.push(o);
+      }
+      return righe;
+    };
+    const corretta = () => {
+      const h = g.find(/^CLASSIFICA CAMPIONATO\s*.CORRETTA/i, 0, 20, 0, 12);
+      if (!h) return [];
+      const righe = [];
+      for (let k = 1; k <= 12; k++) {
+        const squadra = g.str(h.r + k, h.c);
+        const v = g.num(h.r + k, h.c + 1);
+        if (!squadra || v == null) { if (righe.length) break; else continue; }
+        righe.push({ squadra, totale: v });
+      }
+      return righe;
+    };
+    out.campionato_standard = semplice(/^CLASSIFICA CAMPIONATO\s*.STANDARD/i, { punti: 1, bonus: 2, totale: 3 });
+    out.campionato_corretta = corretta();
+    const conPremio = { totale: 1, media: 2, arrotondato: 3, premio: 4, definitivo: 5 };
+    out.coppa_lega = semplice(/^CLASSIFICA COPPA DI LEGA$/i, conPremio);
+    out.sfigometro = semplice(/^CLASSIFICA SFIGOMETRO$/i, conPremio);
+    out.gol_totali = semplice(/^CLASSIFICA GOL REALI FATTI TOTALI/i, conPremio);
+    out.gol_sfruttati = semplice(/^CLASSIFICA GOL REALI FATTI SFRUTTATI/i, conPremio);
+    return out;
+  }
+
+  // --------------------------------------------------------------- gol reali
+  // 8 blocchi da 3 colonne: riga 1 squadra | sfruttati | totali, poi i giocatori.
+  function readGolReali(wb) {
+    if (!wb.has('GOL REALI')) return [];
+    const g = wb.grid('GOL REALI');
+    const out = [];
+    for (let b = 0; b < 12; b++) {
+      const c = b * 3;
+      const squadra = g.str(0, c);
+      if (!squadra) break;
+      const giocatori = [];
+      for (let r = 1; r < 60; r++) {
+        const nome = g.str(r, c);
+        if (!nome) continue;
+        const sf = g.num(r, c + 1), tt = g.num(r, c + 2);
+        if (sf != null || tt != null) giocatori.push({ nome, sfruttati: sf || 0, totali: tt || 0 });
+      }
+      out.push({ squadra, sfruttati: g.num(0, c + 1), totali: g.num(0, c + 2), giocatori });
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------ rose e crediti
+  function readRose(wb) {
+    if (!wb.has('ROSE')) return { rose: [], crediti: [] };
+    const g = wb.grid('ROSE');
+    const rose = [], crediti = [];
+    for (let b = 0; b < 12; b++) {
+      const c = b * 3;
+      const squadra = g.str(0, c);
+      if (!squadra) break;
+      crediti.push({ squadra, crediti: g.num(0, c + 1) });
+      for (let r = 1; r <= 31; r++) {
+        const nome = g.str(r, c);
+        if (!nome) continue;
+        rose.push({ squadra, slot: r, nome, costo: g.num(r, c + 1), valore: g.num(r, c + 2) });
+      }
+    }
+    return { rose, crediti };
+  }
+
+  // ------------------------------------------------------------------- coppa
+  function readCoppa(wb) {
+    if (!wb.has('COPPA')) return null;
+    const g = wb.grid('COPPA');
+    const blocco = (re) => {
+      const h = g.find(re, 0, 40, 0, 16);
+      if (!h) return [];
+      const righe = [];
+      for (let k = 1; k <= 12; k++) {
+        const squadra = g.str(h.r + k, h.c);
+        const valore = g.num(h.r + k, h.c + 1);
+        const punti = g.num(h.r + k, h.c + 2);
+        if (!squadra || punti == null) { if (righe.length) break; else continue; }
+        righe.push({ squadra, valore, punti });
+      }
+      return righe;
+    };
+    const quarti = [];
+    const q = g.find(/^COPPA$/i, 0, 30, 10, 20);
+    if (q) {
+      for (let k = 1; k <= 12; k++) {
+        const squadra = g.str(q.r + k, q.c), punti = g.num(q.r + k, q.c + 1);
+        if (!squadra || punti == null) { if (quarti.length) break; else continue; }
+        quarti.push({ squadra, punti });
+      }
+    }
+    return {
+      campionato: blocco(/^CAMPIONATO$/i),
+      coppa_lega: blocco(/^COPPA DI LEGA$/i),
+      gol_reali: blocco(/^GOL REALI$/i),
+      crediti: blocco(/^CREDITI RESIDUI$/i),
+      quarti
+    };
+  }
+
+  // ---------------------------------------------------------------- albo d'oro
+  function readAlbo(wb) {
+    if (!wb.has("ALBO D'ORO")) return [];
+    const g = wb.grid("ALBO D'ORO");
+    const h = g.find(/^CAMPIONATO$/i, 0, 12, 0, 8);
+    if (!h) return [];
+    const out = [];
+    for (let r = h.r + 1; r < h.r + 60; r++) {
+      const st = g.str(r, h.c - 1);
+      if (!/^\d{4}\/\d{2}$/.test(st)) continue;
+      out.push({
+        stagione: st,
+        campionato: g.str(r, h.c),
+        coppa: g.str(r, h.c + 1),
+        coppa_lega: g.str(r, h.c + 2),
+        supercoppa: g.str(r, h.c + 3)
+      });
+    }
+    return out;
+  }
+
+  // --------------------------------------------------------------------- tutto
+  function parse(bytes, fileName) {
+    const wb = X.load(bytes);
+    if (!wb.has('CLASSIFICHE') && !wb.has('CALENDARIO')) {
+      throw new GiornataError('Questo non sembra il file di giornata della lega: mancano i fogli CALENDARIO e CLASSIFICHE.');
+    }
+    const classifiche = readClassifiche(wb);
+    const calendario = readCalendario(wb);
+    const squadre = teamSheets(wb);
+    const giocate = calendario.filter(m => m.giocata).map(m => m.giornata);
+    const giornata = classifiche.giornata != null ? classifiche.giornata
+      : (giocate.length ? Math.max.apply(null, giocate) : null);
+    if (giornata == null) throw new GiornataError('Non riesco a capire a quale giornata si riferisce il file.');
+
+    const fogli = squadre.map(n => readTeamSheet(wb, n));
+    const rose = readRose(wb);
+
+    // una riga per squadra con il suo risultato di giornata
+    const squadre_giornata = fogli.map(f => {
+      const p = f.partita || {};
+      const io = p.casa && NOSPACE(p.casa.squadra) === NOSPACE(f.squadra) ? p.casa
+        : p.fuori && NOSPACE(p.fuori.squadra) === NOSPACE(f.squadra) ? p.fuori : null;
+      const avv = io === p.casa ? p.fuori : p.casa;
+      return {
+        squadra: f.squadra,
+        modulo: f.modulo,
+        in_casa: io === p.casa,
+        avversario: avv ? avv.squadra : null,
+        punteggio: io ? io.punteggio : (f.totali ? f.totali.fantavoti : null),
+        somma_voti: f.totali ? f.totali.voti : null,
+        fattore_campo: io ? io.fattore_campo : null,
+        bonus_modulo: io ? io.bonus_modulo : null,
+        totale: io ? io.totale : null,
+        gol_fatti: io ? io.gol : null,
+        gol_subiti: avv ? avv.gol : null,
+        sostituzioni: f.sostituzioni,
+        marcatori: f.marcatori,
+        formazione: f.formazione,
+        schierati: f.rosa.filter(x => x.numero != null && x.nome)
+          .sort((a, b) => a.numero - b.numero)
+          .map(x => ({ pos: x.numero, slot: x.slot, ruolo: x.ruolo, nome: x.nome, voto: x.voto, fantavoto: x.fantavoto }))
+      };
+    });
+
+    const voti = readVoti(wb).length ? readVoti(wb) : [].concat.apply([], fogli.map(f =>
+      f.rosa.filter(x => x.nome).map(x => ({ squadra: f.squadra, ruolo: x.ruolo, nome: x.nome, voto: x.voto, fantavoto: x.fantavoto }))));
+
+    return {
+      file: fileName || '',
+      giornata,
+      serie_a: giornata + 2,          // la 1ª di lega è la 3ª di Serie A
+      squadre,
+      calendario,
+      squadre_giornata,
+      voti,
+      rose: rose.rose,
+      crediti: rose.crediti,
+      classifica: classifiche.campionato,
+      coppa_lega: classifiche.coppa_lega,
+      sfigometro: classifiche.sfigometro,
+      cannonieri: classifiche.cannonieri,
+      superclassifica: readSuperclassifica(wb),
+      gol_reali: readGolReali(wb),
+      coppa: readCoppa(wb),
+      albo: readAlbo(wb)
+    };
+  }
+
+  const api = { parse, GiornataError, _parts: { readVoti, readCalendario, readTeamSheet, readClassifiche, readSuperclassifica, readGolReali, readRose, readCoppa, readAlbo } };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Giornata = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Il Solito Culo — il sito della lega.
+ * Rose, calendario, classifiche, statistiche, coppe, playoff, albo d'oro.
+ * I dati arrivano dal database (Supabase), alimentato dal file .xls di giornata. */
+(function () {
+  'use strict';
+
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ROLE = { P: 'Portieri', D: 'Difensori', C: 'Centrocampisti', A: 'Attaccanti' };
+  const LS = 'ilsolitoculo:v1';
+  const n1 = v => (v == null || v === '' ? '—' : (Math.round(v * 100) / 100).toString().replace('.', ','));
+  const nz = v => (v == null ? 0 : +v);
+
+  const S = {
+    profile: null, team: null, teams: [], rounds: [], matches: [],
+    cache: {}, sezione: '', pronta: false
+  };
+
+  const prefs = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch (e) { return {}; } };
+  const setPrefs = p => { try { localStorage.setItem(LS, JSON.stringify(p)); } catch (e) { /* ok */ } };
+
+  const teamById = id => S.teams.find(t => t.id === id) || null;
+  // "MarcoI" si legge male: sullo schermo diventa "Marco I"
+  const bel = n => String(n || '').replace(/([a-zà-ÿ])(I+)$/, '$1 $2');
+  const teamName = id => { const t = teamById(id); return t ? bel(t.name) : '\u2014'; };
+  const isMe = id => !!(S.team && id === S.team.id);
+  const isAdmin = () => !!(S.profile && S.profile.role === 'admin');
+  const giocate = () => S.rounds.filter(r => r.giocata);
+  const ultima = () => { const g = giocate(); return g.length ? g[g.length - 1] : null; };
+
+  // ------------------------------------------------------------------ dati
+  async function carica(chiave, fn) {
+    if (S.cache[chiave] === undefined) S.cache[chiave] = await fn();
+    return S.cache[chiave];
+  }
+
+  async function caricaBase() {
+    const uid = (SB.user() || {}).id || ((await SB.me()) || {}).id;
+    const prof = (await SB.select('profiles', 'select=display_name,role,team_id&id=eq.' + uid))[0];
+    if (!prof) throw new SB.SbError('Profilo non trovato: scrivi all’amministratore.', 'no_profile');
+    S.profile = prof;
+    S.teams = await SB.select('teams', 'select=id,name,sheet_name&order=name');
+    S.team = S.teams.find(t => t.id === prof.team_id) || null;
+    S.rounds = await SB.select('rounds', 'select=id,serie_a,fase,label,giocata,caricata_at&order=id');
+    S.matches = await SB.select('matches', 'select=round,slot,casa,fuori,pos_casa,pos_fuori,gol_casa,gol_fuori,punti_casa,punti_fuori,totale_casa,totale_fuori,modulo_casa,modulo_fuori&competizione=eq.campionato&order=round,slot');
+    S.cache = {};
+    S.pronta = true;
+  }
+
+  const classifiche = tipo => carica('st:' + tipo, () =>
+    SB.select('standings', 'select=round,team_id,pos,valore,dati&tipo=eq.' + tipo + '&order=round,pos'));
+  const tabellini = round => carica('rt:' + round, () =>
+    SB.select('round_teams', 'select=*&round=eq.' + round));
+  const rose = () => carica('players', () =>
+    SB.select('players', 'select=id,team_id,slot,role,name,club&order=team_id,slot'));
+  const costi = () => carica('costi', () => SB.select('roster_costs', 'select=team_id,slot,nome,costo,valore'));
+  const statGiocatori = () => carica('pstats', () => SB.select('player_stats', 'select=*'));
+  const marcatori = () => carica('scorers', async () => {
+    const u = ultima();
+    return u ? SB.select('scorers', 'select=team_id,nome,gol,gol_sfruttati&round=eq.' + u.id + '&order=gol.desc') : [];
+  });
+  const stagione = () => carica('season', async () => {
+    const u = ultima();
+    return u ? SB.select('team_season', 'select=team_id,crediti,gol_totali,gol_sfruttati&round=eq.' + u.id) : [];
+  });
+  const alboDoro = () => carica('albo', () => SB.select('albo', 'select=*&order=stagione.desc'));
+
+  // ------------------------------------------------- calcoli fatti in casa
+  // Punti accumulati giornata per giornata (3 vittoria, 1 pareggio): serve al grafico.
+  function andamento() {
+    const per = new Map(S.teams.map(t => [t.id, []]));
+    const tot = new Map(S.teams.map(t => [t.id, 0]));
+    giocate().forEach(r => {
+      S.matches.filter(m => m.round === r.id && m.gol_casa != null).forEach(m => {
+        const a = m.gol_casa, b = m.gol_fuori;
+        if (m.casa) tot.set(m.casa, nz(tot.get(m.casa)) + (a > b ? 3 : a === b ? 1 : 0));
+        if (m.fuori) tot.set(m.fuori, nz(tot.get(m.fuori)) + (b > a ? 3 : a === b ? 1 : 0));
+      });
+      S.teams.forEach(t => per.get(t.id).push({ x: r.id, y: tot.get(t.id) }));
+    });
+    return per;
+  }
+
+  function partiteDi(teamId) {
+    return S.matches.filter(m => m.casa === teamId || m.fuori === teamId);
+  }
+
+  // ------------------------------------------------------------- grafici
+  // Una linea in evidenza (la squadra scelta) e le altre come sfondo grigio:
+  // niente spaghetti di otto colori su uno schermo da telefono.
+  function grafico(serie, opts) {
+    opts = opts || {};
+    const W = 360, H = opts.h || 190, ML = 24, MR = 52, MT = 12, MB = 22;
+    const punti = [].concat.apply([], serie.map(s => s.punti));
+    if (punti.length < 2) return '<p class="empty">Servono almeno due giornate per il grafico.</p>';
+    const xs = punti.map(p => p.x), ys = punti.map(p => p.y);
+    const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+    let y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    if (opts.inverti) { const t = y0; y0 = y1; y1 = t; }
+    if (y0 === y1) { y1 = y0 + 1; }
+    const X = v => ML + (W - ML - MR) * (x1 === x0 ? 0.5 : (v - x0) / (x1 - x0));
+    const Y = v => MT + (H - MT - MB) * (1 - (v - y0) / (y1 - y0));
+    const path = s => s.punti.map((p, i) => (i ? 'L' : 'M') + X(p.x).toFixed(1) + ' ' + Y(p.y).toFixed(1)).join(' ');
+
+    const griglia = [];
+    const passo = Math.max(1, Math.round(Math.abs(y1 - y0) / 4));
+    for (let v = Math.min(y0, y1); v <= Math.max(y0, y1) + 0.001; v += passo) {
+      griglia.push(`<line x1="${ML}" x2="${W - MR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--chart-grid)" stroke-width="1"/>` +
+        `<text x="${ML - 6}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end">${v}</text>`);
+    }
+    const assex = [];
+    for (let v = x0; v <= x1; v++) {
+      if (x1 - x0 > 9 && v % 2 === 0) continue;
+      assex.push(`<text x="${X(v).toFixed(1)}" y="${H - 6}" text-anchor="middle">${v}</text>`);
+    }
+    const sfondo = serie.filter(s => !s.evidenzia).map(s =>
+      `<path d="${path(s)}" fill="none" stroke="var(--chart-mute)" stroke-width="1.5" stroke-opacity=".38" stroke-linejoin="round"/>`).join('');
+    const top = serie.filter(s => s.evidenzia).map(s => {
+      const ult = s.punti[s.punti.length - 1];
+      return `<path d="${path(s)}" fill="none" stroke="var(--chart-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
+        s.punti.map(p => `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="4.5" fill="var(--chart-accent)" stroke="var(--surface)" stroke-width="2"/>`).join('') +
+        `<text class="lbl" x="${(X(ult.x) + 8).toFixed(1)}" y="${(Y(ult.y) + 4).toFixed(1)}">${esc(bel(s.nome))}</text>`;
+    }).join('');
+    const dati = serie.filter(s => s.evidenzia).map(s => s.punti.map(p => `${p.x}:${p.y}`).join(','))[0] || '';
+    return `<div class="chart-wrap" data-punti="${esc(dati)}" data-x0="${x0}" data-x1="${x1}">
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.alt || 'Andamento')}">
+        ${griglia.join('')}${assex.join('')}${sfondo}${top}
+      </svg><div class="tip" hidden></div></div>`;
+  }
+
+  // ---------------------------------------------------------------- pezzi
+  const tile = (v, et, cls) => `<div class="tile ${cls || ''}"><b>${esc(v)}</b><span>${esc(et)}</span></div>`;
+
+  function rigaPartita(m, opts) {
+    const casa = m.casa ? teamName(m.casa) : (m.pos_casa ? m.pos_casa + 'º in classifica' : '—');
+    const fuori = m.fuori ? teamName(m.fuori) : (m.pos_fuori ? m.pos_fuori + 'º in classifica' : '—');
+    const g = m.gol_casa != null;
+    const cls = !g ? '' : m.gol_casa > m.gol_fuori ? 'win-h' : m.gol_casa < m.gol_fuori ? 'win-a' : '';
+    const pts = g && m.totale_casa != null ? `<span class="pts">${n1(m.totale_casa)} · ${n1(m.totale_fuori)}</span>` : '';
+    const punteggio = g ? `${m.gol_casa}<span aria-hidden="true">–</span>${m.gol_fuori}` : (opts && opts.ora ? '—' : 'da giocare');
+    return `<button type="button" class="match ${cls}" ${g ? 'data-match="' + m.round + ':' + m.slot + '"' : 'disabled'}>
+      <span class="t">${esc(casa)}</span>
+      <span><span class="score">${punteggio}</span>${pts}</span>
+      <span class="t a">${esc(fuori)}</span></button>`;
+  }
+
+  // ------------------------------------------------------------------ Home
+  async function home() {
+    const u = ultima();
+    if (!u) {
+      return `<div class="card"><h2>Ancora nessuna giornata</h2>
+        <p class="muted">Quando l’amministratore carica il primo file di giornata, qui compaiono risultati, classifiche e statistiche.</p>
+        <a class="btn btn-primary" href="schiera/" style="text-align:center;text-decoration:none">Vai a Schiera Formazione</a></div>`;
+    }
+    const camp = (await classifiche('campionato')).filter(r => r.round === u.id);
+    const mia = S.team ? camp.find(r => r.team_id === S.team.id) : null;
+    const mieP = S.team ? partiteDi(S.team.id) : [];
+    const ultimaP = mieP.filter(m => m.round === u.id)[0];
+    const prossima = mieP.filter(m => m.gol_casa == null)[0];
+    const cdl = (await classifiche('coppa_lega')).filter(r => r.round === u.id);
+    const cdlMia = S.team ? cdl.find(r => r.team_id === S.team.id) : null;
+
+    const tiles = mia ? `<div class="tiles">
+      ${tile(mia.pos + 'º', 'in campionato')}
+      ${tile(n1(mia.valore), 'punti')}
+      ${tile((mia.dati && mia.dati.gf) + '-' + (mia.dati && mia.dati.gs), 'gol fatti-subiti')}
+      ${tile(cdlMia ? n1(cdlMia.dati && cdlMia.dati.media) : '—', 'media a giornata')}
+    </div>` : '';
+
+    const serie = andamento();
+    const grafiche = S.teams.map(t => ({ nome: t.name, evidenzia: isMe(t.id), punti: serie.get(t.id) || [] }));
+
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h"><h2>${esc(S.team ? bel(S.team.name) : 'La lega')}</h2><span>${esc(u.label || 'Giornata ' + u.id)} · ${giocate().length}/20</span></div>
+        ${tiles}
+        ${ultimaP ? '<div>' + rigaPartita(ultimaP) + '</div>' : ''}
+        ${prossima ? `<p class="small muted" style="margin:0">Prossima: <b>${esc(prossima.casa ? teamName(prossima.casa) : 'da definire')}</b> – <b>${esc(prossima.fuori ? teamName(prossima.fuori) : 'da definire')}</b> (giornata ${prossima.round}, ${prossima.round + 2}ª di Serie A)</p>` : ''}
+        <a class="btn btn-primary" href="schiera/" style="text-align:center;text-decoration:none">Schiera la formazione</a>
+      </div>
+
+      <div class="card">
+        <div class="sec-h"><h3>Giornata ${u.id}</h3><span>${u.serie_a ? u.serie_a + 'ª di Serie A' : ''}</span></div>
+        <div>${S.matches.filter(m => m.round === u.id).map(m => rigaPartita(m)).join('')}</div>
+      </div>
+
+      <div class="card">
+        <div class="sec-h"><h3>Andamento</h3><span>punti accumulati</span></div>
+        ${grafico(grafiche, { alt: 'Punti accumulati giornata per giornata' })}
+        <p class="small muted" style="margin:0">In evidenza ${esc(S.team ? bel(S.team.name) : 'la tua squadra')}; in grigio le altre sette.</p>
+      </div>
+
+      <div class="card">
+        <div class="sec-h"><h3>Classifica</h3><a class="linkish" href="#/classifiche">tutte le classifiche</a></div>
+        ${tabellaCampionato(camp, true)}
+      </div>
+    </div>`;
+  }
+
+  // -------------------------------------------------------------- classifiche
+  function tabellaCampionato(righe, breve) {
+    if (!righe.length) return '<p class="empty">Ancora nessuna classifica.</p>';
+    const th = breve ? ['', 'Squadra', 'P.ti', 'G', 'DR'] : ['', 'Squadra', 'P.ti', 'M.I.', 'G', 'V', 'N', 'P', 'GF', 'GS', 'DR'];
+    return `<div class="scroll-x"><table class="tbl"><thead><tr>${th.map((h, i) => `<th class="${i < 2 ? 'l' : ''}">${h}</th>`).join('')}</tr></thead><tbody>
+      ${righe.map(r => {
+        const d = r.dati || {};
+        const celle = breve
+          ? [n1(r.valore), d.g, (d.dr > 0 ? '+' : '') + nz(d.dr)]
+          : [n1(r.valore), (d.mi > 0 ? '+' : '') + nz(d.mi), d.g, d.v, d.n, d.p, d.gf, d.gs, (d.dr > 0 ? '+' : '') + nz(d.dr)];
+        return `<tr class="${isMe(r.team_id) ? 'me' : ''}"><td class="pos">${r.pos}</td><td class="l nm">${esc(teamName(r.team_id))}</td>${celle.map(c => `<td>${esc(c == null ? '—' : c)}</td>`).join('')}</tr>`;
+      }).join('')}
+    </tbody></table></div>`;
+  }
+
+  function tabellaSemplice(righe, colonne) {
+    if (!righe.length) return '<p class="empty">Ancora niente da mostrare.</p>';
+    return `<div class="scroll-x"><table class="tbl"><thead><tr><th class="l"></th><th class="l">Squadra</th>${colonne.map(c => `<th>${esc(c.et)}</th>`).join('')}</tr></thead><tbody>
+      ${righe.map(r => `<tr class="${isMe(r.team_id) ? 'me' : ''}"><td class="pos">${r.pos}</td><td class="l nm">${esc(teamName(r.team_id))}</td>
+        ${colonne.map(c => `<td>${esc(c.val(r))}</td>`).join('')}</tr>`).join('')}
+    </tbody></table></div>`;
+  }
+
+  async function sezioneClassifiche() {
+    const u = ultima();
+    if (!u) return '<div class="card"><p class="empty">Ancora nessuna giornata caricata.</p></div>';
+    const quale = (prefs().classifica) || 'campionato';
+    const solo = async tipo => (await classifiche(tipo)).filter(r => r.round === u.id);
+    const voci = [
+      { id: 'campionato', et: 'Campionato' },
+      { id: 'super_corretta', et: 'Corretta' },
+      { id: 'coppa_lega', et: 'Coppa di Lega' },
+      { id: 'sfigometro', et: 'Sfigometro' },
+      { id: 'gol_totali', et: 'Gol reali' },
+      { id: 'coppa', et: 'Coppa' }
+    ];
+    let corpo = '', nota = '';
+    if (quale === 'campionato') {
+      corpo = tabellaCampionato(await solo('campionato'));
+      nota = 'M.I. è la media inglese: punti in più o in meno rispetto a un pareggio a partita.';
+    } else if (quale === 'super_corretta') {
+      const std = await solo('super_standard'), corr = await solo('super_corretta');
+      const bonus = new Map(std.map(r => [r.team_id, r.dati || {}]));
+      corpo = tabellaSemplice(corr, [
+        { et: 'Punti', val: r => n1((bonus.get(r.team_id) || {}).punti) },
+        { et: 'Bonus', val: r => n1((bonus.get(r.team_id) || {}).bonus) },
+        { et: 'Totale', val: r => n1(r.valore) }
+      ]);
+      nota = 'Alla classifica del campionato si sommano i punti delle quattro classifiche della superclassifica (Coppa di Lega, sfigometro, gol reali totali e sfruttati).';
+    } else if (quale === 'coppa') {
+      const q = await solo('coppa');
+      corpo = tabellaSemplice(q, [{ et: 'Punti', val: r => n1(r.valore) }]) + accoppiamenti(q);
+      nota = 'La classifica parallela somma campionato, Coppa di Lega, gol reali e crediti residui: determina gli accoppiamenti dei quarti.';
+    } else {
+      const r = await solo(quale);
+      corpo = tabellaSemplice(r, [
+        { et: 'Totale', val: x => n1((x.dati || {}).totale) },
+        { et: 'Media', val: x => n1((x.dati || {}).media) },
+        { et: 'Premio', val: x => n1((x.dati || {}).premio) },
+        { et: 'Punti', val: x => n1(x.valore) }
+      ]);
+      nota = quale === 'sfigometro' ? 'Lo sfigometro somma i punteggi degli avversari: più sei in alto, più ti è andata storta.'
+        : quale === 'gol_totali' ? 'Gol realmente segnati dai giocatori in rosa, schierati o no.'
+        : 'Somma dei punteggi di giornata, senza fattore campo e senza bonus del modulo avversario.';
+    }
+    return `<div class="stack">
+      <div class="chips" id="classChips">${voci.map(v => `<button type="button" class="chip" data-class="${v.id}" aria-pressed="${v.id === quale}">${esc(v.et)}</button>`).join('')}</div>
+      <div class="card">
+        <div class="sec-h"><h2>${esc((voci.find(v => v.id === quale) || {}).et)}</h2><span>dopo la ${u.id}ª</span></div>
+        ${corpo}
+        <p class="small muted" style="margin:0">${esc(nota)}</p>
+      </div>
+      ${quale === 'campionato' ? graficoPunti() : ''}
+    </div>`;
+  }
+
+  function graficoPunti() {
+    const serie = andamento();
+    const scelta = prefs().graficoSquadra || (S.team && S.team.id);
+    const g = S.teams.map(t => ({ nome: t.name, evidenzia: t.id === scelta, punti: serie.get(t.id) || [] }));
+    return `<div class="card">
+      <div class="sec-h"><h3>Andamento</h3><span>punti accumulati</span></div>
+      <div class="chips" id="serieChips">${S.teams.map(t => `<button type="button" class="chip" data-serie="${t.id}" aria-pressed="${t.id === scelta}">${esc(bel(t.name))}</button>`).join('')}</div>
+      ${grafico(g, { alt: 'Punti accumulati giornata per giornata' })}
+    </div>`;
+  }
+
+  function accoppiamenti(q) {
+    if (q.length < 8) return '';
+    const p = i => teamName((q[i - 1] || {}).team_id);
+    const coppie = [['A', 1, 8], ['B', 4, 5], ['C', 2, 7], ['D', 3, 6]];
+    return `<div style="margin-top:6px">${coppie.map(([l, a, b]) =>
+      `<div class="match"><span class="t">${esc(p(a))}</span><span class="score">${l}</span><span class="t a">${esc(p(b))}</span></div>`).join('')}</div>`;
+  }
+
+  // ---------------------------------------------------------------- calendario
+  async function sezioneCalendario() {
+    const u = ultima();
+    const sel = S.giornataScelta || (u ? u.id : 1);
+    const r = S.rounds.find(x => x.id === sel) || { id: sel };
+    const ms = S.matches.filter(m => m.round === sel);
+    const prec = S.rounds.filter(x => x.id < sel).pop();
+    const succ = S.rounds.filter(x => x.id > sel)[0];
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h">
+          <h2>Giornata ${sel}</h2>
+          <span>${r.serie_a ? r.serie_a + 'ª di Serie A' : ''} ${r.fase === 'orologio' ? '· fase a orologio' : ''}</span>
+        </div>
+        <div class="chips" style="justify-content:space-between">
+          <button type="button" class="chip" data-gio="${prec ? prec.id : ''}" ${prec ? '' : 'disabled'}>‹ precedente</button>
+          <button type="button" class="chip" data-gio="${succ ? succ.id : ''}" ${succ ? '' : 'disabled'}>successiva ›</button>
+        </div>
+        <div>${ms.length ? ms.map(m => rigaPartita(m)).join('') : '<p class="empty">Nessuna partita.</p>'}</div>
+        ${r.giocata ? '<p class="small muted" style="margin:0">Tocca una partita per il tabellino con voti, subentri e marcatori.</p>' : ''}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Tutte le giornate</h3><span>20 giornate</span></div>
+        <div class="chips">${S.rounds.map(x => `<button type="button" class="chip" data-gio="${x.id}" aria-pressed="${x.id === sel}">${x.id}${x.giocata ? '' : '·'}</button>`).join('')}</div>
+        <p class="small muted" style="margin:0">1–14 stagione regolare, 15–20 fase a orologio. Il puntino segna le giornate non ancora giocate.</p>
+      </div>
+    </div>`;
+  }
+
+  // tabellino di una partita
+  async function apriPartita(round, slot) {
+    const m = S.matches.find(x => x.round === round && x.slot === slot);
+    if (!m) return;
+    const rt = await tabellini(round);
+    const box = id => rt.find(x => x.team_id === id);
+    const a = box(m.casa), b = box(m.fuori);
+    const colonna = (t, mm) => {
+      if (!t) return '<p class="empty">Nessun tabellino.</p>';
+      const inCampo = (t.formazione || []).filter(x => x.giocato);
+      const fuori = (t.formazione || []).filter(x => !x.giocato);
+      const s = t.sostituzioni || {};
+      return `<div>
+        <div class="sec-h" style="margin-bottom:6px"><h3>${esc(teamName(t.team_id))}</h3><span>${esc(t.modulo || '')}</span></div>
+        <div class="tiles" style="grid-template-columns:repeat(4,1fr)">
+          ${tile(n1(t.punteggio), 'punteggio')}
+          ${tile(n1(t.fattore_campo), 'campo')}
+          ${tile(n1(t.bonus_modulo), 'modulo avv.')}
+          ${tile(n1(t.totale), 'totale')}
+        </div>
+        <div class="plist">${inCampo.map(x => `<div class="prow">
+          <span class="badge" data-r="${esc(x.ruolo)}">${esc(x.ruolo)}</span>
+          <span class="who"><b>${esc(x.nome)}</b></span>
+          <span class="val"><b>${n1(x.fantavoto)}</b><span>voto ${n1(x.voto)}</span></span></div>`).join('')}</div>
+        ${fuori.length ? `<div class="group-h">Non entrati</div><p class="small muted" style="margin:0">${esc(fuori.map(x => x.nome).join(', '))}</p>` : ''}
+        ${s.tot ? `<p class="small muted" style="margin:8px 0 0">Sostituzioni: ${s.tot} (P ${nz(s.P)} · D ${nz(s.D)} · C ${nz(s.C)} · A ${nz(s.A)})</p>` : ''}
+        ${(t.marcatori || []).length ? `<p class="small" style="margin:6px 0 0">⚽ ${esc((t.marcatori || []).join(', '))}</p>` : ''}
+      </div>`;
+    };
+    sheet(`<div class="sheet-h"><div><h4>${esc(teamName(m.casa))} ${m.gol_casa}–${m.gol_fuori} ${esc(teamName(m.fuori))}</h4>
+        <p>Giornata ${round} · ${n1(m.totale_casa)} contro ${n1(m.totale_fuori)}</p></div></div>
+      <div class="sheet-b stack">${colonna(a, m)}<hr style="border:0;border-top:1px solid var(--line)">${colonna(b, m)}</div>
+      <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
+  }
+
+  // --------------------------------------------------------------------- rose
+  async function sezioneRose() {
+    const [pl, cs, ps, se] = await Promise.all([rose(), costi(), statGiocatori(), stagione()]);
+    const scelta = S.squadraScelta || (S.team && S.team.id) || (S.teams[0] || {}).id;
+    const t = teamById(scelta);
+    const miei = pl.filter(x => x.team_id === scelta);
+    const costoDi = new Map(cs.filter(x => x.team_id === scelta).map(x => [x.slot, x]));
+    const statDi = new Map(ps.filter(x => x.team_id === scelta).map(x => [x.nome, x]));
+    const sea = se.find(x => x.team_id === scelta) || {};
+    const spesa = miei.reduce((s, p) => s + nz((costoDi.get(p.slot) || {}).costo), 0);
+
+    const gruppi = ['P', 'D', 'C', 'A'].map(ro => {
+      const l = miei.filter(p => p.role === ro);
+      if (!l.length) return '';
+      return `<div class="group-h">${ROLE[ro]}</div><div class="plist">${l.map(p => {
+        const c = costoDi.get(p.slot) || {}, st = statDi.get(p.name) || {};
+        return `<div class="prow">
+          <span class="badge" data-r="${esc(p.role)}">${esc(p.role)}</span>
+          <span class="who"><b>${esc(p.name)}</b><span>${esc([p.club, c.costo != null ? n1(c.costo) + ' cr' : null].filter(Boolean).join(' · ') || 'squadra da assegnare')}</span></span>
+          <span class="val"><b>${st.fantamedia != null ? n1(st.fantamedia) : '—'}</b><span>${st.presenze ? st.presenze + ' pres · ' + n1(st.media) : 'mai schierato'}</span></span>
+        </div>`;
+      }).join('')}</div>`;
+    }).join('');
+
+    return `<div class="stack">
+      <div class="chips" id="roseChips">${S.teams.map(x => `<button type="button" class="chip" data-squadra="${x.id}" aria-pressed="${x.id === scelta}">${esc(bel(x.name))}</button>`).join('')}</div>
+      <div class="card">
+        <div class="sec-h"><h2>${esc(t ? bel(t.name) : '')}</h2><span>${miei.length} giocatori</span></div>
+        <div class="tiles">
+          ${tile(sea.crediti != null ? sea.crediti : '—', 'crediti residui')}
+          ${tile(n1(spesa), 'spesi in rosa')}
+          ${tile(sea.gol_totali != null ? sea.gol_totali : '—', 'gol reali')}
+          ${tile(sea.gol_sfruttati != null ? sea.gol_sfruttati : '—', 'gol sfruttati')}
+        </div>
+        ${gruppi || '<p class="empty">Rosa non ancora caricata.</p>'}
+        <p class="small muted" style="margin:0">Fantamedia e presenze sono calcolate sulle giornate caricate.</p>
+      </div>
+    </div>`;
+  }
+
+  // -------------------------------------------------------------- statistiche
+  async function sezioneStatistiche() {
+    const u = ultima();
+    if (!u) return '<div class="card"><p class="empty">Ancora nessuna giornata caricata.</p></div>';
+    const [ps, sc, rt] = await Promise.all([statGiocatori(), marcatori(), tabellini(u.id)]);
+    const maxPres = Math.max.apply(null, [1].concat(ps.map(p => nz(p.presenze))));
+    const conPres = ps.filter(p => nz(p.presenze) >= Math.max(1, Math.ceil(maxPres / 2)));
+    const perFanta = conPres.slice().sort((a, b) => nz(b.fantamedia) - nz(a.fantamedia)).slice(0, 10);
+    const perVoto = conPres.slice().sort((a, b) => nz(b.media) - nz(a.media)).slice(0, 10);
+    const bomber = sc.filter(x => nz(x.gol) > 0).slice(0, 15);
+    const prestazioni = [].concat.apply([], rt.map(t => (t.formazione || []).filter(x => x.giocato)
+      .map(x => ({ nome: x.nome, squadra: teamName(t.team_id), fantavoto: x.fantavoto, voto: x.voto }))))
+      .sort((a, b) => nz(b.fantavoto) - nz(a.fantavoto)).slice(0, 8);
+    const squadre = rt.slice().sort((a, b) => nz(b.punteggio) - nz(a.punteggio));
+
+    const lista = (righe, mappa) => `<div class="plist">${righe.map((r, i) => {
+      const m = mappa(r);
+      return `<div class="prow"><span class="pos muted" style="text-align:right">${i + 1}</span>
+        <span class="who"><b>${esc(m.titolo)}</b><span>${esc(m.sotto)}</span></span>
+        <span class="val"><b>${esc(m.valore)}</b>${m.nota ? `<span>${esc(m.nota)}</span>` : ''}</span></div>`;
+    }).join('')}</div>`;
+
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h"><h2>Cannonieri</h2><span>gol reali in stagione</span></div>
+        ${bomber.length ? lista(bomber, r => ({ titolo: r.nome, sotto: teamName(r.team_id), valore: r.gol, nota: r.gol_sfruttati + ' sfruttati' }))
+          : '<p class="empty">Nessun gol registrato.</p>'}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Migliori fantamedie</h3><span>almeno metà delle giornate</span></div>
+        ${perFanta.length ? lista(perFanta, r => ({ titolo: r.nome, sotto: r.squadra + ' · ' + r.presenze + ' presenze', valore: n1(r.fantamedia), nota: 'voto ' + n1(r.media) }))
+          : '<p class="empty">Servono più giornate.</p>'}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Migliori medie voto</h3><span>senza bonus</span></div>
+        ${perVoto.length ? lista(perVoto, r => ({ titolo: r.nome, sotto: bel(r.squadra), valore: n1(r.media), nota: n1(r.fantamedia) + ' di fantamedia' }))
+          : '<p class="empty">Servono pi\u00f9 giornate.</p>'}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Prestazioni della ${u.id}ª</h3><span>fantavoto più alto</span></div>
+        ${prestazioni.length ? lista(prestazioni, r => ({ titolo: r.nome, sotto: r.squadra, valore: n1(r.fantavoto), nota: 'voto ' + n1(r.voto) }))
+          : '<p class="empty">Nessun voto per questa giornata.</p>'}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Punteggi della ${u.id}ª</h3><span>Coppa di Lega</span></div>
+        ${barre(squadre.map(t => ({ et: teamName(t.team_id), v: nz(t.punteggio), mio: isMe(t.team_id) })))}
+      </div>
+    </div>`;
+  }
+
+  // Barre orizzontali: una misura sola, etichette sempre scritte accanto al valore.
+  function barre(righe) {
+    if (!righe.length) return '<p class="empty">Niente da mostrare.</p>';
+    const max = Math.max.apply(null, righe.map(r => r.v)) || 1;
+    return `<div class="plist">${righe.map(r => `<div class="prow" style="grid-template-columns:1fr 54px">
+      <span class="who"><b>${esc(r.et)}</b>
+        <span style="display:block;height:8px;border-radius:4px;margin-top:5px;background:${r.mio ? 'var(--chart-accent)' : 'var(--chart-mute)'};width:${Math.max(3, Math.round(r.v / max * 100))}%"></span></span>
+      <span class="val"><b>${n1(r.v)}</b></span></div>`).join('')}</div>`;
+  }
+
+  // -------------------------------------------------------------------- coppe
+  async function sezioneCoppe() {
+    const u = ultima();
+    if (!u) return '<div class="card"><p class="empty">Ancora nessuna giornata caricata.</p></div>';
+    const q = (await classifiche('coppa')).filter(r => r.round === u.id);
+    const cdl = (await classifiche('coppa_lega')).filter(r => r.round === u.id);
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h"><h2>Coppa</h2><span>quarti alla 23ª di Serie A</span></div>
+        ${tabellaSemplice(q, [{ et: 'Punti', val: r => n1(r.valore) }])}
+        <div class="sec-h" style="margin-top:6px"><h3>Accoppiamenti</h3><span>gara unica in casa del meglio piazzato</span></div>
+        ${accoppiamenti(q)}
+        <p class="small muted" style="margin:0">Semifinali A–B e C–D, poi la finale. In campo neutro o andata e ritorno, a seconda di quante giornate liberano i playoff.</p>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h2>Coppa di Lega</h2><span>somma dei punteggi di giornata</span></div>
+        ${tabellaSemplice(cdl, [
+          { et: 'Totale', val: r => n1((r.dati || {}).totale) },
+          { et: 'Media', val: r => n1((r.dati || {}).media) },
+          { et: 'Punti', val: r => n1(r.valore) }
+        ])}
+        <p class="small muted" style="margin:0">Senza fattore campo e senza il bonus del modulo avversario: conta solo quanto ha fatto la tua formazione.</p>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Supercoppa</h3><span>38ª di Serie A</span></div>
+        <p class="small muted" style="margin:0">Finale fra il vincente del Campionato e il vincente della Coppa di Lega. Se i playoff liberano tre giornate si gioca anche la semifinale fra vincente della Coppa e vincente della Coppa di Lega.</p>
+      </div>
+    </div>`;
+  }
+
+  // ------------------------------------------------------------------ playoff
+  async function sezionePlayoff() {
+    const u = ultima();
+    const camp = u ? (await classifiche('campionato')).filter(r => r.round === u.id) : [];
+    const p = i => camp[i - 1] ? teamName(camp[i - 1].team_id) : i + 'º classificato';
+    const turno = (titolo, coppie, nota) => `<div class="card">
+      <div class="sec-h"><h3>${esc(titolo)}</h3><span>${esc(nota)}</span></div>
+      <div>${coppie.map(([a, b]) => `<div class="match"><span class="t">${esc(p(a))}</span><span class="score">vs</span><span class="t a">${esc(p(b))}</span></div>`).join('')}</div>
+    </div>`;
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h"><h2>Playoff</h2><span>dalla 24ª di Serie A</span></div>
+        <p class="small muted" style="margin:0">Quattro turni a eliminazione diretta, tabellone generato dalla classifica finale delle 20 giornate.
+        Andata, ritorno ed eventuale bella: chi è meglio piazzato parte con due gol di vantaggio all’andata.</p>
+      </div>
+      ${turno('Primo turno', [[4, 1], [3, 2], [8, 5], [7, 6]], 'andata in casa del peggio piazzato')}
+      <div class="card">
+        <div class="sec-h"><h3>Turni successivi</h3><span>secondo turno, semifinali, finali</span></div>
+        <p class="small muted" style="margin:0">Il tabellone si ricostruisce a ogni turno in base ai punti: i vincenti si affrontano fra loro, i perdenti scendono nel tabellone secondario.
+        Le giornate 26, 29, 32 e 35 ospitano le belle, oppure i turni di Coppa se le belle non servono.</p>
+      </div>
+      ${camp.length ? `<div class="card"><div class="sec-h"><h3>Classifica attuale</h3><span>dopo la ${u.id}ª</span></div>${tabellaCampionato(camp, true)}</div>` : ''}
+    </div>`;
+  }
+
+  // ------------------------------------------------------------------- albo
+  async function sezioneAlbo() {
+    const a = await alboDoro();
+    const conta = {};
+    a.forEach(r => ['campionato', 'coppa', 'coppa_lega', 'supercoppa'].forEach(k => {
+      const v = r[k];
+      if (!v) return;
+      conta[v] = conta[v] || { n: 0, campionato: 0 };
+      conta[v].n++;
+      if (k === 'campionato') conta[v].campionato++;
+    }));
+    const bacheca = Object.keys(conta).map(k => ({ nome: k, n: conta[k].n, c: conta[k].campionato }))
+      .sort((x, y) => y.c - x.c || y.n - x.n).slice(0, 12);
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h"><h2>Bacheca</h2><span>trofei di sempre</span></div>
+        <div class="plist">${bacheca.map((b, i) => `<div class="prow" style="grid-template-columns:20px 1fr auto">
+          <span class="pos muted">${i + 1}</span>
+          <span class="who"><b>${esc(b.nome)}</b><span>${b.c} campionat${b.c === 1 ? 'o' : 'i'}</span></span>
+          <span class="val"><b>${b.n}</b><span>trofei</span></span></div>`).join('')}</div>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h2>Albo d’oro</h2><span>${a.length} stagioni</span></div>
+        <div class="scroll-x"><table class="tbl"><thead><tr><th class="l">Stagione</th><th class="l">Campionato</th><th class="l">Coppa</th><th class="l">C. di Lega</th><th class="l">Supercoppa</th></tr></thead><tbody>
+          ${a.map(r => `<tr><td class="l nm">${esc(r.stagione)}</td><td class="l">${esc(r.campionato || '')}</td><td class="l">${esc(r.coppa || '')}</td><td class="l">${esc(r.coppa_lega || '')}</td><td class="l">${esc(r.supercoppa || '')}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>
+    </div>`;
+  }
+
+  // ------------------------------------------------------------------ premi
+  function sezionePremi() {
+    const riga = (a, b) => `<div class="prow" style="grid-template-columns:1fr auto"><span class="who"><b>${esc(a)}</b></span><span class="val"><b>${esc(b)}</b></span></div>`;
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h"><h2>Montepremi</h2><span>25 euro a squadra · 200 euro in totale</span></div>
+        <div class="group-h">Campionato</div>
+        <div class="plist">${riga('1º dopo le 20 giornate', '5 €')}${riga('1º classificato', '70 €')}${riga('2º classificato', '40 €')}${riga('3º classificato', '20 €')}${riga('4º classificato', '10 €')}</div>
+        <div class="group-h">Coppa di Lega</div>
+        <div class="plist">${riga('1º classificato', '20–25 €')}${riga('2º classificato', '10–15 €')}${riga('3º classificato', '5 €')}</div>
+        <div class="group-h">Coppa e Supercoppa</div>
+        <div class="plist">${riga('Coppa, 1º', '5–10 €')}${riga('Coppa, 2º', '0–5 €')}${riga('Supercoppa', '5 €')}</div>
+        <p class="small muted" style="margin:0">Gli importi di Coppa e Coppa di Lega dipendono da come si sviluppa il calendario: più turni si giocano con andata e ritorno, più pesa la Coppa.</p>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h2>Crediti per la prossima stagione</h2><span>si portano al mercato</span></div>
+        <div class="plist">
+          ${riga('Campionato: 1º stagione regolare', '5')}${riga('Campionato: 1º / 2º / 3º / 4º', '15 / 8 / 4 / 2')}
+          ${riga('Coppa di Lega: 1º / 2º / 3º / 4º', '10 / 6 / 3 / 1')}
+          ${riga('Coppa: 1º / 2º', '4 / 1')}${riga('Supercoppa: 1º', '1')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h2>Come si fanno i gol</h2><span>dal punteggio al risultato</span></div>
+        <p class="small muted" style="margin:0">Il punteggio di giornata è la somma dei fantavoti, più 2 se giochi in casa, più il bonus che ti lascia il modulo dell’avversario
+        (3-4-3 +1,5 · 4-3-3 +1 · 3-5-2 +0,5 · 4-4-2 0 · 5-3-2 −0,5 · 4-5-1 −1 · 5-4-1 −1,5).
+        Sotto 66 nessun gol, poi un gol ogni 6 punti: 66–71,5 uno, 72–77,5 due, e così via.</p>
+      </div>
+    </div>`;
+  }
+
+  // ----------------------------------------------------------- caricamento xls
+  async function caricaGiornata(file) {
+    if (!file) return;
+    let dati;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      dati = Giornata.parse(bytes, file.name);
+    } catch (e) {
+      console.error(e);
+      notice(e && e.message ? e.message : 'Non riesco a leggere il file.', 'error');
+      return;
+    }
+    const giocate = dati.calendario.filter(m => m.giocata).length;
+    const el = sheet(`<div class="sheet-h"><div><h4>Caricare la giornata ${dati.giornata}?</h4><p>${esc(file.name)}</p></div></div>
+      <div class="sheet-b">
+        <div class="tiles" style="margin-top:12px">
+          ${tile(dati.giornata, 'giornata di lega')}
+          ${tile(dati.serie_a + 'ª', 'di Serie A')}
+          ${tile(giocate, 'partite giocate')}
+          ${tile(dati.voti.length, 'voti')}
+        </div>
+        <div class="plist" style="margin-top:12px">
+          ${dati.squadre_giornata.map(t => `<div class="prow" style="grid-template-columns:1fr auto">
+            <span class="who"><b>${esc(bel(t.squadra))}</b><span>${esc(t.modulo || '')} · ${t.gol_fatti != null ? t.gol_fatti + '–' + t.gol_subiti + ' con ' + esc(t.avversario || '') : 'senza partita'}</span></span>
+            <span class="val"><b>${n1(t.punteggio)}</b><span>punteggio</span></span></div>`).join('')}
+        </div>
+        <p class="small muted" style="margin:12px 0 0">Vengono aggiornati risultati, classifiche, voti, marcatori, rose e crediti.
+        Le formazioni salvate in Schiera restano dove sono: se non coincidono con il file te lo dico.</p>
+      </div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Annulla</button><button type="button" class="btn btn-primary" data-act="go">Carica</button></div>`);
+    el.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'close') { closeSheet(); return; }
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> Carico…';
+      try {
+        const res = await SB.rpc('import_round', { p: dati });
+        closeSheet();
+        S.cache = {};
+        await caricaBase();
+        S.giornataScelta = res.giornata;
+        render();
+        const diff = res.differenze || [];
+        notice('Giornata ' + res.giornata + ' caricata: ' + res.partite + ' partite, ' + res.voti + ' voti, ' + res.classifiche + ' righe di classifica.');
+        if (diff.length) mostraDifferenze(diff);
+      } catch (e) {
+        console.error(e);
+        closeSheet();
+        notice(e && e.message ? e.message : 'Caricamento non riuscito.', 'error');
+      }
+    });
+  }
+
+  function mostraDifferenze(diff) {
+    sheet(`<div class="sheet-h"><div><h4>Formazioni diverse</h4><p>${diff.length} squadr${diff.length === 1 ? 'a' : 'e'}: nel file risulta una formazione diversa da quella salvata nell’app</p></div></div>
+      <div class="sheet-b">${diff.map(d => `<div class="group-h">${esc(d.squadra)}</div>
+        <p class="small" style="margin:0"><b>Nell’app:</b> ${esc((d.nell_app || []).join(', '))}</p>
+        <p class="small" style="margin:4px 0 10px"><b>Nel file:</b> ${esc((d.nel_file || []).join(', '))}</p>`).join('')}
+        <p class="small muted">Vale il file: è quello con cui sono stati calcolati i punteggi. La formazione salvata resta nello storico di Schiera.</p></div>
+      <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Ho capito</button></div>`);
+  }
+
+  // ------------------------------------------------------------------ sezioni
+  const SEZIONI = [
+    { id: '', et: 'Home', vista: home },
+    { id: 'rose', et: 'Rose', vista: sezioneRose },
+    { id: 'calendario', et: 'Calendario', vista: sezioneCalendario },
+    { id: 'classifiche', et: 'Classifiche', vista: sezioneClassifiche },
+    { id: 'statistiche', et: 'Statistiche', vista: sezioneStatistiche },
+    { id: 'coppe', et: 'Coppe', vista: sezioneCoppe },
+    { id: 'playoff', et: 'Playoff', vista: sezionePlayoff },
+    { id: 'albo', et: 'Albo d’oro', vista: sezioneAlbo },
+    { id: 'premi', et: 'Premi', vista: sezionePremi }
+  ];
+
+  function navHtml() {
+    return SEZIONI.map(s => `<a href="#/${s.id}" ${s.id === S.sezione ? 'aria-current="page"' : ''}>${esc(s.et)}</a>`).join('') +
+      '<a href="schiera/">Schiera ↗</a>';
+  }
+
+  async function render() {
+    const sez = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
+    $('#nav').innerHTML = navHtml();
+    $('#view').innerHTML = '<div class="card"><p class="empty"><span class="spin"></span></p></div>';
+    try {
+      $('#view').innerHTML = await sez.vista();
+    } catch (e) {
+      console.error(e);
+      $('#view').innerHTML = '<div class="card"><p class="empty">' + esc(e && e.message ? e.message : 'Qualcosa non ha funzionato.') + '</p></div>';
+    }
+    collegaGrafici();
+    const u = ultima();
+    $('#foot').textContent = u ? 'Dati della giornata ' + u.id + (u.caricata_at ? ' · caricati il ' + new Date(u.caricata_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }) : '') : '';
+  }
+
+  // tocco e passaggio del dito sul grafico
+  function collegaGrafici() {
+    document.querySelectorAll('.chart-wrap').forEach(w => {
+      const punti = (w.dataset.punti || '').split(',').filter(Boolean).map(s => s.split(':').map(Number));
+      if (!punti.length) return;
+      const tip = w.querySelector('.tip');
+      const muovi = ev => {
+        const r = w.getBoundingClientRect();
+        const x = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width;
+        const i = Math.max(0, Math.min(punti.length - 1, Math.round(x * (punti.length - 1))));
+        tip.hidden = false;
+        tip.style.opacity = '1';
+        tip.style.left = (24 / 360 * r.width + (r.width - (24 + 52) / 360 * r.width) * (punti.length === 1 ? .5 : i / (punti.length - 1))) + 'px';
+        tip.style.top = (r.height * .55) + 'px';
+        tip.innerHTML = 'Giornata ' + punti[i][0] + ' · <b>' + punti[i][1] + '</b> punti';
+      };
+      const via = () => { tip.style.opacity = '0'; };
+      w.addEventListener('mousemove', muovi);
+      w.addEventListener('touchstart', muovi, { passive: true });
+      w.addEventListener('touchmove', muovi, { passive: true });
+      w.addEventListener('mouseleave', via);
+      w.addEventListener('touchend', via);
+    });
+  }
+
+  // ------------------------------------------------------------------ modali
+  function sheet(html) {
+    closeSheet();
+    const scrim = document.createElement('div');
+    scrim.className = 'scrim';
+    scrim.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+    scrim.addEventListener('click', ev => {
+      if (ev.target === scrim || ev.target.closest('[data-act="close"]')) closeSheet();
+    });
+    $('#layer').appendChild(scrim);
+    const f = scrim.querySelector('button');
+    if (f) f.focus({ preventScroll: true });
+    return scrim.firstElementChild;
+  }
+  const closeSheet = () => { $('#layer').innerHTML = ''; };
+
+  function notice(text, kind) {
+    const d = document.createElement('div');
+    d.className = 'notice' + (kind === 'error' ? ' error' : '');
+    d.innerHTML = `<span>${esc(text)}</span>`;
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = 'OK';
+    b.addEventListener('click', () => d.remove());
+    d.appendChild(b);
+    $('#notices').appendChild(d);
+  }
+  const clearNotices = () => { $('#notices').innerHTML = ''; };
+  let toastT;
+  function toast(t) {
+    document.querySelectorAll('.toast').forEach(x => x.remove());
+    const d = document.createElement('div');
+    d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = t;
+    document.body.appendChild(d);
+    clearTimeout(toastT); toastT = setTimeout(() => d.remove(), 2600);
+  }
+
+  // ------------------------------------------------------------------ accesso
+  function mostraLogin(msg) {
+    $('#loginCard').hidden = false;
+    $('#nav').hidden = true;
+    $('#userBtn').hidden = true;
+    $('#view').innerHTML = '';
+    $('#foot').textContent = '';
+    if (msg) notice(msg);
+  }
+
+  async function entra() {
+    await caricaBase();
+    $('#loginCard').hidden = true;
+    $('#nav').hidden = false;
+    $('#userBtn').hidden = false;
+    $('#userBtn').textContent = S.team ? bel(S.team.name) : 'Account';
+    $('#userHead').innerHTML = `<b>${esc(S.profile.display_name || '')}</b><span>${esc(S.team ? bel(S.team.name) : 'senza squadra')}${isAdmin() ? ' · amministratore' : ''}</span>`;
+    $('#adminBtn').hidden = !isAdmin();
+    $('#sub').textContent = 'stagione 2026/27';
+    clearNotices();
+    await render();
+  }
+
+  // -------------------------------------------------------------------- eventi
+  $('#loginForm').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const b = $('#loginBtn');
+    b.disabled = true; b.textContent = 'Entro…';
+    try {
+      await SB.signIn($('#email').value, $('#password').value);
+      $('#password').value = '';
+      await entra();
+    } catch (e) {
+      console.error(e);
+      notice(e && e.message ? e.message : 'Accesso non riuscito.', 'error');
+      if (e.code === 'no_profile') await SB.signOut();
+    }
+    b.disabled = false; b.textContent = 'Entra';
+  });
+
+  $('#recoverBtn').addEventListener('click', async () => {
+    const email = $('#email').value.trim();
+    if (!email) { notice('Scrivi prima la tua email, poi tocca di nuovo.'); return; }
+    try { await SB.recover(email, location.origin + location.pathname); notice('Ti ho mandato un’email con il link per reimpostare la password.'); }
+    catch (e) { notice(e.message || 'Invio non riuscito.', 'error'); }
+  });
+
+  const apriMenu = open => {
+    const p = $('#userPop');
+    p.hidden = open === undefined ? !p.hidden : !open;
+    $('#userBtn').setAttribute('aria-expanded', String(!p.hidden));
+  };
+  $('#userBtn').addEventListener('click', e => { e.stopPropagation(); apriMenu(); });
+  document.addEventListener('click', e => { if (!e.target.closest('.top')) apriMenu(false); });
+  $('#logoutBtn').addEventListener('click', async () => {
+    apriMenu(false);
+    await SB.signOut();
+    S.profile = null; S.team = null; S.pronta = false;
+    mostraLogin();
+  });
+  $('#adminBtn').addEventListener('click', () => { apriMenu(false); $('#roundFile').click(); });
+  $('#roundFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; caricaGiornata(f); });
+  $('#themeBtn').addEventListener('click', () => {
+    apriMenu(false);
+    const ora = document.documentElement.getAttribute('data-theme');
+    const scuro = ora ? ora === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', scuro ? 'light' : 'dark');
+    const p = prefs(); p.tema = scuro ? 'light' : 'dark'; setPrefs(p);
+  });
+
+  // tocchi dentro le sezioni
+  $('#view').addEventListener('click', ev => {
+    const m = ev.target.closest('[data-match]');
+    if (m) { const [r, s] = m.dataset.match.split(':').map(Number); apriPartita(r, s); return; }
+    const g = ev.target.closest('[data-gio]');
+    if (g && g.dataset.gio) { S.giornataScelta = +g.dataset.gio; render(); return; }
+    const sq = ev.target.closest('[data-squadra]');
+    if (sq) { S.squadraScelta = sq.dataset.squadra; render(); return; }
+    const cl = ev.target.closest('[data-class]');
+    if (cl) { const p = prefs(); p.classifica = cl.dataset.class; setPrefs(p); render(); return; }
+    const se = ev.target.closest('[data-serie]');
+    if (se) { const p = prefs(); p.graficoSquadra = se.dataset.serie; setPrefs(p); render(); return; }
+  });
+
+  window.addEventListener('hashchange', () => {
+    S.sezione = (location.hash || '').replace(/^#\/?/, '');
+    if (S.pronta) render();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); apriMenu(false); } });
+
+  // --------------------------------------------------------------------- avvio
+  (async function start() {
+    const p = prefs();
+    if (p.tema) document.documentElement.setAttribute('data-theme', p.tema);
+    S.sezione = (location.hash || '').replace(/^#\/?/, '');
+    if (!window.SB || !SB.configured()) {
+      $('#loginCard').hidden = true;
+      $('#view').innerHTML = '<div class="card"><h2>Sito non collegato</h2><p class="muted">Manca la configurazione del database della lega.</p></div>';
+      return;
+    }
+    const hash = SB.adoptFromHash ? SB.adoptFromHash() : null;
+    try {
+      if (hash && hash.type === 'recovery') { mostraLogin('Apri Schiera Formazione per impostare la nuova password.'); return; }
+      if (SB.session()) { await entra(); return; }
+    } catch (e) {
+      console.error(e);
+      await SB.signOut();
+      mostraLogin(e && e.message ? e.message : 'Devi entrare di nuovo.');
+      return;
+    }
+    mostraLogin();
+  })();
+})();
+
+</script>
 </body>
 </html>
