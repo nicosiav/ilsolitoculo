@@ -21,3 +21,15 @@ la formazione salvata in Schiera e quella del file).
 | `XLS` | il file di giornata da cui nascono i dati |
 | `ADMIN` | l'account è amministratore |
 | `DIFF` | il database segnala una formazione diversa da quella salvata |
+
+## Schermate per la guida
+
+`screenshots.py` rifà le schermate usate nella guida dell'amministratore (menu,
+anteprima del caricamento, esito, differenze, menu Opzioni di Schiera): stesso
+finto Supabase, telefono simulato, tema chiaro.
+
+```bash
+XLS=/percorso/"03 Campionato - Terza Giornata.xls" python3 screenshots.py
+```
+
+Le immagini finiscono in `schermate/`. Vanno rifatte quando l'interfaccia cambia.
