@@ -38,6 +38,7 @@
   --body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* grafici: tinte scelte per ogni tema, non "schiarite" in automatico */
   --chart-accent: #1E6BCB;
+  --chart-b: #E08A08;
   --chart-mute: #9AA79F;
   --chart-grid: rgba(20, 32, 26, .10);
 }
@@ -49,7 +50,7 @@
     --primary: #E6EDE7; --on-primary: #0C120E; --warn-bg: #3A2B0C; --warn-ink: #F6D48C;
     --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
-    --chart-accent: #4A93EE; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+    --chart-accent: #4A93EE; --chart-b: #C47A12; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
   }
 }
 :root[data-theme="dark"] {
@@ -59,7 +60,7 @@
   --primary: #E6EDE7; --on-primary: #0C120E; --warn-bg: #3A2B0C; --warn-ink: #F6D48C;
   --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
-  --chart-accent: #4A93EE; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+  --chart-accent: #4A93EE; --chart-b: #C47A12; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
 }
 
 * { box-sizing: border-box; }
@@ -197,6 +198,16 @@ a { color: inherit; }
   transform: translate(-50%, -110%); opacity: 0; transition: opacity .12s;
 }
 .tip b { font-variant-numeric: tabular-nums; }
+
+/* legenda dei grafici */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; background: var(--chart-accent); display: inline-block; }
+.legend .b i { background: var(--chart-b); }
+
+/* esito partita */
+.esito { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; font: 700 11px/1 var(--display); color: #fff; }
+.esito.v { background: var(--ok); } .esito.n { background: var(--muted); } .esito.p { background: var(--ko); }
 
 /* elenco giocatori */
 .plist { display: grid; }
@@ -2122,7 +2133,7 @@ window.SCHIERA_CONFIG = {
   // niente spaghetti di otto colori su uno schermo da telefono.
   function grafico(serie, opts) {
     opts = opts || {};
-    const W = 360, H = opts.h || 190, ML = 24, MR = 52, MT = 12, MB = 22;
+    const W = 360, H = opts.h || 190, ML = 24, MR = 64, MT = 12, MB = 22;
     const punti = [].concat.apply([], serie.map(s => s.punti));
     if (punti.length < 2) return '<p class="empty">Servono almeno due giornate per il grafico.</p>';
     const xs = punti.map(p => p.x), ys = punti.map(p => p.y);
@@ -2147,14 +2158,23 @@ window.SCHIERA_CONFIG = {
     }
     const sfondo = serie.filter(s => !s.evidenzia).map(s =>
       `<path d="${path(s)}" fill="none" stroke="var(--chart-mute)" stroke-width="1.5" stroke-opacity=".38" stroke-linejoin="round"/>`).join('');
-    const top = serie.filter(s => s.evidenzia).map(s => {
+    const inEvidenza = serie.filter(s => s.evidenzia);
+    const colore = s => (s.colore === 'b' ? 'var(--chart-b)' : 'var(--chart-accent)');
+    const usate = [];
+    const top = inEvidenza.map(s => {
       const ult = s.punti[s.punti.length - 1];
-      return `<path d="${path(s)}" fill="none" stroke="var(--chart-accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
-        s.punti.map(p => `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="4.5" fill="var(--chart-accent)" stroke="var(--surface)" stroke-width="2"/>`).join('') +
-        `<text class="lbl" x="${(X(ult.x) + 8).toFixed(1)}" y="${(Y(ult.y) + 4).toFixed(1)}">${esc(bel(s.nome))}</text>`;
+      let y = Y(ult.y) + 4;
+      while (usate.some(v => Math.abs(v - y) < 11)) y += 11;   // etichette che non si accavallano
+      usate.push(y);
+      return `<path d="${path(s)}" fill="none" stroke="${colore(s)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
+        s.punti.map(p => `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="4.5" fill="${colore(s)}" stroke="var(--surface)" stroke-width="2"/>`).join('') +
+        `<text class="lbl" x="${(X(ult.x) + 8).toFixed(1)}" y="${y.toFixed(1)}">${esc(bel(s.nome))}</text>`;
     }).join('');
-    const dati = serie.filter(s => s.evidenzia).map(s => s.punti.map(p => `${p.x}:${p.y}`).join(','))[0] || '';
-    return `<div class="chart-wrap" data-punti="${esc(dati)}" data-x0="${x0}" data-x1="${x1}">
+    const legenda = inEvidenza.length > 1
+      ? `<div class="legend">${inEvidenza.map(s => `<span class="${s.colore === 'b' ? 'b' : ''}"><i></i>${esc(bel(s.nome))}</span>`).join('')}</div>`
+      : '';
+    const dati = JSON.stringify(inEvidenza.map(s => ({ n: bel(s.nome), p: s.punti.map(p => [p.x, p.y]) })));
+    return `${legenda}<div class="chart-wrap" data-tip="${esc(dati)}">
       <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.alt || 'Andamento')}">
         ${griglia.join('')}${assex.join('')}${sfondo}${top}
       </svg><div class="tip" hidden></div></div>`;
@@ -2666,13 +2686,141 @@ window.SCHIERA_CONFIG = {
       <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Ho capito</button></div>`);
   }
 
+
+  // ------------------------------------------------------------- una squadra
+  const esitoDi = (m, id) => {
+    if (m.gol_casa == null) return null;
+    const mio = m.casa === id ? m.gol_casa : m.gol_fuori;
+    const suo = m.casa === id ? m.gol_fuori : m.gol_casa;
+    return mio > suo ? 'v' : mio === suo ? 'n' : 'p';
+  };
+
+  async function sezioneSquadra() {
+    const u = ultima();
+    const id = S.squadraScelta || (S.team && S.team.id) || (S.teams[0] || {}).id;
+    const t = teamById(id);
+    if (!u || !t) return '<div class="card"><p class="empty">Ancora nessuna giornata caricata.</p></div>';
+    const [camp, cdl, sfiga, perGiornata, ps] = await Promise.all([
+      classifiche('campionato'), classifiche('coppa_lega'), classifiche('sfigometro'),
+      classifiche('cdl_giornata'), statGiocatori()
+    ]);
+    const mia = camp.filter(r => r.round === u.id).find(r => r.team_id === id) || {};
+    const c = cdl.filter(r => r.round === u.id).find(r => r.team_id === id) || {};
+    const sf = sfiga.filter(r => r.round === u.id).find(r => r.team_id === id) || {};
+    const d = mia.dati || {};
+    const mie = partiteDi(id).filter(m => m.gol_casa != null);
+    const serie = andamento();
+    const grafiche = S.teams.map(x => ({ nome: x.name, evidenzia: x.id === id, punti: serie.get(x.id) || [] }));
+    const punteggi = perGiornata.filter(r => r.team_id === id).sort((a, b) => a.round - b.round)
+      .map(r => ({ x: r.round, y: +r.valore }));
+    const migliori = ps.filter(p => p.team_id === id && nz(p.presenze) > 0)
+      .sort((a, b) => nz(b.fantamedia) - nz(a.fantamedia)).slice(0, 6);
+
+    return `<div class="stack">
+      <div class="chips" id="sqChips">${S.teams.map(x => `<button type="button" class="chip" data-squadra="${x.id}" aria-pressed="${x.id === id}">${esc(bel(x.name))}</button>`).join('')}</div>
+      <div class="card">
+        <div class="sec-h"><h2>${esc(bel(t.name))}</h2><span>dopo la ${u.id}ª</span></div>
+        <div class="tiles">
+          ${tile(mia.pos ? mia.pos + 'º' : '—', 'in campionato')}
+          ${tile(n1(mia.valore), 'punti')}
+          ${tile(nz(d.gf) + '-' + nz(d.gs), 'gol')}
+          ${tile(n1((c.dati || {}).media), 'media a giornata')}
+          ${tile(c.pos ? c.pos + 'º' : '—', 'in Coppa di Lega')}
+          ${tile(sf.pos ? sf.pos + 'º' : '—', 'nello sfigometro')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Punteggi di giornata</h3><span>Coppa di Lega</span></div>
+        ${grafico([{ nome: t.name, evidenzia: true, punti: punteggi }], { alt: 'Punteggio di ogni giornata' })}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Andamento</h3><span>punti accumulati</span></div>
+        ${grafico(grafiche, { alt: 'Punti accumulati' })}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Le partite</h3><span>${mie.length} giocate</span></div>
+        <div class="plist">${mie.map(m => {
+          const e = esitoDi(m, id);
+          const avv = m.casa === id ? m.fuori : m.casa;
+          const mio = m.casa === id ? m.gol_casa : m.gol_fuori, suo = m.casa === id ? m.gol_fuori : m.gol_casa;
+          return `<div class="prow" style="grid-template-columns:20px 1fr auto">
+            <span class="esito ${e}">${e.toUpperCase()}</span>
+            <span class="who"><b>${esc(teamName(avv))}</b><span>giornata ${m.round} · ${m.casa === id ? 'in casa' : 'in trasferta'}</span></span>
+            <span class="val"><b>${mio}–${suo}</b><span>${n1(m.casa === id ? m.totale_casa : m.totale_fuori)}</span></span></div>`;
+        }).join('')}</div>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>I migliori della rosa</h3><span>per fantamedia</span></div>
+        <div class="plist">${migliori.map(p => `<div class="prow">
+          <span class="badge" data-r="${esc(p.ruolo)}">${esc(p.ruolo)}</span>
+          <span class="who"><b>${esc(p.nome)}</b><span>${p.presenze} presenz${p.presenze === 1 ? 'a' : 'e'}</span></span>
+          <span class="val"><b>${n1(p.fantamedia)}</b><span>voto ${n1(p.media)}</span></span></div>`).join('')}</div>
+      </div>
+    </div>`;
+  }
+
+  // ------------------------------------------------------------- testa a testa
+  async function sezioneConfronto() {
+    const u = ultima();
+    if (!u) return '<div class="card"><p class="empty">Ancora nessuna giornata caricata.</p></div>';
+    const a = S.confrontoA || (S.team && S.team.id) || (S.teams[0] || {}).id;
+    const b = S.confrontoB || (S.teams.find(t => t.id !== a) || {}).id;
+    const ta = teamById(a), tb = teamById(b);
+    const [perGiornata, camp] = await Promise.all([classifiche('cdl_giornata'), classifiche('campionato')]);
+    const pg = id => perGiornata.filter(r => r.team_id === id).sort((x, y) => x.round - y.round).map(r => ({ x: r.round, y: +r.valore }));
+    const serieA = pg(a), serieB = pg(b);
+    const scontri = S.matches.filter(m => m.gol_casa != null &&
+      ((m.casa === a && m.fuori === b) || (m.casa === b && m.fuori === a)));
+    const vinte = id => scontri.filter(m => esitoDi(m, id) === 'v').length;
+    const pari = scontri.filter(m => esitoDi(m, a) === 'n').length;
+    const media = s => (s.length ? s.reduce((x, p) => x + p.y, 0) / s.length : null);
+    const meglio = () => {
+      let na = 0, nb = 0;
+      serieA.forEach((p, i) => { const q = serieB[i]; if (!q) return; if (p.y > q.y) na++; else if (q.y > p.y) nb++; });
+      return na + '–' + nb;
+    };
+    const sel = (quale, val) => `<select data-conf="${quale}" style="padding:9px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:inherit;flex:1">
+      ${S.teams.map(t => `<option value="${t.id}" ${t.id === val ? 'selected' : ''}>${esc(bel(t.name))}</option>`).join('')}</select>`;
+
+    return `<div class="stack">
+      <div class="card">
+        <div class="sec-h"><h2>Testa a testa</h2><span>dopo la ${u.id}ª</span></div>
+        <div style="display:flex;gap:8px;align-items:center">${sel('a', a)}<span class="muted">contro</span>${sel('b', b)}</div>
+        <div class="tiles">
+          ${tile(vinte(a) + '–' + pari + '–' + vinte(b), 'scontri diretti')}
+          ${tile(n1(media(serieA)), 'media ' + bel(ta ? ta.name : ''))}
+          ${tile(n1(media(serieB)), 'media ' + bel(tb ? tb.name : ''))}
+          ${tile(meglio(), 'giornate vinte')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Punteggi a confronto</h3><span>giornata per giornata</span></div>
+        ${grafico([
+          { nome: ta ? ta.name : '', evidenzia: true, punti: serieA },
+          { nome: tb ? tb.name : '', evidenzia: true, colore: 'b', punti: serieB }
+        ], { alt: 'Punteggi di giornata a confronto' })}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>Precedenti</h3><span>${scontri.length} partit${scontri.length === 1 ? 'a' : 'e'}</span></div>
+        ${scontri.length ? '<div>' + scontri.map(m => rigaPartita(m)).join('') + '</div>'
+          : '<p class="empty">Non si sono ancora incontrate.</p>'}
+      </div>
+      <div class="card">
+        <div class="sec-h"><h3>In classifica</h3><span>campionato</span></div>
+        ${tabellaCampionato(camp.filter(r => r.round === u.id && (r.team_id === a || r.team_id === b)), true)}
+      </div>
+    </div>`;
+  }
+
   // ------------------------------------------------------------------ sezioni
   const SEZIONI = [
     { id: '', et: 'Home', vista: home },
+    { id: 'squadra', et: 'Squadra', vista: sezioneSquadra },
     { id: 'rose', et: 'Rose', vista: sezioneRose },
     { id: 'calendario', et: 'Calendario', vista: sezioneCalendario },
     { id: 'classifiche', et: 'Classifiche', vista: sezioneClassifiche },
     { id: 'statistiche', et: 'Statistiche', vista: sezioneStatistiche },
+    { id: 'confronto', et: 'Testa a testa', vista: sezioneConfronto },
     { id: 'coppe', et: 'Coppe', vista: sezioneCoppe },
     { id: 'playoff', et: 'Playoff', vista: sezionePlayoff },
     { id: 'albo', et: 'Albo d’oro', vista: sezioneAlbo },
@@ -2702,7 +2850,9 @@ window.SCHIERA_CONFIG = {
   // tocco e passaggio del dito sul grafico
   function collegaGrafici() {
     document.querySelectorAll('.chart-wrap').forEach(w => {
-      const punti = (w.dataset.punti || '').split(',').filter(Boolean).map(s => s.split(':').map(Number));
+      let serie = [];
+      try { serie = JSON.parse(w.dataset.tip || '[]'); } catch (e) { serie = []; }
+      const punti = (serie[0] || {}).p || [];
       if (!punti.length) return;
       const tip = w.querySelector('.tip');
       const muovi = ev => {
@@ -2711,9 +2861,12 @@ window.SCHIERA_CONFIG = {
         const i = Math.max(0, Math.min(punti.length - 1, Math.round(x * (punti.length - 1))));
         tip.hidden = false;
         tip.style.opacity = '1';
-        tip.style.left = (24 / 360 * r.width + (r.width - (24 + 52) / 360 * r.width) * (punti.length === 1 ? .5 : i / (punti.length - 1))) + 'px';
+        tip.style.left = (24 / 360 * r.width + (r.width - (24 + 64) / 360 * r.width) * (punti.length === 1 ? .5 : i / (punti.length - 1))) + 'px';
         tip.style.top = (r.height * .55) + 'px';
-        tip.innerHTML = 'Giornata ' + punti[i][0] + ' · <b>' + punti[i][1] + '</b> punti';
+        tip.innerHTML = 'Giornata ' + punti[i][0] + '<br>' + serie.map(s => {
+          const v = (s.p[i] || [])[1];
+          return esc(s.n) + ': <b>' + (v == null ? '—' : n1(v)) + '</b>';
+        }).join('<br>');
       };
       const via = () => { tip.style.opacity = '0'; };
       w.addEventListener('mousemove', muovi);
@@ -2840,8 +2993,17 @@ window.SCHIERA_CONFIG = {
     if (sq) { S.squadraScelta = sq.dataset.squadra; render(); return; }
     const cl = ev.target.closest('[data-class]');
     if (cl) { const p = prefs(); p.classifica = cl.dataset.class; setPrefs(p); render(); return; }
+    const cf = ev.target.closest('[data-conf]');
+    if (cf) return;
     const se = ev.target.closest('[data-serie]');
     if (se) { const p = prefs(); p.graficoSquadra = se.dataset.serie; setPrefs(p); render(); return; }
+  });
+
+  $('#view').addEventListener('change', ev => {
+    const cf = ev.target.closest('[data-conf]');
+    if (!cf) return;
+    if (cf.dataset.conf === 'a') S.confrontoA = cf.value; else S.confrontoB = cf.value;
+    render();
   });
 
   window.addEventListener('hashchange', () => {

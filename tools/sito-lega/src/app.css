@@ -23,6 +23,7 @@
   --body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* grafici: tinte scelte per ogni tema, non "schiarite" in automatico */
   --chart-accent: #1E6BCB;
+  --chart-b: #E08A08;
   --chart-mute: #9AA79F;
   --chart-grid: rgba(20, 32, 26, .10);
 }
@@ -34,7 +35,7 @@
     --primary: #E6EDE7; --on-primary: #0C120E; --warn-bg: #3A2B0C; --warn-ink: #F6D48C;
     --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
-    --chart-accent: #4A93EE; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+    --chart-accent: #4A93EE; --chart-b: #C47A12; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
   }
 }
 :root[data-theme="dark"] {
@@ -44,7 +45,7 @@
   --primary: #E6EDE7; --on-primary: #0C120E; --warn-bg: #3A2B0C; --warn-ink: #F6D48C;
   --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
-  --chart-accent: #4A93EE; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+  --chart-accent: #4A93EE; --chart-b: #C47A12; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
 }
 
 * { box-sizing: border-box; }
@@ -182,6 +183,16 @@ a { color: inherit; }
   transform: translate(-50%, -110%); opacity: 0; transition: opacity .12s;
 }
 .tip b { font-variant-numeric: tabular-nums; }
+
+/* legenda dei grafici */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; background: var(--chart-accent); display: inline-block; }
+.legend .b i { background: var(--chart-b); }
+
+/* esito partita */
+.esito { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; font: 700 11px/1 var(--display); color: #fff; }
+.esito.v { background: var(--ok); } .esito.n { background: var(--muted); } .esito.p { background: var(--ko); }
 
 /* elenco giocatori */
 .plist { display: grid; }

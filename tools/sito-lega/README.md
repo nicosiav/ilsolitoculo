@@ -12,10 +12,12 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 | Sezione | Cosa c'è |
 |---|---|
 | Home | la tua squadra, il risultato dell'ultima giornata, la prossima partita, l'andamento e la classifica |
+| Squadra | una pagina per squadra: posizioni, punteggi di giornata, andamento, tutte le partite con l'esito e i migliori della rosa |
 | Rose | le otto rose con ruolo, squadra di Serie A, costo, presenze, media e fantamedia; crediti residui e gol reali |
 | Calendario | tutte le 20 giornate; toccando una partita esce il tabellino con voti, subentri e marcatori |
 | Classifiche | campionato, campionato "corretto", Coppa di Lega, sfigometro, gol reali e classifica della Coppa |
 | Statistiche | cannonieri, migliori fantamedie e medie voto, prestazioni della giornata, punteggi a confronto |
+| Testa a testa | due squadre a confronto: scontri diretti, medie, giornate vinte, punteggi giornata per giornata |
 | Coppe | classifica parallela della Coppa con gli accoppiamenti dei quarti, Coppa di Lega, Supercoppa |
 | Playoff | il tabellone e le regole dei turni |
 | Albo d'oro | la bacheca di sempre e tutte le stagioni dal 1991/92 |

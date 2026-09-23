@@ -61,7 +61,8 @@ async def main():
 
         async def s2(pg):
             await login(pg)
-            for sez, atteso in [('rose', '.prow'), ('calendario', '.match'), ('classifiche', '.tbl'),
+            for sez, atteso in [('squadra', '.prow'), ('rose', '.prow'), ('calendario', '.match'), ('classifiche', '.tbl'),
+                                ('confronto', '.tile'),
                                 ('statistiche', '.prow'), ('coppe', '.tbl'), ('playoff', '.match'),
                                 ('albo', '.tbl'), ('premi', '.prow')]:
                 await pg.goto(BASE + '#/' + sez)
@@ -113,5 +114,21 @@ async def main():
         except Exception:
             pass
         await apri(pw, {'ADMIN': '1', 'DIFF': '1'}, s5, '5 amministratore carica la giornata')
+
+        async def s6(pg):
+            await login(pg)
+            await pg.goto(BASE + '#/confronto')
+            await pg.wait_for_timeout(900)
+            print('  riquadri:', await pg.locator('.tile').count(), '| legenda:', await pg.locator('.legend span').count(),
+                  '| precedenti:', await pg.locator('.match').count())
+            print('  testo:', (await pg.inner_text('#view')).strip().replace(chr(10), ' | ')[:150])
+            await pg.select_option('[data-conf="b"]', label='Giuseppe')
+            await pg.wait_for_timeout(800)
+            print('  dopo il cambio:', (await pg.inner_text('.tiles')).replace(chr(10), ' ')[:110])
+            await pg.goto(BASE + '#/squadra')
+            await pg.wait_for_timeout(900)
+            print('  squadra:', (await pg.inner_text('.tiles')).replace(chr(10), ' ')[:110],
+                  '| partite:', await pg.locator('.esito').count(), '| grafici:', await pg.locator('svg.chart').count())
+        await apri(pw, {}, s6, '6 squadra e testa a testa')
 
 asyncio.run(main())
