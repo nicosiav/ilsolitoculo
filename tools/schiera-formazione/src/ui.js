@@ -15,7 +15,8 @@
     bytes: null, fileName: '', wb: null, sheet: null, roster: [],
     module: '3-4-3', free: false,
     starters: Array(11).fill(null), bench: Array(7).fill(null), extra: Array(4).fill(null),
-    profile: null, team: null, matchday: null, closed: false, savedAt: null
+    profile: null, team: null, matchday: null, closed: false, savedAt: null,
+    fixtures: []             // partite della giornata: da qui i blocchi partita per partita
   };
   const online = () => S.mode === 'online';
   const loaded = () => online() ? !!S.team : !!S.wb;
@@ -42,6 +43,65 @@
   const placeOf = row => { for (const z of ['s', 'b', 'e']) { const i = arr(z).indexOf(row); if (i >= 0) return { z, i }; } return null; };
   const fits = (z, i, row) => row == null || !slotRole(z, i) || P(row).role === slotRole(z, i);
   const zoneName = z => z === 's' ? 'Titolare' : z === 'b' ? 'Riserva' : 'Panchina extra';
+
+  // -------------------------------------------- blocco partita per partita
+  // Ogni giocatore si blocca quando la sua squadra di Serie A scende in campo.
+  // Chi non ha una squadra nota si blocca alla prima partita della giornata.
+  // È il database ad applicare la regola: qui serve solo a non far fare buchi nell'acqua.
+  const ms = d => +new Date(d);
+  function firstKickoff() {
+    return S.fixtures.length ? Math.min.apply(null, S.fixtures.map(f => ms(f.kickoff))) : null;
+  }
+  function clubKickoff(club) {
+    const k = S.fixtures.filter(f => f.home === club || f.away === club).map(f => ms(f.kickoff));
+    return k.length ? Math.min.apply(null, k) : null;
+  }
+  function lockAt(row) {
+    if (!online() || !S.fixtures.length) return null;
+    const p = P(row);
+    if (!p || !p.id) return null;
+    // squadra ignota: prudenza, si blocca con la prima partita della giornata.
+    // squadra che questa giornata riposa: nessun blocco.
+    return p.club ? clubKickoff(p.club) : firstKickoff();
+  }
+  const isLocked = row => { const t = lockAt(row); return t != null && t <= Date.now(); };
+  const lockedRows = () => S.roster.filter(p => p.name && isLocked(p.row)).map(p => p.row);
+  function nextLock() {
+    const t = S.roster.filter(p => p.name).map(p => lockAt(p.row)).filter(x => x != null && x > Date.now());
+    return t.length ? Math.min.apply(null, t) : null;
+  }
+
+  // Dove si trova ogni giocatore bloccato: deve restare lì (anche fuori formazione)
+  function lockMap() {
+    const m = new Map();
+    if (!online()) return m;
+    S.roster.forEach(p => {
+      if (!p.name || !isLocked(p.row)) return;
+      const pl = placeOf(p.row);
+      m.set(p.row, pl ? pl.z + pl.i : '-');
+    });
+    return m;
+  }
+  const snapshot = () => ({ s: S.starters.slice(), b: S.bench.slice(), e: S.extra.slice(), module: S.module, free: S.free });
+  function restoreSnap(x) {
+    S.starters = x.s; S.bench = x.b; S.extra = x.e; S.module = x.module; S.free = x.free;
+    $('#freeToggle').checked = S.free;
+  }
+  // Esegue la modifica e la annulla se ha spostato qualcuno già sceso in campo
+  function guarded(fn) {
+    if (!online() || !S.fixtures.length) { fn(); return true; }
+    const before = lockMap(), snap = snapshot();
+    fn();
+    const after = lockMap();
+    const bad = [];
+    before.forEach((v, r) => { if (after.get(r) !== v) bad.push(P(r).name); });
+    if (bad.length) {
+      restoreSnap(snap);
+      toast(bad.join(', ') + ': partita già iniziata, non si può spostare');
+      return false;
+    }
+    return true;
+  }
 
   function assign(z, i, row) {
     const a = arr(z), cur = a[i];
@@ -242,7 +302,10 @@
     $('#pool').innerHTML = ['P', 'D', 'C', 'A'].map(ro => {
       const l = free.filter(p => p.role === ro);
       if (!l.length) return '';
-      return `<div class="pool-group">${l.map(p => `<button type="button" class="pchip" data-add="${p.row}" data-r="${p.role}"><span class="badge">${p.role}</span>${esc(p.name)}</button>`).join('')}</div>`;
+      return `<div class="pool-group">${l.map(p => {
+        const lk = isLocked(p.row);
+        return `<button type="button" class="pchip${lk ? ' locked' : ''}" data-add="${p.row}" data-r="${p.role}" ${lk ? 'disabled title="Partita già iniziata"' : ''}><span class="badge">${p.role}</span>${esc(p.name)}${lk ? '<span class="lk" aria-label="bloccato">●</span>' : ''}</button>`;
+      }).join('')}</div>`;
     }).join('');
     // barra
     const n = S.starters.filter(x => x != null).length + S.bench.filter(x => x != null).length + S.extra.filter(x => x != null).length;
@@ -268,23 +331,56 @@
     if (h >= 24) return Math.floor(h / 24) + ' giorni';
     return h ? h + ' ore e ' + m + ' min' : m + ' min';
   }
+  function fmtHour(d) {
+    return new Date(d).toLocaleString('it-IT', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  // La giornata resta aperta fino alla fine dell'ultima partita
+  const closeTime = md => (md && (md.closes_at || md.deadline)) || null;
+
   function renderOnlineBar() {
     const md = S.matchday;
+    const el = $('#fileMeta');
     $('#fileName').textContent = (S.team ? S.team.name : '') + (md ? ' · ' + (md.label || 'Giornata ' + md.id) : '');
-    const left = md && timeLeft(md.deadline);
-    $('#fileMeta').textContent = !md ? 'nessuna giornata aperta'
-      : left ? 'chiude ' + fmtDate(md.deadline) + ' · mancano ' + left
-      : 'chiusa il ' + fmtDate(md.deadline);
-    $('#fileMeta').style.color = left ? '' : 'var(--role-a)';
     $('#teamField').hidden = true;
+    if (!md) { el.textContent = 'nessuna giornata aperta'; el.style.color = 'var(--role-a)'; return; }
+    const resta = timeLeft(closeTime(md));
+    if (!resta) { el.textContent = 'giornata finita il ' + fmtDate(closeTime(md)); el.style.color = 'var(--role-a)'; return; }
+    if (!S.fixtures.length) {
+      el.textContent = 'si chiude ' + fmtDate(closeTime(md)) + ' · mancano ' + resta;
+      el.style.color = '';
+      return;
+    }
+    const nx = nextLock(), n = lockedRows().length;
+    el.textContent = nx
+      ? 'prossimo blocco ' + fmtHour(nx) + ' · fra ' + timeLeft(nx) + (n ? ' · ' + n + ' bloccati' : '')
+      : 'tutti in campo · si chiude ' + fmtHour(closeTime(md));
+    el.style.color = !nx || nx - Date.now() < 3600000 ? 'var(--role-a)' : '';
+  }
+
+  // Ricontrolla i blocchi ogni mezzo minuto: scattano da soli al calcio d'inizio
+  let tick;
+  function startTicker() {
+    clearInterval(tick);
+    if (!online()) return;
+    let prima = lockedRows().join(',');
+    tick = setInterval(() => {
+      if (!online()) { clearInterval(tick); return; }
+      const ora = lockedRows().join(',');
+      const finita = S.matchday && !timeLeft(closeTime(S.matchday));
+      if (ora !== prima || (finita && !S.closed)) {
+        prima = ora;
+        if (finita) S.closed = true;
+        render();
+      } else if (!S.closed) renderOnlineBar();
+    }, 30000);
   }
 
   function rosterFromDb(players) {
     const out = [];
-    for (let i = 0; i < 31; i++) out.push({ row: i, id: null, role: '', name: '', number: null });
+    for (let i = 0; i < 31; i++) out.push({ row: i, id: null, role: '', name: '', club: '', number: null });
     players.forEach(p => {
       const i = p.slot - 1;
-      if (i >= 0 && i < 31) out[i] = { row: i, id: p.id, role: String(p.role || '').toUpperCase(), name: p.name || '', number: null };
+      if (i >= 0 && i < 31) out[i] = { row: i, id: p.id, role: String(p.role || '').toUpperCase(), name: p.name || '', club: p.club || '', number: null };
     });
     return out;
   }
@@ -299,10 +395,13 @@
     if (!S.team) throw new SB.SbError('Questo account non è ancora collegato a una squadra: scrivi all\u2019amministratore.', 'no_team');
     S.sheet = S.team.sheet_name || S.team.name;
     S.mode = 'online';
-    const mds = await SB.select('matchdays', 'select=id,label,deadline&is_current=is.true&limit=1');
+    const mds = await SB.select('matchdays', 'select=id,label,deadline,first_kickoff,last_kickoff,closes_at&is_current=is.true&limit=1');
     S.matchday = mds[0] || null;
-    S.closed = !!(S.matchday && new Date(S.matchday.deadline) <= new Date());
-    const players = await SB.select('players', 'select=id,slot,role,name&team_id=eq.' + S.team.id + '&order=slot');
+    S.closed = !!(S.matchday && new Date(closeTime(S.matchday)) <= new Date());
+    S.fixtures = S.matchday
+      ? await SB.select('fixtures', 'select=id,home,away,kickoff,status&matchday=eq.' + S.matchday.id + '&order=kickoff')
+      : [];
+    const players = await SB.select('players', 'select=id,slot,role,name,club&team_id=eq.' + S.team.id + '&order=slot');
     S.roster = rosterFromDb(players);
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
     S.savedAt = null;
@@ -324,10 +423,21 @@
     $('#menuWrap').hidden = false;
     $('#onlineMenu').hidden = false;
     $('#adminMenu').hidden = !isAdmin();
+    $('#restoreBtn').hidden = false;
     $('#freeToggle').checked = S.free;
-    if (!S.matchday) notice('Nessuna giornata aperta: l\u2019amministratore deve impostare la giornata corrente.');
-    else if (S.closed) notice('Giornata chiusa il ' + fmtDate(S.matchday.deadline) + ': la formazione non si può più cambiare.');
-    else if (S.savedAt) notice('Formazione salvata il ' + fmtDate(S.savedAt) + '. Puoi cambiarla fino alla scadenza.');
+    if (!S.matchday) notice('Nessuna giornata aperta: l\u2019amministratore deve aggiornare il calendario.');
+    else if (S.closed) notice('Giornata finita il ' + fmtDate(closeTime(S.matchday)) + ': la formazione non si può più cambiare.');
+    else {
+      if (S.savedAt) notice('Formazione salvata il ' + fmtDate(S.savedAt) + '. Puoi cambiarla finché la tua squadra non scende in campo.');
+      const bloccati = lockedRows().filter(r => placeOf(r));
+      if (bloccati.length) notice(bloccati.length === 1
+        ? P(bloccati[0]).name + ' è già sceso in campo: resta dov\u2019è.'
+        : bloccati.length + ' giocatori sono già scesi in campo: restano dove sono.');
+      const senza = S.roster.filter(p => p.name && !p.club).length;
+      if (senza && S.fixtures.length && isAdmin())
+        notice(senza + ' giocatori senza squadra di Serie A: si bloccano tutti alla prima partita della giornata.', '', 'Sistema', clubsSheet);
+    }
+    startTicker();
     render();
   }
 
@@ -416,6 +526,89 @@
     } catch (e) { notice(e.message || 'Non riesco a leggere lo storico.', 'error'); }
   }
 
+
+  // Riprende l'ultima formazione salvata: se per questa giornata non c'e', va a
+  // pescare la piu' recente fra le giornate precedenti.
+  async function restoreOnline() {
+    try {
+      const md = S.matchday;
+      const q = 'select=matchday,module,bench_free,updated_at,lineup_slots(pos,player_id,players(name,role))'
+        + '&team_id=eq.' + S.team.id + (md ? '&matchday=lt.' + md.id : '') + '&order=matchday.desc&limit=1';
+      const l = (await SB.select('lineups', q))[0];
+      if (!l) { toast('Non ho formazioni precedenti da riprendere'); return; }
+      const byId = new Map(S.roster.filter(p => p.id).map(p => [p.id, p.row]));
+      const byName = new Map(S.roster.filter(p => p.name).map(p => [X.norm(p.name) + '|' + p.role, p.row]));
+      const pos = new Map(), persi = [];
+      (l.lineup_slots || []).slice().sort((a, b) => a.pos - b.pos).forEach(sl => {
+        const pl = sl.players || {};
+        const row = byId.has(sl.player_id) ? byId.get(sl.player_id)
+          : byName.get(X.norm(pl.name || '') + '|' + String(pl.role || '').toUpperCase());
+        if (row === undefined) persi.push(pl.name || '?'); else pos.set(sl.pos, row);
+      });
+      const ok = guarded(() => {
+        if (l.module) S.module = l.module;
+        S.free = !!l.bench_free;
+        applyPositions(pos);
+      });
+      $('#freeToggle').checked = S.free;
+      if (ok) {
+        clearNotices();
+        notice('Ripresa la formazione della giornata ' + l.matchday + ', salvata il ' + fmtDate(l.updated_at) + '.'
+          + (persi.length ? ' Non più in rosa: ' + persi.join(', ') + '.' : ' Controllala e salvala.'));
+      }
+      render();
+    } catch (e) { notice(e.message || 'Non riesco a riprendere la formazione.', 'error'); }
+  }
+
+  // ------------------------------------------- formazioni di tutta la lega
+  async function showAll() {
+    if (!S.matchday) { notice('Nessuna giornata da mostrare.'); return; }
+    let mds = [];
+    try { mds = await SB.select('matchdays', 'select=id,label&order=id.desc'); }
+    catch (e) { mds = [{ id: S.matchday.id, label: S.matchday.label }]; }
+    const opts = mds.map(m => `<option value="${m.id}" ${m.id === S.matchday.id ? 'selected' : ''}>${esc(m.label || 'Giornata ' + m.id)}</option>`).join('');
+    const el = sheet(`
+      <div class="sheet-h"><div style="width:100%">
+        <h4>Formazioni di giornata</h4>
+        <p>Quelle di tutte le squadre della lega.</p>
+        <select id="mdPick" style="margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:inherit">${opts}</select>
+      </div></div>
+      <div class="sheet-b" id="allBody"><p class="muted" style="padding:12px 16px">Carico…</p></div>
+      <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
+    el.addEventListener('click', ev => { if (ev.target.closest('[data-act="close"]')) closeSheet(); });
+    el.querySelector('#mdPick').addEventListener('change', ev => fill(+ev.target.value));
+    fill(S.matchday.id);
+
+    async function fill(md) {
+      const body = el.querySelector('#allBody');
+      body.innerHTML = '<p class="muted" style="padding:12px 16px">Carico…</p>';
+      try {
+        const [teams, rows] = await Promise.all([
+          SB.select('teams', 'select=id,name&order=name'),
+          SB.select('lineups', 'select=team_id,module,updated_at,lineup_slots(pos,players(name,role,club))&matchday=eq.' + md)
+        ]);
+        const byTeam = new Map(rows.map(r => [r.team_id, r]));
+        body.innerHTML = teams.map(t => {
+          const l = byTeam.get(t.id);
+          const mia = S.team && t.id === S.team.id;
+          if (!l) return `<div class="xr" style="grid-template-columns:1fr auto"><span>${esc(t.name)}${mia ? ' · tu' : ''}</span><span class="muted">non ancora schierata</span></div>`;
+          const slots = (l.lineup_slots || []).slice().sort((a, b) => a.pos - b.pos);
+          const line = k => {
+            const x = slots.find(v => v.pos === k), p = x && x.players;
+            return `<div class="xr"><span class="n">${k}</span><span class="badge" data-r="${esc(p ? p.role : '')}">${esc(p ? p.role : '·')}</span><span>${esc(p ? p.name : '—')}</span></div>`;
+          };
+          return `<details class="team-block"${mia ? ' open' : ''}>
+            <summary><b>${esc(t.name)}</b>${mia ? ' · tu' : ''} <span class="muted small">${esc(l.module || '')} · ${esc(fmtDate(l.updated_at))}</span></summary>
+            <div class="xl"><div class="xh">Titolari</div>${[1,2,3,4,5,6,7,8,9,10,11].map(line).join('')}
+              <div class="xh">Riserve</div>${[12,13,14,15,16,17,18].map(line).join('')}
+              <div class="xh">Panchina extra</div>${[19,20,21,22].map(line).join('')}</div></details>`;
+        }).join('');
+      } catch (e) {
+        body.innerHTML = `<p class="muted" style="padding:12px 16px">${esc(e.message || 'Non riesco a leggere le formazioni.')}</p>`;
+      }
+    }
+  }
+
   // --------------------------------------------------- amministrazione
   // Aggiorna le rose di tutte le squadre leggendo il file Excel della lega
   // (dopo il mercato) e tiene allineato il modello usato per l'export.
@@ -424,6 +617,10 @@
     let wb, buf;
     try { buf = new Uint8Array(await file.arrayBuffer()); wb = X.load(buf); }
     catch (e) { notice(e.message || 'Non riesco a leggere il file.', 'error'); return; }
+    // se il file ha un foglio "listone" (Ruolo | Nome | Squadra) porta con sé anche
+    // la squadra di Serie A: è quella che fa scattare il blocco partita per partita
+    let clubs; try { clubs = wb.clubs(); } catch (e) { clubs = new Map(); }
+    const clubOf = p => clubs.get(X.norm(p.name) + '|' + p.role) || clubs.get(X.norm(p.name)) || '';
     const teams = await SB.select('teams', 'select=id,name,sheet_name');
     const known = new Set(teams.map(t => t.sheet_name || t.name));
     const fogli = wb.sheetNames.filter(n => known.has(n));
@@ -433,7 +630,8 @@
       <div class="sheet-h"><div><h4>Aggiornare le rose?</h4><p>${esc(file.name)}</p></div></div>
       <div class="sheet-b"><div class="xl">${fogli.map(n => {
         const r = wb.roster(n).filter(p => p.name);
-        return `<div class="xr" style="grid-template-columns:1fr auto"><span>${esc(n)}</span><span class="muted">${r.length} giocatori</span></div>`;
+        const c = r.filter(p => clubOf(p)).length;
+        return `<div class="xr" style="grid-template-columns:1fr auto"><span>${esc(n)}</span><span class="muted">${r.length} giocatori${c ? ' · ' + c + ' con squadra' : ''}</span></div>`;
       }).join('')}</div>
       ${ignorati.length ? `<p class="muted small" style="margin:8px 16px 0">Fogli ignorati: ${esc(ignorati.join(', '))}</p>` : ''}
       <p class="muted small" style="margin:8px 16px 0">Le rose nel database vengono allineate a questo file e il file diventa il modello per gli export. Le formazioni già salvate restano, ma un giocatore ceduto sparisce dai posti in cui era schierato.</p></div>
@@ -446,7 +644,7 @@
       const esiti = [];
       try {
         for (const n of fogli) {
-          const rows = wb.roster(n).filter(p => p.name).map(p => ({ slot: p.row + 1, role: p.role, name: p.name }));
+          const rows = wb.roster(n).filter(p => p.name).map(p => ({ slot: p.row + 1, role: p.role, name: p.name, club: clubOf(p) }));
           esiti.push(await SB.rpc('import_players', { p_sheet: n, p_players: rows }));
         }
         try { await SB.upload('modelli', 'formazioni.xls', new Blob([buf]), 'application/vnd.ms-excel'); }
@@ -463,12 +661,98 @@
     });
   }
 
+  // Ricarica il calendario della Serie A (Edge Function "sync-calendario")
+  function syncCalendar() {
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Aggiorna il calendario</h4><p>Scarico partite e orari della Serie A: da lì nascono le giornate e i blocchi.</p></div></div>
+      <div class="sheet-b"><div style="padding:12px 16px;display:grid;gap:10px">
+        <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="calClubs" checked>
+          <span>Abbina anche la squadra di Serie A dei giocatori in rosa <span class="muted small">(serve al blocco partita per partita)</span></span></label>
+        <p class="muted small" style="margin:0">Succede già ogni notte da solo. Usalo dopo il mercato o se gli orari sono cambiati.</p>
+      </div></div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Annulla</button><button type="button" class="btn btn-primary" data-act="go">Aggiorna</button></div>`);
+    el.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'close') { closeSheet(); return; }
+      const clubs = el.querySelector('#calClubs').checked;
+      b.disabled = true; b.textContent = 'Scarico…';
+      try {
+        const r = await SB.fn('sync-calendario', clubs ? 'squadre=1' : '');
+        if (r && r.errore) throw new Error(r.errore);
+        closeSheet();
+        await startOnline();
+        const sq = r && r.squadre;
+        notice('Calendario aggiornato: ' + (r.partite || 0) + ' partite, giornata corrente ' + (r.corrente || '?') + '.'
+          + (sq && sq.aggiornati != null ? ' Squadre dei giocatori: ' + sq.aggiornati + ' aggiornate, ' + (sq.da_sistemare || 0) + ' da sistemare.' : '')
+          + (sq && sq.errore ? ' ' + sq.errore : '')
+          + (r.da_controllare ? ' Da controllare in club_aliases: ' + r.da_controllare + '.' : ''));
+      } catch (e) {
+        closeSheet();
+        notice(e.message || 'Aggiornamento del calendario non riuscito.', 'error');
+      }
+    });
+  }
+
+  // Squadra di Serie A di ogni giocatore: chi non ce l'ha si blocca alla prima partita
+  async function clubsSheet() {
+    let players, clubs;
+    try {
+      players = await SB.select('players', 'select=id,name,role,club,team_id,teams(name)&order=name');
+      clubs = clubList();
+      if (!clubs.length) {
+        const f = await SB.select('fixtures', 'select=home,away&order=matchday.desc&limit=20');
+        clubs = [...new Set([].concat.apply([], f.map(x => [x.home, x.away])))].sort();
+      }
+    } catch (e) { notice(e.message || 'Non riesco a leggere le rose.', 'error'); return; }
+    const opts = c => clubs.map(x => `<option ${x === c ? 'selected' : ''}>${esc(x)}</option>`).join('');
+    const riga = p => `<div class="xr" style="grid-template-columns:auto 1fr auto;gap:8px">
+        <span class="badge" data-r="${esc(p.role)}">${esc(p.role)}</span>
+        <span style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><span class="muted small">${esc(p.teams ? p.teams.name : '')}</span></span>
+        <select data-pid="${p.id}" style="padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:inherit"><option value=""${p.club ? '' : ' selected'}>—</option>${opts(p.club)}</select>
+      </div>`;
+    const senza = players.filter(p => !p.club);
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Squadre dei giocatori</h4><p>${senza.length ? senza.length + ' senza squadra su ' + players.length : 'tutti abbinati (' + players.length + ')'}</p></div></div>
+      <div class="sheet-b">
+        <p class="muted small" style="margin:12px 16px 0">Chi non ha una squadra si blocca alla prima partita della giornata invece che alla sua.</p>
+        <div class="xl" id="clubList">${(senza.length ? senza : players).map(riga).join('')}</div>
+        ${senza.length ? '<div style="padding:8px 16px"><button type="button" class="btn btn-ghost" data-act="tutti">Mostra tutti</button></div>' : ''}
+      </div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Chiudi</button><button type="button" class="btn btn-primary" data-act="go">Salva</button></div>`);
+    const prima = new Map(players.map(p => [p.id, p.club || '']));
+    el.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'close') { closeSheet(); return; }
+      if (b.dataset.act === 'tutti') {
+        el.querySelector('#clubList').innerHTML = players.map(riga).join('');
+        b.remove();
+        return;
+      }
+      const items = [];
+      el.querySelectorAll('[data-pid]').forEach(sel => {
+        if ((sel.value || '') !== (prima.get(sel.dataset.pid) || '')) items.push({ player_id: sel.dataset.pid, club: sel.value });
+      });
+      if (!items.length) { closeSheet(); toast('Niente da cambiare'); return; }
+      b.disabled = true; b.textContent = 'Salvo…';
+      try {
+        const r = await SB.rpc('set_player_clubs', { p_items: items });
+        closeSheet();
+        await startOnline();
+        notice('Squadre aggiornate: ' + (r && r.aggiornati != null ? r.aggiornati : items.length) + '.');
+      } catch (e) { closeSheet(); notice(e.message || 'Salvataggio non riuscito.', 'error'); }
+    });
+  }
+
+  const clubList = () => [...new Set([].concat.apply([], S.fixtures.map(f => [f.home, f.away])))].filter(Boolean).sort();
+
   function askMatchday() {
     const md = S.matchday;
     const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
     const val = md ? new Date(new Date(md.deadline) - new Date().getTimezoneOffset() * 60000) : now;
     const el = sheet(`
-      <div class="sheet-h"><div><h4>Giornata corrente</h4><p>Dopo la scadenza le formazioni si bloccano da sole.</p></div></div>
+      <div class="sheet-h"><div><h4>Giornata corrente</h4><p>Di norma arriva dal calendario. Qui la imposti a mano: le formazioni si bloccano tutte alla scadenza indicata.</p></div></div>
       <div class="sheet-b"><div style="padding:12px 16px;display:grid;gap:10px">
         <label class="small muted" for="mdId">Numero</label>
         <input id="mdId" type="number" min="1" max="38" value="${md ? md.id : 1}" style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
@@ -548,7 +832,8 @@
     const r = S.starters[i];
     const dis = canEdit() ? '' : 'disabled';
     if (r == null) return `<button type="button" class="slot empty" data-z="s" data-i="${i}" data-r="${ro}" ${dis} aria-label="${i + 1}: scegli ${ROLE[ro]}"><span class="token">${ro}</span><span class="nm">${i + 1} · ${ROLE[ro].slice(0, 3)}.</span></button>`;
-    return `<button type="button" class="slot" data-z="s" data-i="${i}" data-r="${ro}" aria-label="${i + 1}: ${esc(P(r).name)}"><span class="token">${i + 1}</span><span class="nm">${esc(P(r).name)}</span></button>`;
+    const lk = isLocked(r);
+    return `<button type="button" class="slot${lk ? ' locked' : ''}" data-z="s" data-i="${i}" data-r="${ro}" ${lk ? 'disabled' : dis} aria-label="${i + 1}: ${esc(P(r).name)}${lk ? ', partita già iniziata' : ''}"><span class="token">${lk ? '●' : i + 1}</span><span class="nm">${esc(P(r).name)}</span></button>`;
   }
   function rowHtml(z, i, r) {
     const ro = slotRole(z, i);
@@ -559,8 +844,8 @@
       const label = ro ? 'Scegli ' + ROLE[ro].toLowerCase() : 'Scegli giocatore';
       return `<button type="button" class="row empty" data-z="${z}" data-i="${i}" ${dis}><span class="num">${num}</span>${badge}<span class="who">${label}</span><span class="chev">›</span></button>`;
     }
-    const p = P(r);
-    return `<button type="button" class="row" data-z="${z}" data-i="${i}"><span class="num">${num}</span><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span><span class="chev">›</span></button>`;
+    const p = P(r), lk = isLocked(r);
+    return `<button type="button" class="row${lk ? ' locked' : ''}" data-z="${z}" data-i="${i}" ${lk ? 'disabled' : dis}><span class="num">${num}</span><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span>${lk ? '<span class="tag">in campo</span>' : '<span class="chev">›</span>'}</button>`;
   }
 
   function flash(pl) {
@@ -578,21 +863,24 @@
     const rows = cands.map(p => {
       const pl = placeOf(p.row);
       const here = pl && pl.z === z && pl.i === i;
-      const tag = here ? '<span class="tag here">qui</span>' : pl ? `<span class="tag">${zoneName(pl.z)} ${slotNum(pl.z, pl.i)} · scambia</span>` : '';
-      return `<button type="button" class="row" data-pick="${p.row}"><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span>${tag}</button>`;
+      const lk = isLocked(p.row);
+      const tag = lk ? `<span class="tag">in campo${p.club ? ' · ' + esc(p.club) : ''}</span>`
+        : here ? '<span class="tag here">qui</span>'
+        : pl ? `<span class="tag">${zoneName(pl.z)} ${slotNum(pl.z, pl.i)} · scambia</span>` : '';
+      return `<button type="button" class="row${lk ? ' locked' : ''}" data-pick="${p.row}" ${lk ? 'disabled' : ''}><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span>${tag}</button>`;
     }).join('') || '<p class="muted" style="padding:12px 16px">Nessun giocatore disponibile per questo ruolo.</p>';
     const title = `${num} · ${ro ? ROLE[ro] : 'Qualsiasi ruolo'}`;
     const sub = z === 's' ? 'Titolare' : z === 'b' ? 'Riserva — entra in ordine di numero' : 'Panchina extra';
     const el = sheet(`
       <div class="sheet-h"><div><h4>${esc(title)}</h4><p>${sub}</p></div></div>
       <div class="sheet-b">${rows}</div>
-      <div class="sheet-f">${cur != null ? '<button type="button" class="btn btn-ghost" data-act="clear">Svuota posto</button>' : ''}<button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
+      <div class="sheet-f">${cur != null && !isLocked(cur) ? '<button type="button" class="btn btn-ghost" data-act="clear">Svuota posto</button>' : ''}<button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
     el.addEventListener('click', ev => {
       const b = ev.target.closest('[data-pick],[data-act]');
       if (!b) return;
-      if (b.dataset.act === 'clear') { arr(z)[i] = null; closeSheet(); render(); return; }
+      if (b.dataset.act === 'clear') { guarded(() => { arr(z)[i] = null; }); closeSheet(); render(); return; }
       if (b.dataset.act === 'close') { closeSheet(); return; }
-      assign(z, i, +b.dataset.pick);
+      guarded(() => assign(z, i, +b.dataset.pick));
       closeSheet(); render(); flash({ z, i });
     });
   }
@@ -812,6 +1100,9 @@
   $('#rosterBtn').addEventListener('click', () => { toggleMenu(false); $('#adminFile').click(); });
   $('#adminFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; importRosters(f); });
   $('#matchdayBtn').addEventListener('click', () => { toggleMenu(false); askMatchday(); });
+  $('#calBtn').addEventListener('click', () => { toggleMenu(false); syncCalendar(); });
+  $('#clubBtn').addEventListener('click', () => { toggleMenu(false); clubsSheet(); });
+  $('#allBtn').addEventListener('click', () => { toggleMenu(false); showAll(); });
   $('#logBtn').addEventListener('click', () => { toggleMenu(false); showLog(); });
   $('#pickBtn').addEventListener('click', () => $('#fileInput').click());
   $('#changeFileBtn2').addEventListener('click', () => { toggleMenu(false); $('#fileInput').click(); });
@@ -822,13 +1113,14 @@
   up.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
   $('#sheetSel').addEventListener('change', e => { const p = prefs(); p.lastSheet = e.target.value; setPrefs(p); loadSheet(e.target.value); });
 
-  $('#modules').addEventListener('click', e => { const b = e.target.closest('[data-mod]'); if (!b) return; setModule(b.dataset.mod); render(); });
+  $('#modules').addEventListener('click', e => { const b = e.target.closest('[data-mod]'); if (!b) return; guarded(() => setModule(b.dataset.mod)); render(); });
   $('#editor').addEventListener('click', e => {
     const s = e.target.closest('[data-z]');
     if (s && canEdit()) { openPicker(s.dataset.z, +s.dataset.i); return; }
     const a = e.target.closest('[data-add]');
     if (a && canEdit()) {
       const row = +a.dataset.add;
+      if (isLocked(row)) { toast(P(row).name + ': la partita è già iniziata'); return; }
       const pl = autoPlace(row);
       if (!pl) { toast('Nessun posto libero per un ' + ROLE[P(row).role].toLowerCase()); return; }
       render(); flash(pl);
@@ -843,12 +1135,17 @@
   }
   $('#menuBtn').addEventListener('click', e => { e.stopPropagation(); toggleMenu(); });
   document.addEventListener('click', e => { if (!e.target.closest('#menuWrap')) toggleMenu(false); });
-  $('#freeToggle').addEventListener('change', e => { setFree(e.target.checked); render(); });
-  $('#restoreBtn').addEventListener('click', () => { toggleMenu(false); restoreSaved(); });
+  $('#freeToggle').addEventListener('change', e => {
+    if (!guarded(() => setFree(e.target.checked))) e.target.checked = S.free;
+    render();
+  });
+  $('#restoreBtn').addEventListener('click', () => { toggleMenu(false); online() ? restoreOnline() : restoreSaved(); });
   $('#clearBtn').addEventListener('click', () => {
     toggleMenu(false);
-    S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
-    render(); toast('Formazione svuotata');
+    // chi è già sceso in campo resta al suo posto
+    ['s', 'b', 'e'].forEach(z => { const a = arr(z); a.forEach((r, i) => { if (r != null && !isLocked(r)) a[i] = null; }); });
+    render();
+    toast(lockedRows().some(r => placeOf(r)) ? 'Svuotata, tranne chi è già in campo' : 'Formazione svuotata');
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!document.querySelector('.scrim[data-modal]')) closeSheet(); toggleMenu(false); } });
 

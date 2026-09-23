@@ -6,14 +6,15 @@ Piattaforma su misura per gestire la lega: rose dei partecipanti (numero flessib
 
 | Strumento | Link | Descrizione |
 |---|---|---|
-| Schiera Formazione | https://nicosiav.github.io/ilsolitoculo/schiera/ | Entri col tuo account, schieri dal telefono e la formazione va nel database della lega (con log delle modifiche). L'export `.xls` resta su richiesta. [Dettagli](tools/schiera-formazione/README.md) |
+| Schiera Formazione | https://nicosiav.github.io/ilsolitoculo/schiera/ | Entri col tuo account, schieri dal telefono e la formazione va nel database della lega (con log delle modifiche). Giornate dal calendario di Serie A, blocco partita per partita, formazioni di tutti consultabili. L'export `.xls` resta su richiesta. [Dettagli](tools/schiera-formazione/README.md) |
 
 Home del sito: https://nicosiav.github.io/ilsolitoculo/
 
 ## Struttura della repo
 
 ```
-db/                      database della lega su Supabase: schema, permessi, rose iniziali
+db/                      database della lega su Supabase: schema, permessi, rose iniziali, calendario
+supabase/functions/      funzioni sul server (calendario di Serie A da football-data.org)
 docs/                    sito pubblicato con GitHub Pages (branch main, cartella /docs)
   index.html             home della lega
   schiera/               app Schiera Formazione (generata da tools/schiera-formazione)
@@ -23,7 +24,7 @@ tools/
 
 ## Dove stanno i dati
 
-Le rose, le formazioni di ogni giornata e il log delle modifiche vivono in un database Postgres su Supabase, con un account per partecipante e permessi applicati dal database stesso: [istruzioni in `db/`](db/README.md). Il file Excel della lega resta come formato di export.
+Le rose, le formazioni di ogni giornata e il log delle modifiche vivono in un database Postgres su Supabase, con un account per partecipante e permessi applicati dal database stesso: [istruzioni in `db/`](db/README.md). Il calendario della Serie A arriva da football-data.org tramite una funzione sul server ([`supabase/functions/`](supabase/functions/README.md)): da lì nascono le giornate e il blocco partita per partita. Il file Excel della lega resta come formato di export.
 
 ## Pubblicazione
 

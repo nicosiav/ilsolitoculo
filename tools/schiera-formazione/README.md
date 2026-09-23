@@ -9,11 +9,26 @@ App web per schierare la formazione dal telefono sul file Excel (`.xls`) della l
 1. Apri l'app ed entra con email e password.
 2. Rosa e formazione della giornata arrivano dal [database della lega](../../db/README.md): niente file da scegliere.
 3. Scegli il modulo e tocca i posti sul campo, in panchina e in panchina extra (oppure tocca i giocatori "non schierati" per metterli nel primo posto libero).
-4. Tocca **Salva formazione**: la formazione finisce nel database, l'amministratore la vede subito e ogni modifica resta nel log.
+4. Tocca **Salva formazione**: la formazione finisce nel database, la vedono tutti e ogni modifica resta nel log.
 
-Dopo la scadenza della giornata l'app diventa di sola lettura: il blocco lo applica il database, non solo l'app.
+### Quando si può cambiare
 
-Dal menu **Opzioni**: **Esporta il file .xls** (genera `formazioni_AAAAMMGG_Squadra.xls` dal modello della lega tenuto in Supabase Storage), **Storico modifiche**, **Esci**.
+Le giornate arrivano dal calendario della Serie A: si schiera fino alla fine
+dell'ultima partita, ma **ogni giocatore si blocca quando la sua squadra scende
+in campo**. Chi è già in campo resta dov'è (segnato con un pallino, non
+selezionabile); tutti gli altri si cambiano a piacere. La barra in alto dice
+quando scatta il prossimo blocco. È il database ad applicare la regola, non solo
+l'app.
+
+Dal menu **Opzioni**: **Formazioni di giornata** (quelle di tutte le squadre,
+anche delle giornate passate), **Ripristina l'ultima formazione salvata** (pesca
+la più recente, anche da giornate precedenti), **Esporta il file .xls** (genera
+`formazioni_AAAAMMGG_Squadra.xls` dal modello della lega tenuto in Supabase
+Storage), **Storico modifiche**, **Esci**.
+
+Per l'amministratore, in più: **Aggiorna le rose da un .xls**, **Aggiorna il
+calendario**, **Squadre dei giocatori** (chi non ha una squadra di Serie A si
+blocca alla prima partita della giornata), **Giornata corrente (a mano)**.
 
 ## Modalità file (senza account)
 
@@ -45,7 +60,7 @@ Se mancano numeri, l'app avvisa: come con la macro, l'ordine "scala" e i posti v
 ## Sviluppo
 
 - `src/engine.js` — lettura/scrittura `.xls` (BIFF8 in contenitore CFB) senza librerie esterne, con valutatore delle formule del foglio.
-- `src/sb.js` — client minimo per Supabase (login, query, RPC, storage), senza librerie esterne.
+- `src/sb.js` — client minimo per Supabase (login, query, RPC, funzioni, storage), senza librerie esterne.
 - `src/config.js` — indirizzo e chiave pubblica del progetto Supabase (la chiave `anon` è pubblica per scelta; la `service_role` non va mai qui).
 - `src/ui.html`, `src/ui.css`, `src/ui.js` — interfaccia.
 - `src/manifest.webmanifest`, `src/sw.js` — app installabile, funzionamento offline, ricezione file condivisi.
@@ -56,5 +71,9 @@ python3 tools/schiera-formazione/build.py          # aggiorna docs/schiera/ (pub
 python3 tools/schiera-formazione/build.py --all    # anche la versione offline a file singolo in dist/
 node tools/schiera-formazione/test/engine.test.js "Formazioni.xls" NomeSquadra
 ```
+
+Le prove dell'app intera (accesso, blocchi, formazioni pubbliche, ripristino,
+amministrazione) girano contro un finto Supabase: vedi
+[`test/mock/`](test/mock/README.md).
 
 I file `.xls` della lega non vanno messi nella repo (sono esclusi da `.gitignore`).

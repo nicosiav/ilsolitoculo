@@ -420,3 +420,25 @@ button { cursor: pointer; }
   .token { width: 44px; height: 44px; font-size: 21px; }
   .slot .nm { font-size: 12px; }
 }
+
+/* blocco partita per partita: chi è già sceso in campo resta dov'è */
+.slot.locked { opacity: 1; }
+.slot.locked .token { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line); font-size: 13px; }
+.slot.locked .nm { opacity: .75; }
+.row.locked { opacity: .7; }
+.row.locked .num { text-decoration: line-through; }
+.pchip.locked { opacity: .5; }
+.pchip .lk { font-size: 10px; color: var(--muted); margin-left: 2px; }
+.sheet-b .row.locked { opacity: .55; }
+
+/* formazioni di tutta la lega */
+.team-block { border-top: 1px solid var(--line); }
+.team-block:first-child { border-top: 0; }
+.team-block > summary {
+  padding: 12px 16px; cursor: pointer; list-style: none;
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+}
+.team-block > summary::-webkit-details-marker { display: none; }
+.team-block > summary::before { content: '›'; color: var(--muted); transition: transform .15s ease; }
+.team-block[open] > summary::before { transform: rotate(90deg); }
+.team-block .xl { margin-top: 0; }

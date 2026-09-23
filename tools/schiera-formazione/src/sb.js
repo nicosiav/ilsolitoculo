@@ -25,15 +25,16 @@
     email_not_confirmed: 'Account non ancora confermato: chiedi all’amministratore.',
     over_request_rate_limit: 'Troppi tentativi: riprova tra qualche minuto.',
     P0001: 'Questo account non è collegato a nessuna squadra: scrivi all’amministratore.',
-    P0002: 'La giornata è chiusa: la formazione non si può più cambiare.',
+    P0002: 'La giornata è finita: la formazione non si può più cambiare.',
     P0004: 'Puoi schierare solo giocatori della tua rosa.',
+    P0005: 'Serve un account da amministratore per questa operazione.',
     '42501': 'Non hai i permessi per questa operazione.'
   };
 
   function fail(status, body) {
     const code = body && (body.error_code || body.code || body.error) || String(status);
     const msg = MESSAGES[code] ||
-      (body && (body.message || body.msg || body.error_description || body.error)) ||
+      (body && (body.message || body.msg || body.errore || body.error_description || body.error)) ||
       ('Errore di rete (' + status + ')');
     return new SbError(msg, code, status);
   }
@@ -133,6 +134,11 @@
 
     rpc(fn, args) {
       return authed('/rest/v1/rpc/' + fn, { method: 'POST', body: args || {} });
+    },
+
+    // Funzioni sul server (Edge Functions), es. l'aggiornamento del calendario
+    fn(name, query, body) {
+      return authed('/functions/v1/' + name + (query ? '?' + query : ''), { method: 'POST', body: body || {} });
     },
 
     async download(bucket, path) {
