@@ -61,11 +61,8 @@ a { color: inherit; }
 /* intestazione */
 .top { display: flex; align-items: center; gap: 12px; position: relative; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-.crest {
-  width: 34px; height: 34px; border-radius: 10px; flex: none;
-  background: linear-gradient(160deg, var(--pitch-2), var(--pitch-1));
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .22);
-}
+.crest { width: 38px; height: 38px; flex: none; }
+.crest svg { display: block; width: 100%; height: 100%; }
 .brand h1 { margin: 0; font: 700 23px/1.05 var(--display); letter-spacing: .01em; text-transform: uppercase; white-space: nowrap; }
 .brand small { color: var(--muted); font-size: 12.5px; }
 .icon-btn {

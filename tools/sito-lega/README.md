@@ -61,6 +61,10 @@ sezioni restano vuote finché le tabelle non ci sono.
 
 - `src/index.html`, `src/app.css`, `src/app.js` — il sito.
 - `src/giornata.js` — lettura del file .xls di giornata (tutti i fogli).
+- `src/logo.svg` — il marchio della lega (il "colpo di culo"). `build.py` lo mette
+  nell'intestazione e lo usa come favicon; `icons/make_icons.py` ne ricava le PNG
+  in `docs/icons/` (favicon e icona per la schermata Home dell'iPhone). Se cambi il
+  logo, rilancia tutti e due.
 - il motore `.xls` e il client Supabase arrivano da `tools/schiera-formazione/src/`.
 
 ```bash

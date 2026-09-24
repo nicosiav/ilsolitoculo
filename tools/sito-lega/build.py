@@ -8,6 +8,7 @@ si prendono da tools/schiera-formazione/src/ e finiscono dentro la pagina,
 così il sito resta un file solo senza dipendenze esterne.
 """
 import pathlib
+from urllib.parse import quote
 
 HERE = pathlib.Path(__file__).resolve().parent
 SRC = HERE / 'src'
@@ -23,10 +24,28 @@ FONTS = (
     '&family=Barlow+Condensed:wght@600;700&display=swap">'
 )
 BASE_CSS = ':root{padding-top:env(safe-area-inset-top,0px)}\n[hidden]{display:none!important}\n'
+CREST = '<span class="crest" aria-hidden="true"></span>'
 
 
 def read(p):
     return p.read_text(encoding='utf-8')
+
+
+def logo():
+    """src/logo.svg: il marchio della lega, un file solo per intestazione e favicon."""
+    return read(SRC / 'logo.svg').strip()
+
+
+def favicon():
+    return 'data:image/svg+xml,' + quote(logo(), safe='=:/,.-')
+
+
+def pagina():
+    corpo = read(SRC / 'index.html')
+    if CREST not in corpo:
+        raise SystemExit('manca lo spazio del marchio in src/index.html')
+    svg = logo().replace('<svg ', '<svg role="presentation" focusable="false" ', 1)
+    return corpo.replace(CREST, f'<span class="crest" aria-hidden="true">{svg}</span>')
 
 
 def main():
@@ -38,14 +57,16 @@ def main():
 <meta name="theme-color" content="#1D6A3E">
 <title>{TITLE} — fantacalcio</title>
 <meta name="description" content="Rose, calendario, classifiche e statistiche della lega Il Solito Culo.">
-<link rel="icon" type="image/png" sizes="32x32" href="schiera/icons/favicon-32.png">
+<link rel="icon" type="image/svg+xml" href="{favicon()}">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 {FONTS}
 <style>
 {BASE_CSS}{read(SRC / 'app.css')}
 </style>
 </head>
 <body>
-{read(SRC / 'index.html')}
+{pagina()}
 <script>
 {read(SCHIERA / 'config.js')}
 </script>
