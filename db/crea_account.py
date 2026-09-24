@@ -6,6 +6,9 @@
     python3 db/crea_account.py db/account.csv                # prova: dice cosa farebbe, non tocca niente
     python3 db/crea_account.py db/account.csv --davvero      # crea e collega
 
+    # la stessa password provvisoria per tutti gli account nuovi
+    python3 db/crea_account.py db/account.csv --password <provvisoria> --davvero
+
 La chiave service_role apre tutto il database: si usa solo da qui, dal tuo
 computer. Mai nel sito, mai nella repo, mai in chat.
 
@@ -19,9 +22,12 @@ account.csv, una riga per partecipante (c'è un esempio in db/account-esempio.cs
   ruolo     giocatore | amministratore (vuoto = giocatore)
 
 Chi non ha ancora un account lo riceve con una password provvisoria, già
-confermato: nessuna email parte da Supabase. Chi ce l'ha già viene solo
-collegato alla squadra; la password resta la sua (con --nuova-password se ne
-genera una nuova anche per lui).
+confermato: nessuna email parte da Supabase. Senza --password ognuno ne ha una
+diversa, generata a caso (tipo traversa-4827); con --password tutti gli account
+nuovi hanno quella. La password non va scritta nella repo (è pubblica): si passa
+solo da riga di comando. Chi ce l'ha già viene solo collegato alla squadra; la
+password resta la sua (con --nuova-password gliela si cambia: generata a caso,
+o quella di --password).
 
 Alla fine scrive credenziali.txt, accanto al file .csv, con un messaggio
 pronto da mandare su WhatsApp a ciascuno. Contiene password: non va nella
@@ -127,12 +133,32 @@ def messaggio(nome, email, pwd):
             f'Il file .xls della formazione va sempre mandato all\'amministratore: nella guida c\'è come.')
 
 
+def opzioni(argv):
+    args, davvero, rinnova, comune = [], False, False, None
+    it = iter(argv)
+    for a in it:
+        if a == '--davvero':
+            davvero = True
+        elif a == '--nuova-password':
+            rinnova = True
+        elif a == '--password' or a.startswith('--password='):
+            comune = a.split('=', 1)[1] if '=' in a else next(it, None)
+            if not comune:
+                raise SystemExit('--password vuole la password: --password <provvisoria>')
+        elif a.startswith('--'):
+            raise SystemExit(f'opzione sconosciuta: {a}')
+        else:
+            args.append(a)
+    if comune is not None and len(comune) < 6:
+        raise SystemExit('La password provvisoria deve avere almeno 6 caratteri (minimo di Supabase).')
+    return args, davvero, rinnova, comune
+
+
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    davvero = '--davvero' in sys.argv
-    rinnova = '--nuova-password' in sys.argv
+    args, davvero, rinnova, comune = opzioni(sys.argv[1:])
     if not args:
         raise SystemExit(__doc__)
+    nuova = (lambda: comune) if comune else password
     url, key = os.environ.get('SUPABASE_URL'), os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
     if not url or not key:
         raise SystemExit('Mancano SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (vedi l\'inizio di questo file).')
@@ -147,7 +173,8 @@ def main():
                              + ', '.join(sorted(t['name'] for t in sb.squadre())))
     esistenti = {u['email'].lower(): u for u in sb.utenti() if u.get('email')}
 
-    print(('' if davvero else '[PROVA: non cambio niente, aggiungi --davvero] ') + f'{len(righe)} partecipanti\n')
+    print(('' if davvero else '[PROVA: non cambio niente, aggiungi --davvero] ') + f'{len(righe)} partecipanti'
+          + (', password provvisoria uguale per tutti gli account nuovi' if comune else '') + '\n')
     credenziali = []
     for r in righe:
         t = squadre[chiave(r['squadra'])]
@@ -155,13 +182,13 @@ def main():
         u = esistenti.get(r['email'].lower())
         pwd = None
         if u is None:
-            azione, pwd = 'nuovo account', password()
+            azione, pwd = 'nuovo account', nuova()
             if davvero:
                 u = sb.crea_utente(r['email'], pwd, nome)
         else:
             azione = 'account già esistente'
             if rinnova:
-                pwd = password()
+                pwd = nuova()
                 azione += ', password nuova'
                 if davvero:
                     sb.cambia_password(u['id'], pwd)

@@ -89,21 +89,29 @@ scegline una.
    ```bash
    export SUPABASE_URL=https://<progetto>.supabase.co
    export SUPABASE_SERVICE_ROLE_KEY=<chiave service_role>
-   python3 db/crea_account.py db/account.csv            # prova: dice cosa farebbe
-   python3 db/crea_account.py db/account.csv --davvero  # lo fa
+   python3 db/crea_account.py db/account.csv                                  # prova: dice cosa farebbe
+   python3 db/crea_account.py db/account.csv --password <provvisoria> --davvero  # lo fa
    ```
 
-   Chi non ha un account lo riceve già confermato, con una password provvisoria
-   tipo `traversa-4827`; chi ce l'ha (tu, per esempio) viene solo collegato alla
-   squadra e al ruolo. Nessuna email parte da Supabase.
+   Chi non ha un account lo riceve già confermato, con la password provvisoria
+   di `--password`, uguale per tutti (almeno 6 caratteri; non scriverla nella
+   repo, che è pubblica). Senza `--password` ognuno ne riceve una diversa, tipo
+   `traversa-4827`. Chi l'account ce l'ha già (tu e Sebi) viene solo collegato
+   alla squadra e al ruolo, e la sua password non cambia. Nessuna email parte da
+   Supabase.
+
+   Con la password uguale per tutti, finché qualcuno non la cambia chiunque
+   conosca la sua email può entrare al posto suo: chiedi a tutti di cambiarla
+   appena entrano (menu in alto a destra → **Cambia password**).
 4. Apri `db/credenziali.txt`: c'è un messaggio pronto per ciascuno (link, email,
    password provvisoria, come cambiarla, promemoria del file .xls). Mandali su
    WhatsApp insieme alla guida, poi **cancella il file**.
 
 Lo script si può rilanciare quando vuoi (un partecipante nuovo, una squadra
-cambiata): non crea doppioni. Con `--nuova-password` rigenera la password anche
-a chi l'account ce l'ha già, per esempio se qualcuno l'ha persa e non riesce a
-usare "password dimenticata". Si prova senza rete con
+cambiata): non crea doppioni. Con `--nuova-password` cambia la password anche
+a chi l'account ce l'ha già (generata a caso, o quella di `--password`), per
+esempio se qualcuno l'ha persa e non riesce a usare "password dimenticata":
+in quel caso metti nel file solo la sua riga. Si prova senza rete con
 `python3 db/test/prova_crea_account.py`.
 
 ### Tutta dal pannello di Supabase

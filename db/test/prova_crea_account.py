@@ -169,6 +169,24 @@ with tempfile.TemporaryDirectory() as tmp:
     controlla(profilo('valerio@prova.it')[3] != 'la-sua-password', 'password rinnovata')
     controlla(CREDENZIALI.read_text(encoding='utf-8').count('Password provvisoria') == 3, 'tre messaggi')
 
+    print('password uguale per tutti (--password)')
+    CSV2 = ('email,squadra,nome,ruolo\n'
+            'giovanni@prova.it,Giovanni,,\n'
+            'colombrita@prova.it,Colombrita,,\n'
+            'valerio@prova.it,Valerio,Valerio,amministratore\n')
+    prima = profilo('valerio@prova.it')[3]
+    r = lancia(CSV2, '--password', 'comune2026', '--davvero', cartella=tmp)
+    controlla(r.returncode == 0 and 'uguale per tutti' in r.stdout, 'lo dice: ' + r.stderr.strip()[:200])
+    controlla(profilo('giovanni@prova.it')[3] == 'comune2026' and profilo('colombrita@prova.it')[3] == 'comune2026',
+              'gli account nuovi hanno quella password')
+    controlla(profilo('valerio@prova.it')[3] == prima, 'chi c\'era già la tiene')
+    testo = CREDENZIALI.read_text(encoding='utf-8')
+    controlla(testo.count('Password provvisoria: comune2026') == 2, 'messaggi con la password comune, solo per i nuovi')
+    r = lancia(CSV2, '--password=corta', cartella=tmp)
+    controlla(r.returncode != 0 and '6 caratteri' in r.stderr, 'password troppo corta rifiutata')
+    r = lancia(CSV2, '--pasword', 'x', cartella=tmp)
+    controlla(r.returncode != 0 and 'sconosciuta' in r.stderr, 'opzione scritta male rifiutata')
+
     print('errori')
     r = lancia('email,squadra\nx@prova.it,Juventus\n', cartella=tmp)
     controlla(r.returncode != 0 and 'Juventus' in r.stderr and 'Massimo' in r.stderr, 'squadra sconosciuta: dice quali ci sono')
