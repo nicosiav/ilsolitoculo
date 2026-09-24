@@ -2,7 +2,6 @@ import asyncio, os, subprocess, time, signal
 from playwright.async_api import async_playwright
 
 SITO = 'http://localhost:8765/ilsolitoculo/'
-SCHIERA = 'http://localhost:8765/ilsolitoculo/schiera/'
 # Schermate vere dei due strumenti, per la guida dell'amministratore.
 #   XLS="03 Campionato - Terza Giornata.xls" python3 screenshots.py
 # Servono: docs/ pubblicato su http://localhost:8765/ilsolitoculo/ e /tmp/rose.json
@@ -11,7 +10,6 @@ XLS = os.environ.get('XLS', 'giornata.xls')
 XLS_PULITO = os.environ.get('XLS_PULITO', XLS)
 HERE = os.path.dirname(os.path.abspath(__file__))
 M_SITO = HERE
-M_SCHIERA = os.path.join(HERE, '..', '..', '..', 'schiera-formazione', 'test', 'mock')
 OUT = os.environ.get('OUT', os.path.join(HERE, 'schermate'))
 os.makedirs(OUT, exist_ok=True)
 
@@ -37,7 +35,6 @@ async def pagina(ctx, url):
         body = (await r.text()).replace('https://digonsptxuawnehebotw.supabase.co', 'http://localhost:8899')
         await route.fulfill(response=r, body=body)
     await ctx.route('**/ilsolitoculo/', reroute)
-    await ctx.route('**/ilsolitoculo/schiera/', reroute)
     pg = await ctx.new_page()
     await pg.goto(url)
     await pg.wait_for_timeout(600)
@@ -99,18 +96,20 @@ async def main():
         srv.send_signal(signal.SIGTERM)
         srv.wait()
 
-        # ---------------- Schiera Formazione, come amministratore
-        srv = avvia(M_SCHIERA, {'ADMIN': '1'})
+        # ---------------- Schiera, dentro il sito, come amministratore
+        srv = avvia(HERE, {'ADMIN': '1', 'MD': '6'})
         ctx = await b.new_context(viewport={'width': 400, 'height': 860}, device_scale_factor=2,
                                   is_mobile=True, has_touch=True, service_workers='block', color_scheme='light')
-        pg = await pagina(ctx, SCHIERA)
+        pg = await pagina(ctx, SITO)
         await login(pg)
-        await pg.click('#menuBtn')
+        # il menu dell'amministratore, con le funzioni di Schiera
+        await pg.click('#userBtn')
         await pg.wait_for_timeout(500)
-        await pg.screenshot(path=f'{OUT}/07-schiera-opzioni.png', clip={'x': 0, 'y': 0, 'width': 400, 'height': 420})
-        # il campo con la formazione
-        await pg.click('#menuBtn')
-        await pg.wait_for_timeout(300)
+        await pg.screenshot(path=f'{OUT}/07-schiera-opzioni.png', clip={'x': 0, 'y': 0, 'width': 400, 'height': 460})
+        await pg.click('#userBtn')
+        # la pagina Schiera: conto alla rovescia e campo
+        await pg.evaluate("location.hash = '#/schiera'")
+        await pg.wait_for_timeout(1000)
         await pg.screenshot(path=f'{OUT}/08-schiera-campo.png', clip={'x': 0, 'y': 60, 'width': 400, 'height': 640})
         await ctx.close()
         srv.send_signal(signal.SIGTERM)

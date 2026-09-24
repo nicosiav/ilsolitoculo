@@ -3,6 +3,9 @@
 //   XLS=/percorso/giornata.xls node server.js
 const http = require('http'), fs = require('fs'), url = require('url'), path = require('path');
 const G = require('../../src/giornata.js');
+// Schiera Formazione è una sezione del sito: le sue tabelle (rosa, giornata di
+// Serie A, partite, formazioni…) le serve il finto Supabase di Schiera.
+const SCH = require('../../../schiera-formazione/test/mock/server.js');
 
 const XLS = process.env.XLS || '/root/.claude/uploads/01e16dca-3147-5c65-b05b-ee8683976523/8977fb44-03_Campionato_-_Terza_Giornata.xls';
 const dati = G.parse(new Uint8Array(fs.readFileSync(XLS)), path.basename(XLS));
@@ -136,7 +139,10 @@ http.createServer((req, res) => {
     if (p === '/auth/v1/user') return json(res, 200, { id: 'u1', email: 'valerio@test.it' });
     if (p === '/auth/v1/logout') return json(res, 204, {});
     if (p === '/auth/v1/recover') return json(res, 200, {});
-    if (p === '/rest/v1/profiles') return json(res, 200, [{ display_name: 'Valerio', role: process.env.ADMIN ? 'admin' : 'player', team_id: 'team-Valerio' }]);
+    // profilo con la squadra, e la rosa di una squadra: come li chiede Schiera
+    if (p === '/rest/v1/profiles' || (p === '/rest/v1/players' && (q.team_id || String(q.select || '').includes('teams(')))) {
+      if (SCH.gestisci(req, res, p, q, b) !== false) return;
+    }
     if (p === '/rest/v1/rpc/import_round') {
       fs.writeFileSync('/tmp/import_round.json', JSON.stringify({ giornata: b.p && b.p.giornata, partite: (b.p && b.p.calendario || []).length }));
       return json(res, 200, {
@@ -156,6 +162,7 @@ http.createServer((req, res) => {
       if (q.limit) righe = righe.slice(0, +q.limit);
       return json(res, 200, righe);
     }
+    if (SCH.gestisci(req, res, p, q, b) !== false) return;
     json(res, 404, { message: 'non trovato: ' + p });
   });
 }).listen(8899, 'localhost', () => console.log('finto Supabase (sito) su 8899 — giornata', dati.giornata));

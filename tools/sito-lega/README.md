@@ -11,7 +11,8 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 
 | Sezione | Cosa c'è |
 |---|---|
-| Home | la tua squadra, il risultato dell'ultima giornata, la prossima partita, l'andamento e la classifica |
+| Home | il riquadro verde per schierare, con il conto alla rovescia; la tua squadra, il risultato dell'ultima giornata, la prossima partita, l'andamento e la classifica |
+| Schiera | la formazione della giornata: campo, panchina, blocco partita per partita, conto alla rovescia al primo fischio, export `.xls` ([dettagli](../schiera-formazione/README.md)) |
 | Squadra | una pagina per squadra: posizioni, punteggi di giornata, andamento, tutte le partite con l'esito e i migliori della rosa |
 | Rose | le otto rose con ruolo, squadra di Serie A, costo, presenze, media e fantamedia; crediti residui e gol reali |
 | Calendario | tutte le 20 giornate; toccando una partita esce il tabellino con voti, subentri e marcatori |
@@ -24,10 +25,15 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 | Premi | montepremi, ripartizione, crediti per la stagione dopo e come si passa dal punteggio ai gol |
 
 Al telefono le sezioni si cambiano dalla barra in basso: Home, Calendario,
-Classifiche, Statistiche e **Altro**, che apre un pannello con tutte le altre.
-Sul computer la stessa barra sta in alto. In cima a ogni pagina, e in cima al
-pannello Altro, c'è il riquadro verde per andare a **Schiera Formazione**, che
-resta l'app per schierare.
+**Schiera** (il pulsante verde al centro, con un pallino rosso finché la
+formazione della giornata non è salvata), Classifiche e **Altro**, che apre un
+pannello con tutte le altre (Statistiche compresa). Sul computer la stessa barra
+sta in alto. In Home il riquadro verde porta a Schiera e tiene il conto alla
+rovescia al primo fischio.
+
+Il sito si installa come app: su Android dal menu in alto a destra ("Installa
+l'app sul telefono") o dal menu di Chrome; su iPhone da Safari → Condividi →
+"Aggiungi alla schermata Home".
 
 ## Ogni settimana: carica la giornata
 
@@ -65,9 +71,11 @@ sezioni restano vuote finché le tabelle non ci sono.
 
 - `src/index.html`, `src/app.css`, `src/app.js` — il sito.
 - `src/giornata.js` — lettura del file .xls di giornata (tutti i fogli).
+- Schiera arriva da `tools/schiera-formazione/src/` (`ui.html`, `ui.css`, `ui.js`): `build.py` la mette al posto del segnaposto in `src/index.html` e ne chiude lo stile sotto `.sch`, così non tocca il resto del sito.
+- `src/manifest.webmanifest`, `src/sw.js` — il sito come app installabile (il service worker non tiene niente in cache).
 - `src/logo.svg` — il marchio della lega (il "colpo di culo"). `build.py` lo mette
   nell'intestazione e lo usa come favicon; `icons/make_icons.py` ne ricava le PNG
-  in `docs/icons/` (favicon e icona per la schermata Home dell'iPhone). Se cambi il
+  in `docs/icons/` (favicon, icone dell'app e icona per la schermata Home dell'iPhone). Se cambi il
   logo, rilancia tutti e due.
 - il motore `.xls` e il client Supabase arrivano da `tools/schiera-formazione/src/`.
 

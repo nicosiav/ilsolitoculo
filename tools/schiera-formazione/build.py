@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Costruisce Schiera Formazione a partire dai sorgenti in src/.
 
-  python3 tools/schiera-formazione/build.py          -> docs/schiera/ (GitHub Pages, app installabile)
+Da settembre 2026 Schiera vive dentro il sito della lega (sezione #/schiera):
+lì la mette tools/sito-lega/build.py, prendendo ui.html, ui.css e ui.js da qui.
+
+  python3 tools/schiera-formazione/build.py          -> docs/schiera/ (il vecchio indirizzo: porta al sito)
   python3 tools/schiera-formazione/build.py --all    -> anche dist/ (versione offline a file singolo e artifact claude.ai)
 """
-import hashlib
 import pathlib
+import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -28,13 +31,13 @@ def read(name):
     return (SRC / name).read_text(encoding='utf-8')
 
 
-def body(online=False):
-    cfg = f"<script>\n{read('config.js')}\n</script>\n" if online else ''
-    return (f"{read('ui.html')}\n{cfg}<script>\n{read('engine.js')}\n</script>\n"
+def body():
+    return (f"{read('ui.html')}\n<script>\n{read('engine.js')}\n</script>\n"
             f"<script>\n{read('sb.js')}\n</script>\n<script>\n{read('ui.js')}\n</script>\n")
 
 
-def standalone(head_extra='', tail_extra='', online=False):
+def standalone():
+    """la versione a sé: lavora sul file .xls, senza database"""
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -42,42 +45,67 @@ def standalone(head_extra='', tail_extra='', online=False):
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1D6A3E">
 <title>{TITLE}</title>
-{head_extra}{FONTS}
+{FONTS}
 <style>
 {BASE_CSS}{read('ui.css')}
 </style>
 </head>
 <body>
-{body(online)}{tail_extra}</body>
+{body()}</body>
 </html>
 """
 
 
-PWA_HEAD = """<meta name="description" content="Schiera la formazione del fantacalcio sul file .xls della lega e salvalo pronto da inviare.">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Schiera">
+# Il vecchio indirizzo .../schiera/ porta alla sezione Schiera del sito.
+# Il link dell'email per la nuova password (…/schiera/#access_token=…) passa intero.
+REDIRECT = """<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1D6A3E">
+<title>Schiera Formazione — Il Solito Culo</title>
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png">
+<script>
+  (function () {
+    var h = location.hash || '';
+    var dove = /access_token=|type=recovery|error=/.test(h) ? '../' + h : '../#/schiera';
+    location.replace(dove);
+  })();
+</script>
+<noscript><meta http-equiv="refresh" content="0; url=../#/schiera"></noscript>
+</head>
+<body style="font-family:system-ui,sans-serif;background:#EDF1EA;color:#14201A;padding:24px">
+<p>Schiera Formazione adesso è dentro il sito della lega: <a href="../#/schiera">vai a Schiera</a>.</p>
+</body>
+</html>
 """
 
-PWA_TAIL = """<script>
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
-}
-</script>
+# Chi aveva installato la vecchia app ha ancora il suo service worker: questo
+# lo sostituisce, svuota le cache e si toglie di mezzo.
+RETIRE_SW = """/* Schiera Formazione ora vive dentro il sito della lega: questo service worker
+ * prende il posto di quello vecchio, cancella le sue cache e si disinstalla. */
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k.startsWith('schiera-')).map(k => caches.delete(k)));
+    await self.registration.unregister();
+    const finestre = await self.clients.matchAll({ type: 'window' });
+    finestre.forEach(c => { try { c.navigate(new URL('../#/schiera', self.registration.scope).href); } catch (e) { /* ignora */ } });
+  })());
+});
 """
 
 
 def main():
     PAGES.mkdir(parents=True, exist_ok=True)
-    html = standalone(PWA_HEAD, PWA_TAIL, online=True)
-    manifest = read('manifest.webmanifest')
-    version = hashlib.sha256((html + manifest + read('sw.js')).encode('utf-8')).hexdigest()[:10]
-    (PAGES / 'index.html').write_text(html, encoding='utf-8')
-    (PAGES / 'manifest.webmanifest').write_text(manifest, encoding='utf-8')
-    (PAGES / 'sw.js').write_text(read('sw.js').replace('__VERSION__', version), encoding='utf-8')
-    print(f'docs/schiera/ aggiornato (versione {version})')
+    (PAGES / 'index.html').write_text(REDIRECT, encoding='utf-8')
+    (PAGES / 'sw.js').write_text(RETIRE_SW, encoding='utf-8')
+    vecchio = PAGES / 'manifest.webmanifest'
+    if vecchio.exists():
+        vecchio.unlink()
+    print('docs/schiera/ aggiornato (rimanda al sito)')
 
     if '--all' in sys.argv:
         DIST.mkdir(exist_ok=True)

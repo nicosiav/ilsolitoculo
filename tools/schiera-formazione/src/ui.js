@@ -1,7 +1,14 @@
 (function () {
   'use strict';
   const X = window.XlsFormazione;
-  const $ = s => document.querySelector(s);
+  // Dentro il sito della lega Schiera è una sezione come le altre: cerca i suoi
+  // elementi solo sotto la sua radice, così gli id non si pestano i piedi.
+  const EMBED = !!window.SCHIERA_EMBED;
+  const ROOT = (EMBED && document.getElementById('schiera-app')) || document;
+  const $ = s => ROOT.querySelector(s);
+  const on = (sel, ev, fn) => { const e = $(sel); if (e) e.addEventListener(ev, fn); };
+  const show = (sel, v) => { const e = $(sel); if (e) e.hidden = !v; };
+  const avvisaSito = () => { try { if (window.Schiera && window.Schiera.onCambio) window.Schiera.onCambio(); } catch (e) { /* ignora */ } };
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const MODULES = ['3-4-3', '3-5-2', '4-3-3', '4-4-2', '4-5-1', '5-3-2', '5-4-1'];
@@ -11,7 +18,7 @@
   const LS_KEY = 'schiera-formazione:v1';
 
   const S = {
-    mode: 'file',            // 'online' (database) oppure 'file' (.xls scelto a mano)
+    mode: EMBED ? 'online' : 'file',            // 'online' (database) oppure 'file' (.xls scelto a mano)
     bytes: null, fileName: '', wb: null, sheet: null, roster: [],
     module: '3-4-3', free: false,
     starters: Array(11).fill(null), bench: Array(7).fill(null), extra: Array(4).fill(null),
@@ -211,9 +218,9 @@
       if (pick) sel.value = pick;
       $('#fileName').textContent = S.fileName;
       $('#fileMeta').textContent = wb.sheetNames.length + ' squadre nel file';
-      $('#uploadCard').hidden = true;
-      $('#fileBar').hidden = false;
-      $('#menuWrap').hidden = false;
+      show('#uploadCard', false);
+      show('#fileBar', true);
+      show('#menuWrap', true);
       if (pick) loadSheet(pick); else chooseTeam(wb.sheetNames);
     } catch (e) {
       console.error(e);
@@ -316,9 +323,9 @@
     $('#saveBtn').disabled = !ready || n === 0 || locked;
     $('#saveBtn').textContent = online() ? 'Salva formazione' : 'Salva file Excel';
     $('#editor').style.opacity = ready ? '' : '.55';
-    $('#sub').textContent = ready ? (S.sheet || '') + ' · ' + S.module : 'formazione dal file .xls della lega';
+    if ($('#sub')) $('#sub').textContent = ready ? (S.sheet || '') + ' · ' + S.module : 'formazione dal file .xls della lega';
     if (online()) renderOnlineBar();
-    document.querySelectorAll('#editor button').forEach(b => { if (locked) b.disabled = true; });
+    ROOT.querySelectorAll('#editor button').forEach(b => { if (locked) b.disabled = true; });
   }
 
   // ---------------------------------------------------------- modalità online
@@ -352,42 +359,84 @@
   // La giornata resta aperta fino alla fine dell'ultima partita
   const closeTime = md => (md && (md.closes_at || md.deadline)) || null;
 
+  // ------------------------------------------------ conto alla rovescia
+  // Fino al primo fischio della giornata la formazione è tutta libera; poi ogni
+  // giocatore si blocca quando scende in campo la sua squadra.
+  function scadenza() {
+    const md = S.matchday;
+    if (!online() || !md) return { fase: 'nessuna' };
+    const chiude = closeTime(md) ? ms(closeTime(md)) : null;
+    const ora = Date.now();
+    if (S.closed || (chiude && chiude <= ora)) return { fase: 'chiusa', t: chiude, testo: 'Giornata chiusa' };
+    const primo = firstKickoff();
+    if (primo && primo > ora) return { fase: 'prima', t: primo, testo: 'Primo fischio fra' };
+    if (primo) {
+      const nx = nextLock();
+      if (nx) return { fase: 'blocchi', t: nx, testo: 'Il prossimo dei tuoi scende in campo fra' };
+      return { fase: 'incampo', t: chiude, testo: 'Tutti i tuoi sono in campo · si chiude fra' };
+    }
+    return { fase: 'scadenza', t: chiude, testo: 'Si chiude fra' };
+  }
+  // millisecondi -> giorni, ore, minuti, secondi
+  function pezzi(t) {
+    const d = Math.max(0, Math.floor((t - Date.now()) / 1000));
+    return { g: Math.floor(d / 86400), h: Math.floor(d / 3600) % 24, m: Math.floor(d / 60) % 60, s: d % 60 };
+  }
+  const due = n => String(n).padStart(2, '0');
+
+  function renderConto() {
+    const box = $('#conto');
+    if (!box) return;
+    const sc = scadenza();
+    if (!online() || sc.fase === 'nessuna') { box.hidden = true; return; }
+    box.hidden = false;
+    box.dataset.fase = sc.fase;
+    $('#contoLbl').textContent = sc.testo;
+    if (sc.fase === 'chiusa' || !sc.t) {
+      $('#contoNum').innerHTML = '';
+      $('#contoSub').textContent = sc.t ? 'finita ' + fmtDate(sc.t) + ': la formazione non si può più cambiare' : '';
+      return;
+    }
+    const p = pezzi(sc.t);
+    const cella = (n, et) => `<span><b>${n}</b><i>${et}</i></span>`;
+    $('#contoNum').innerHTML = (p.g ? cella(p.g, p.g === 1 ? 'giorno' : 'giorni') : '')
+      + cella(due(p.h), 'ore') + cella(due(p.m), 'min') + cella(due(p.s), 'sec');
+    const ultima = S.fixtures.length ? Math.max.apply(null, S.fixtures.map(f => ms(f.kickoff))) : null;
+    const n = lockedRows().length;
+    $('#contoSub').textContent = sc.fase === 'prima'
+      ? fmtDate(sc.t) + ' · poi ogni giocatore si blocca quando scende in campo la sua squadra'
+      : (n ? n + ' dei tuoi già in campo · ' : '') + (ultima ? 'ultima partita ' + fmtHour(ultima) : 'si chiude ' + fmtDate(closeTime(S.matchday)));
+  }
+
   function renderOnlineBar() {
     const md = S.matchday;
     const el = $('#fileMeta');
     $('#fileName').textContent = (S.team ? S.team.name : '') + (md ? ' · ' + nomeGiornata(md) : '');
-    $('#teamField').hidden = true;
-    if (!md) { el.textContent = 'nessuna giornata aperta'; el.style.color = 'var(--role-a)'; return; }
-    const resta = timeLeft(closeTime(md));
-    if (!resta) { el.textContent = 'giornata finita il ' + fmtDate(closeTime(md)); el.style.color = 'var(--role-a)'; return; }
-    if (!S.fixtures.length) {
-      el.textContent = 'si chiude ' + fmtDate(closeTime(md)) + ' · mancano ' + resta;
-      el.style.color = '';
-      return;
-    }
-    const nx = nextLock(), n = lockedRows().length;
-    el.textContent = nx
-      ? 'prossimo blocco ' + fmtHour(nx) + ' · fra ' + timeLeft(nx) + (n ? ' · ' + n + ' bloccati' : '')
-      : 'tutti in campo · si chiude ' + fmtHour(closeTime(md));
-    el.style.color = !nx || nx - Date.now() < 3600000 ? 'var(--role-a)' : '';
+    show('#teamField', false);
+    el.style.color = '';
+    if (!md) { el.textContent = 'nessuna giornata aperta'; el.style.color = 'var(--role-a)'; }
+    else el.textContent = S.savedAt ? '✓ Formazione salvata ' + fmtDate(S.savedAt) : 'Formazione non ancora salvata';
+    renderConto();
   }
 
-  // Ricontrolla i blocchi ogni mezzo minuto: scattano da soli al calcio d'inizio
+  // Ogni secondo: il conto alla rovescia; e se nel frattempo è iniziata una
+  // partita, i giocatori di quella squadra si bloccano da soli.
   let tick;
   function startTicker() {
     clearInterval(tick);
     if (!online()) return;
     let prima = lockedRows().join(',');
     tick = setInterval(() => {
-      if (!online()) { clearInterval(tick); return; }
+      if (!online() || !S.team) { clearInterval(tick); return; }
       const ora = lockedRows().join(',');
       const finita = S.matchday && !timeLeft(closeTime(S.matchday));
       if (ora !== prima || (finita && !S.closed)) {
         prima = ora;
         if (finita) S.closed = true;
         render();
-      } else if (!S.closed) renderOnlineBar();
-    }, 30000);
+        avvisaSito();
+      } else renderConto();
+    }, 1000);
   }
 
   function rosterFromDb(players) {
@@ -434,13 +483,10 @@
         S.savedAt = l.updated_at;
       }
     }
-    $('#loginCard').hidden = true;
-    $('#uploadCard').hidden = true;
-    $('#fileBar').hidden = false;
-    $('#menuWrap').hidden = false;
-    $('#onlineMenu').hidden = false;
-    $('#adminMenu').hidden = !isAdmin();
-    $('#restoreBtn').hidden = false;
+    show('#uploadCard', false);
+    show('#fileBar', true);
+    show('#onlineTools', true);
+    show('#restoreBtn', true);
     $('#freeToggle').checked = S.free;
     if (!S.matchday) notice('Nessuna giornata aperta: l\u2019amministratore deve aggiornare il calendario.');
     else if (S.closed) notice('Giornata finita il ' + fmtDate(closeTime(S.matchday)) + ': la formazione non si può più cambiare.');
@@ -456,6 +502,7 @@
     }
     startTicker();
     render();
+    avvisaSito();
   }
 
   async function saveOnline() {
@@ -795,43 +842,8 @@
     });
   }
 
-  // ------------------------------------------------------------- accesso
-  function showLogin(msg) {
-    S.mode = 'file';
-    $('#loginCard').hidden = false;
-    $('#uploadCard').hidden = true;
-    $('#fileBar').hidden = true;
-    $('#menuWrap').hidden = true;
-    if (msg) notice(msg);
-    render();
-  }
-
-  async function doLogin(ev) {
-    ev.preventDefault();
-    const btn = $('#loginBtn');
-    btn.disabled = true; btn.textContent = 'Entro…';
-    try {
-      await SB.signIn($('#email').value, $('#password').value);
-      $('#password').value = '';
-      await startOnline();
-    } catch (e) {
-      console.error(e);
-      notice(e.message || 'Accesso non riuscito.', 'error');
-      if (e.code === 'no_team' || e.code === 'no_profile') await SB.signOut();
-    }
-    btn.disabled = false; btn.textContent = 'Entra';
-  }
-
-  async function doRecover() {
-    const email = $('#email').value.trim();
-    if (!email) { notice('Scrivi prima la tua email, poi tocca di nuovo.'); return; }
-    try {
-      await SB.recover(email, location.origin + location.pathname);
-      notice('Ti ho mandato un\u2019email con il link per reimpostare la password.');
-    } catch (e) { notice(e.message || 'Invio non riuscito.', 'error'); }
-  }
-
-  function askNewPassword() {
+  // ------------------------------------------------------------- nuova password
+  function askNewPassword(fatto) {
     const el = sheet(`
       <div class="sheet-h"><div><h4>Nuova password</h4><p>Scegline una di almeno 8 caratteri.</p></div></div>
       <div class="sheet-b"><div style="padding:12px 16px"><input id="newPwd" type="password" autocomplete="new-password" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)"></div></div>
@@ -840,7 +852,7 @@
       if (!ev.target.closest('[data-act="set"]')) return;
       const pwd = el.querySelector('#newPwd').value;
       if (!pwd || pwd.length < 8) { toast('Almeno 8 caratteri'); return; }
-      try { await SB.setPassword(pwd); closeSheet(); toast('Password aggiornata'); await startOnline(); }
+      try { await SB.setPassword(pwd); closeSheet(); toast('Password aggiornata'); if (fatto) await fatto(); else await startOnline(); }
       catch (e) { notice(e.message || 'Non riesco a cambiare la password.', 'error'); }
     });
   }
@@ -867,7 +879,7 @@
 
   function flash(pl) {
     if (!pl) return;
-    const el = document.querySelector(`[data-z="${pl.z}"][data-i="${pl.i}"]`);
+    const el = $(`[data-z="${pl.z}"][data-i="${pl.i}"]`);
     if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
   }
 
@@ -909,15 +921,15 @@
     if (opts && opts.modal) scrim.dataset.modal = '1';
     scrim.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
     scrim.addEventListener('click', ev => { if (ev.target === scrim && !scrim.dataset.modal) closeSheet(); });
-    $('#layer').appendChild(scrim);
+    $('#schLayer').appendChild(scrim);
     const f = scrim.querySelector('button');
     if (f) f.focus({ preventScroll: true });
     return scrim.firstElementChild;
   }
-  function closeSheet() { $('#layer').innerHTML = ''; }
+  function closeSheet() { $('#schLayer').innerHTML = ''; }
 
   // ------------------------------------------------------------ avvisi
-  function clearNotices() { $('#notices').innerHTML = ''; }
+  function clearNotices() { $('#schNotices').innerHTML = ''; }
   function notice(text, kind, actLabel, act) {
     const d = document.createElement('div');
     d.className = 'notice' + (kind === 'error' ? ' error' : '');
@@ -933,7 +945,7 @@
       b.addEventListener('click', () => d.remove());
       d.appendChild(b);
     }
-    $('#notices').appendChild(d);
+    $('#schNotices').appendChild(d);
   }
   let toastT;
   function toast(t) {
@@ -979,6 +991,7 @@
         S.savedAt = new Date().toISOString();
         clearNotices();
         showSaved(res);
+        avvisaSito();
       } catch (e) {
         console.error(e);
         notice(e && e.message ? e.message : 'Salvataggio non riuscito.', 'error');
@@ -998,7 +1011,7 @@
     numbers().forEach((n, r) => { if (n != null) names[n] = P(r).name + '|' + P(r).role; });
     p.sheets[S.sheet] = { module: S.module, free: S.free, names, at: Date.now() };
     setPrefs(p);
-    $('#restoreBtn').hidden = false;
+    show('#restoreBtn', true);
 
     const how = await deliver(res.bytes, outName());
     showResult(res, how);
@@ -1099,36 +1112,23 @@
   }
 
   // ------------------------------------------------------------ eventi
-  $('#loginForm').addEventListener('submit', doLogin);
-  $('#recoverBtn').addEventListener('click', doRecover);
-  $('#fileModeBtn').addEventListener('click', () => { $('#loginCard').hidden = true; $('#uploadCard').hidden = false; });
-  $('#logoutBtn').addEventListener('click', async () => {
-    toggleMenu(false);
-    await SB.signOut();
-    S.mode = 'file'; S.team = null; S.wb = null; S.roster = [];
-    S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
-    clearNotices();
-    showLogin();
-  });
-  $('#exportBtn').addEventListener('click', () => { toggleMenu(false); exportXls(); });
-  $('#rosterBtn').addEventListener('click', () => { toggleMenu(false); $('#adminFile').click(); });
-  $('#adminFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; importRosters(f); });
-  $('#matchdayBtn').addEventListener('click', () => { toggleMenu(false); askMatchday(); });
-  $('#calBtn').addEventListener('click', () => { toggleMenu(false); syncCalendar(); });
-  $('#clubBtn').addEventListener('click', () => { toggleMenu(false); clubsSheet(); });
-  $('#allBtn').addEventListener('click', () => { toggleMenu(false); showAll(); });
-  $('#logBtn').addEventListener('click', () => { toggleMenu(false); showLog(); });
-  $('#pickBtn').addEventListener('click', () => $('#fileInput').click());
-  $('#changeFileBtn2').addEventListener('click', () => { toggleMenu(false); $('#fileInput').click(); });
-  $('#fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+  on('#exportBtn', 'click', () => exportXls());
+  on('#adminFile', 'change', e => { const f = e.target.files[0]; e.target.value = ''; importRosters(f); });
+  on('#allBtn', 'click', () => showAll());
+  on('#logBtn', 'click', () => showLog());
+  on('#pickBtn', 'click', () => $('#fileInput').click());
+  on('#changeFileBtn2', 'click', () => { toggleMenu(false); $('#fileInput').click(); });
+  on('#fileInput', 'change', e => handleFile(e.target.files[0]));
   const up = $('#uploadCard');
-  ['dragenter', 'dragover'].forEach(t => up.addEventListener(t, e => { e.preventDefault(); up.classList.add('drag'); }));
-  ['dragleave', 'drop'].forEach(t => up.addEventListener(t, e => { e.preventDefault(); up.classList.remove('drag'); }));
-  up.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
-  $('#sheetSel').addEventListener('change', e => { const p = prefs(); p.lastSheet = e.target.value; setPrefs(p); loadSheet(e.target.value); });
+  if (up) {
+    ['dragenter', 'dragover'].forEach(t => up.addEventListener(t, e => { e.preventDefault(); up.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(t => up.addEventListener(t, e => { e.preventDefault(); up.classList.remove('drag'); }));
+    up.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+  }
+  on('#sheetSel', 'change', e => { const p = prefs(); p.lastSheet = e.target.value; setPrefs(p); loadSheet(e.target.value); });
 
-  $('#modules').addEventListener('click', e => { const b = e.target.closest('[data-mod]'); if (!b) return; guarded(() => setModule(b.dataset.mod)); render(); });
-  $('#editor').addEventListener('click', e => {
+  on('#modules', 'click', e => { const b = e.target.closest('[data-mod]'); if (!b) return; guarded(() => setModule(b.dataset.mod)); render(); });
+  on('#editor', 'click', e => {
     const s = e.target.closest('[data-z]');
     if (s && canEdit()) { openPicker(s.dataset.z, +s.dataset.i); return; }
     const a = e.target.closest('[data-add]');
@@ -1140,81 +1140,81 @@
       render(); flash(pl);
     }
   });
-  $('#saveBtn').addEventListener('click', onSave);
+  on('#saveBtn', 'click', onSave);
 
+  // menu "Opzioni": c'è solo nella versione a sé
   function toggleMenu(open) {
     const pop = $('#menuPop');
+    if (!pop) return;
     pop.hidden = open === undefined ? !pop.hidden : !open;
     $('#menuBtn').setAttribute('aria-expanded', String(!pop.hidden));
   }
-  $('#menuBtn').addEventListener('click', e => { e.stopPropagation(); toggleMenu(); });
-  document.addEventListener('click', e => { if (!e.target.closest('#menuWrap')) toggleMenu(false); });
-  $('#freeToggle').addEventListener('change', e => {
+  on('#menuBtn', 'click', e => { e.stopPropagation(); toggleMenu(); });
+  if ($('#menuWrap')) document.addEventListener('click', e => { if (!e.target.closest('#menuWrap')) toggleMenu(false); });
+  on('#freeToggle', 'change', e => {
     if (!guarded(() => setFree(e.target.checked))) e.target.checked = S.free;
     render();
   });
-  $('#restoreBtn').addEventListener('click', () => { toggleMenu(false); online() ? restoreOnline() : restoreSaved(); });
-  $('#clearBtn').addEventListener('click', () => {
-    toggleMenu(false);
+  on('#restoreBtn', 'click', () => { online() ? restoreOnline() : restoreSaved(); });
+  on('#clearBtn', 'click', () => {
     // chi è già sceso in campo resta al suo posto
     ['s', 'b', 'e'].forEach(z => { const a = arr(z); a.forEach((r, i) => { if (r != null && !isLocked(r)) a[i] = null; }); });
     render();
     toast(lockedRows().some(r => placeOf(r)) ? 'Svuotata, tranne chi è già in campo' : 'Formazione svuotata');
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!document.querySelector('.scrim[data-modal]')) closeSheet(); toggleMenu(false); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!ROOT.querySelector('.scrim[data-modal]')) closeSheet(); toggleMenu(false); } });
 
-  // ------------------------------------------------------------ app installata (GitHub Pages)
-  // File condiviso da un'altra app (es. WhatsApp → Condividi → Schiera): lo passa il service worker.
-  async function receiveShared() {
-    const q = new URLSearchParams(location.search);
-    if (!q.has('condiviso')) return;
-    try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignora */ }
-    try {
-      const c = await caches.open('schiera-condivisi');
-      const key = new URL('file-condiviso', document.baseURI).href;
-      const r = await c.match(key);
-      if (!r) { notice('Il file condiviso non è arrivato: caricalo con “Scegli il file .xls”.'); return; }
-      const name = decodeURIComponent(r.headers.get('x-nome') || 'Formazioni.xls');
-      const blob = await r.blob();
-      await c.delete(key);
-      handleFile(new File([blob], name));
-    } catch (e) { console.error(e); }
+  // ------------------------------------------------------------ dentro il sito
+  // Il sito della lega fa entrare, cambia sezione ed esce; Schiera gli dice
+  // quando cambia qualcosa (giornata, formazione salvata) con onCambio.
+  function reset() {
+    clearInterval(tick);
+    S.team = null; S.profile = null; S.matchday = null; S.fixtures = []; S.roster = []; S.savedAt = null; S.closed = false;
+    S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
+    closeSheet(); clearNotices();
+    show('#fileBar', false); show('#onlineTools', false); show('#restoreBtn', false);
+    render();
   }
-  receiveShared();
-  if ('launchQueue' in window) {
-    try { window.launchQueue.setConsumer(async p => { if (p.files && p.files.length) handleFile(await p.files[0].getFile()); }); } catch (e) { /* ignora */ }
-  }
-  let installEvt = null;
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    installEvt = e;
-    document.querySelectorAll('.install-btn').forEach(b => { b.hidden = false; });
-  });
-  document.querySelectorAll('.install-btn').forEach(b => b.addEventListener('click', async () => {
-    toggleMenu(false);
-    if (!installEvt) return;
-    installEvt.prompt();
-    try { await installEvt.userChoice; } catch (e) { /* ignora */ }
-    installEvt = null;
-    document.querySelectorAll('.install-btn').forEach(x => { x.hidden = true; });
-  }));
-  window.addEventListener('appinstalled', () => toast('App installata'));
+  let avvio = null;
+  window.Schiera = {
+    onCambio: null,
+    // carica rosa, giornata e formazione salvata dell'account con cui si è entrati
+    avvia() {
+      avvio = (async () => {
+        try { await startOnline(); return true; }
+        catch (e) {
+          console.error(e);
+          reset();
+          notice(e && e.message ? e.message : 'Non riesco a caricare la tua rosa.', 'error');
+          avvisaSito();
+          return false;
+        }
+      })();
+      return avvio;
+    },
+    pronta: () => !!S.team,
+    mostra(si) {
+      show('#app', si); show('#bar', si);
+      if (si && !S.team && !avvio && window.SB && SB.session()) window.Schiera.avvia();
+      if (si) renderConto();
+    },
+    esci() { avvio = null; reset(); avvisaSito(); },
+    scadenza,
+    pezzi,
+    salvata: () => !!S.savedAt,
+    giornata: () => S.matchday ? nomeGiornata(S.matchday) : '',
+    admin: {
+      rose: () => $('#adminFile').click(),
+      calendario: () => syncCalendar(),
+      squadre: () => clubsSheet(),
+      giornata: () => askMatchday()
+    },
+    nuovaPassword: fatto => askNewPassword(fatto)
+  };
 
-  // Avvio: se il database è configurato si entra con l'account, altrimenti resta la modalità file
-  (async function start() {
-    if (!SBok()) { $('#loginCard').hidden = true; $('#uploadCard').hidden = false; render(); return; }
-    const hash = SB.adoptFromHash();
-    try {
-      if (hash && hash.type === 'recovery') { $('#loginCard').hidden = true; askNewPassword(); render(); return; }
-      if (SB.session()) { await startOnline(); return; }
-    } catch (e) {
-      console.error(e);
-      await SB.signOut();
-      showLogin(e && e.message ? e.message : 'Devi entrare di nuovo.');
-      return;
-    }
-    showLogin();
-  })();
-
+  // Avvio. Nella versione a sé (offline) si lavora sul file .xls; dentro il sito
+  // si aspetta che il sito faccia entrare l'utente.
+  if (EMBED) { show('#app', false); show('#bar', false); }
+  else show('#uploadCard', true);
   render();
 })();

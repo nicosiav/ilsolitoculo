@@ -13,14 +13,24 @@ XLS=/percorso/giornata.xls python3 test_sito.py
 ```
 
 Gli scenari: home, tutte le sezioni, tabellino di una partita, tutte le
-classifiche, e l'amministratore che carica la giornata (con le differenze fra
-la formazione salvata in Schiera e quella del file).
+classifiche, l'amministratore che carica la giornata (con le differenze fra
+la formazione salvata in Schiera e quella del file), il database della stagione
+mancante, e la navigazione (barra in basso con Schiera al centro, pannello
+Altro, riquadro verde con il conto alla rovescia).
+
+Per tutto quello che riguarda Schiera (profilo con la squadra, rosa, giornata di
+Serie A, partite, formazioni, salvataggio) `server.js` passa la mano al finto
+Supabase di Schiera (`tools/schiera-formazione/test/mock/server.js`), che legge
+le rose da `/tmp/rose.json` e il modello per l'export da `FORMAZIONI`.
 
 | Variabile | Cosa simula |
 |---|---|
 | `XLS` | il file di giornata da cui nascono i dati |
 | `ADMIN` | l'account è amministratore |
 | `DIFF` | il database segnala una formazione diversa da quella salvata |
+| `FORMAZIONI` | il file Formazioni.xls (modello per l'export di Schiera) |
+| `MD` | la giornata corrente di Serie A per Schiera (7 se non indicata) |
+| `PRELOAD`, `LOCKED`, `CLOSED`… | le situazioni di Schiera (vedi le sue prove) |
 
 ## Schermate per la guida
 

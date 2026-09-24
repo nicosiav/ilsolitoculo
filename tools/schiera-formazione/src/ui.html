@@ -1,4 +1,5 @@
 <div class="app" id="app">
+  <!--solo-app: intestazione e caricamento del file, solo nella versione a sé (offline) -->
   <header class="top">
     <div class="brand">
       <h1>Schiera</h1>
@@ -7,46 +8,10 @@
     <div class="menu" id="menuWrap" hidden>
       <button class="icon-btn" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false">Opzioni</button>
       <div class="menu-pop" id="menuPop" hidden>
-        <label for="freeToggle"><input type="checkbox" id="freeToggle"> Riserve in ordine libero (senza ruoli fissi)</label>
-        <hr>
-        <button type="button" id="restoreBtn">Ripristina l'ultima formazione salvata</button>
-        <button type="button" id="clearBtn">Svuota la formazione</button>
-        <span id="adminMenu" hidden style="display:contents">
-          <button type="button" id="rosterBtn">Aggiorna le rose da un .xls</button>
-          <button type="button" id="calBtn">Aggiorna il calendario</button>
-          <button type="button" id="clubBtn">Squadre dei giocatori</button>
-          <button type="button" id="matchdayBtn">Giornata corrente (a mano)</button>
-          <hr>
-        </span>
-        <span id="onlineMenu" hidden style="display:contents">
-          <button type="button" id="allBtn">Formazioni di giornata</button>
-          <button type="button" id="exportBtn">Esporta il file .xls</button>
-          <button type="button" id="logBtn">Storico modifiche</button>
-          <button type="button" id="logoutBtn">Esci</button>
-          <hr>
-        </span>
         <button type="button" id="changeFileBtn2">Carica un altro file</button>
-        <button type="button" class="install-btn" hidden>Installa l'app sul telefono</button>
       </div>
     </div>
   </header>
-
-  <section class="upload" id="loginCard" hidden>
-    <h2>Entra con il tuo account</h2>
-    <p>La rosa e la formazione arrivano dal database della lega: schieri qui e l'amministratore la vede subito.</p>
-    <form id="loginForm" style="display:grid;gap:10px">
-      <label class="small muted" for="email">Email</label>
-      <input id="email" type="email" autocomplete="username" required style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
-      <label class="small muted" for="password">Password</label>
-      <input id="password" type="password" autocomplete="current-password" required style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
-      <button class="btn btn-primary" type="submit" id="loginBtn">Entra</button>
-    </form>
-    <div style="display:flex;gap:16px;flex-wrap:wrap">
-      <button type="button" id="recoverBtn" class="small" style="border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:4px 0">Password dimenticata</button>
-      <button type="button" id="fileModeBtn" class="small" style="border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:4px 0">Usa un file .xls</button>
-    </div>
-    <button class="btn btn-ghost install-btn" type="button" hidden>Installa l'app sul telefono</button>
-  </section>
 
   <section class="upload" id="uploadCard">
     <h2>Carica il file delle formazioni</h2>
@@ -57,13 +22,18 @@
       <li>Salva il file e invialo all'amministratore</li>
     </ol>
     <button class="btn btn-primary" type="button" id="pickBtn">Scegli il file .xls</button>
-    <button class="btn btn-ghost install-btn" type="button" hidden>Installa l'app sul telefono</button>
   </section>
+  <!--/solo-app-->
 
   <section class="filebar" id="fileBar" hidden>
     <div style="min-width:0">
       <div class="fname" id="fileName"></div>
       <div class="fmeta" id="fileMeta"></div>
+    </div>
+    <div class="conto" id="conto" hidden aria-live="off">
+      <div class="conto-lbl" id="contoLbl"></div>
+      <div class="conto-num" id="contoNum"></div>
+      <div class="conto-sub" id="contoSub"></div>
     </div>
     <div class="field" id="teamField">
       <label for="sheetSel">Squadra</label>
@@ -71,7 +41,7 @@
     </div>
   </section>
 
-  <div id="notices" style="display:grid;gap:10px"></div>
+  <div id="schNotices" style="display:grid;gap:10px"></div>
 
   <section id="editor" style="display:grid;gap:16px">
     <div style="display:grid;gap:8px">
@@ -79,11 +49,17 @@
       <div class="modules" id="modules" role="group" aria-label="Modulo"></div>
     </div>
 
+    <div class="tools">
+      <button type="button" class="tool" id="restoreBtn" hidden>Ripristina l'ultima salvata</button>
+      <button type="button" class="tool" id="clearBtn">Svuota</button>
+    </div>
+
     <div class="pitch" id="pitch" aria-label="Titolari"><div class="goal-top"></div></div>
 
     <div style="display:grid;gap:8px">
       <div class="section-h"><h3>Riserve</h3><span id="benchHint">12–18 · entrano in quest'ordine</span></div>
       <div class="list" id="bench"></div>
+      <label class="switch" for="freeToggle"><input type="checkbox" id="freeToggle"> Riserve in ordine libero, senza ruoli fissi</label>
     </div>
 
     <div style="display:grid;gap:8px">
@@ -97,7 +73,13 @@
     </div>
   </section>
 
-  <p class="foot" id="foot">Il file resta sul tuo telefono: nessun dato viene inviato altrove.</p>
+  <section class="online-tools" id="onlineTools" hidden>
+    <button type="button" class="tool" id="allBtn">Formazioni di giornata</button>
+    <button type="button" class="tool" id="exportBtn">Esporta il file .xls</button>
+    <button type="button" class="tool" id="logBtn">Storico modifiche</button>
+  </section>
+
+  <!--solo-app--><p class="foot" id="foot">Il file resta sul tuo telefono: nessun dato viene inviato altrove.</p><!--/solo-app-->
 </div>
 
 <div class="bar" id="bar">
@@ -109,4 +91,4 @@
 
 <input type="file" id="fileInput" accept=".xls,application/vnd.ms-excel" hidden>
 <input type="file" id="adminFile" accept=".xls,application/vnd.ms-excel" hidden>
-<div id="layer"></div>
+<div id="schLayer"></div>

@@ -1,6 +1,9 @@
-// Finto Supabase per provare la modalità online senza toccare il progetto vero
+// Finto Supabase per provare la modalità online senza toccare il progetto vero.
+// Da solo:  node server.js  (porta 8899)
+// Dentro il finto Supabase del sito: require('.../server.js').gestisci(req,res,p,q,b)
 const http=require('http'), fs=require('fs'), url=require('url');
-const XLS=process.env.XLS||'/home/claude/Formazioni.xls';
+const MD=+(process.env.MD||7);   // giornata corrente, numerazione di Serie A
+const XLS=process.env.FORMAZIONI||process.env.XLS||'/home/claude/Formazioni.xls';  // il modello per l'export
 const rose=JSON.parse(fs.readFileSync(process.env.ROSE||'/tmp/rose.json','utf8'));
 const TEAM={id:'team-Valerio',name:'Valerio',sheet_name:'Valerio'};
 const CLUBS=['Atalanta','Bologna','Cagliari','Como','Cremonese','Fiorentina','Genoa','Inter','Juventus','Lazio',
@@ -15,11 +18,11 @@ const now=Date.now();
 const fixtures=[];
 for(let i=0;i<10;i++){
   const iniziata = process.env.LOCKED && i<2;
-  fixtures.push({id:900+i, matchday:7, home:CLUBS[i*2], away:CLUBS[i*2+1],
+  fixtures.push({id:900+i, matchday:MD, home:CLUBS[i*2], away:CLUBS[i*2+1],
     kickoff:new Date(now + (iniziata ? -H : (i+1)*H*3)).toISOString(), status: iniziata?'IN_PLAY':'TIMED'});
 }
 const kicks=fixtures.map(f=>+new Date(f.kickoff));
-const md={id:7,label:'Giornata 7',
+const md={id:MD,label:'Giornata '+MD,
   first_kickoff:new Date(Math.min(...kicks)).toISOString(),
   last_kickoff:new Date(Math.max(...kicks)).toISOString(),
   closes_at:new Date(Math.max(...kicks)+2*H).toISOString()};
@@ -39,12 +42,8 @@ if(process.env.PREV) state.prev={matchday:5,module:'3-5-2',bench_free:true,updat
 
 const json=(res,code,obj)=>{res.writeHead(code,{'content-type':'application/json','access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,PUT,DELETE,PATCH,OPTIONS','access-control-max-age':'600','access-control-expose-headers':'*'});res.end(JSON.stringify(obj));};
 
-http.createServer((req,res)=>{
-  const u=url.parse(req.url,true); let body='';
-  req.on('data',c=>body+=c); req.on('end',()=>{
-    const p=u.pathname, q=u.query; let b={}; try{ b=body?JSON.parse(body):{}; }catch(e){ b={}; }
-    console.log('>>',req.method,p,JSON.stringify(q).slice(0,120));
-    if(req.method==='OPTIONS') return json(res,200,{});
+// risponde se la richiesta è sua; altrimenti false
+function gestisci(req,res,p,q,b){
     if(p==='/auth/v1/token'){
       if(q.grant_type==='password'){
         if(b.password!=='giusta') return json(res,400,{error_code:'invalid_credentials',message:'Invalid login credentials'});
@@ -58,7 +57,7 @@ http.createServer((req,res)=>{
     if(p==='/rest/v1/profiles') return json(res,200,[{display_name:'Valerio',role:process.env.ADMIN?'admin':'player',team_id:TEAM.id,teams:{name:TEAM.name,sheet_name:TEAM.sheet_name}}]);
     if(p==='/rest/v1/matchdays'){
       if(q.is_current) return json(res,200,[md]);
-      return json(res,200,[{id:7,label:'Giornata 7'},{id:6,label:'Giornata 6'},{id:5,label:'Giornata 5'}]);
+      return json(res,200,[MD,MD-1,MD-2].map(n=>({id:n,label:'Giornata '+n})));
     }
     if(p==='/rest/v1/fixtures') return json(res,200,fixtures);
     if(p==='/rest/v1/rounds') return process.env.NOROUNDS ? json(res,404,{code:'PGRST205',message:"Could not find the table 'public.rounds' in the schema cache"})
@@ -117,6 +116,15 @@ http.createServer((req,res)=>{
       const f=fs.readFileSync(XLS);
       res.writeHead(200,{'content-type':'application/vnd.ms-excel','access-control-allow-origin':'*'}); return res.end(f);
     }
-    json(res,404,{message:'non trovato: '+p});
+    return false;
+}
+module.exports={gestisci};
+
+if(require.main===module) http.createServer((req,res)=>{
+  const u=url.parse(req.url,true); let body='';
+  req.on('data',c=>body+=c); req.on('end',()=>{
+    const p=u.pathname, q=u.query; let b={}; try{ b=body?JSON.parse(body):{}; }catch(e){ b={}; }
+    if(req.method==='OPTIONS') return json(res,200,{});
+    if(gestisci(req,res,p,q,b)===false) json(res,404,{message:'non trovato: '+p});
   });
 }).listen(8899,'localhost',()=>console.log('mock supabase su 8899'));

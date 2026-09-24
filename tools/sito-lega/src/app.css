@@ -26,6 +26,10 @@
   --chart-b: #E08A08;
   --chart-mute: #9AA79F;
   --chart-grid: rgba(20, 32, 26, .10);
+  /* il campo di Schiera */
+  --pitch-line: rgba(255, 255, 255, .5);
+  --token: #FFFFFF;
+  --token-ink: #14201A;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -36,6 +40,7 @@
     --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
     --chart-accent: #4A93EE; --chart-b: #C47A12; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+    --pitch-line: rgba(255, 255, 255, .38); --token: #F4F7F3; --token-ink: #14201A;
   }
 }
 :root[data-theme="dark"] {
@@ -46,6 +51,7 @@
   --ok: #39BE74; --ko: #EF5A4E; --scrim: rgba(0, 0, 0, .6);
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
   --chart-accent: #4A93EE; --chart-b: #C47A12; --chart-mute: #6E7C74; --chart-grid: rgba(230, 237, 231, .12);
+    --pitch-line: rgba(255, 255, 255, .38); --token: #F4F7F3; --token-ink: #14201A;
 }
 
 * { box-sizing: border-box; }
@@ -86,12 +92,14 @@ a { color: inherit; }
 /* navigazione: barra in basso al telefono (come un'app), fila di parole in alto sul computer */
 .ic { width: 22px; height: 22px; flex: none; }
 .ic.mini { width: 17px; height: 17px; }
-.site { padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+:root { --tabbar-h: calc(64px + env(safe-area-inset-bottom, 0px)); }
+.site { padding-bottom: calc(var(--tabbar-h) + 40px); }
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr); align-items: center;
+  height: var(--tabbar-h);
   background: var(--surface); border-top: 1px solid var(--line);
-  padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+  padding: 4px 4px env(safe-area-inset-bottom, 0px);
 }
 .tabbar a, .tabbar button {
   display: grid; justify-items: center; gap: 3px; padding: 4px 0; min-width: 0;
@@ -101,6 +109,20 @@ a { color: inherit; }
 .tabbar [aria-current] { color: var(--ink); }
 .tabbar [aria-current] .ic { stroke-width: 2.3; }
 .tabbar [aria-current]::after { content: ''; width: 18px; height: 3px; border-radius: 3px; background: var(--pitch-2); }
+/* Schiera: il pulsante verde al centro, un po' più su degli altri */
+.tabbar .tb-schiera { position: relative; color: var(--ink); }
+.tabbar .tb-schiera .ic {
+  width: 26px; height: 26px; padding: 10px; box-sizing: content-box; margin-top: -26px;
+  border-radius: 50%; color: #fff; stroke-width: 2;
+  background: linear-gradient(160deg, var(--pitch-2), var(--pitch-1));
+  border: 3px solid var(--surface); box-shadow: 0 4px 12px rgba(20, 32, 26, .22);
+}
+.tabbar .tb-schiera[aria-current] .ic { stroke-width: 2.4; box-shadow: 0 0 0 3px var(--pitch-2), 0 4px 12px rgba(20, 32, 26, .22); }
+.tabbar .tb-schiera[aria-current]::after { display: none; }
+.tabbar .tb-schiera[data-da-fare]::before {
+  content: ''; position: absolute; top: -20px; left: calc(50% + 14px); width: 12px; height: 12px; border-radius: 50%;
+  background: var(--role-a); border: 2px solid var(--surface); z-index: 1;
+}
 @media (min-width: 720px) {
   .site { padding-bottom: 96px; }
   .tabbar {
@@ -112,6 +134,13 @@ a { color: inherit; }
   .tabbar .ic { width: 18px; height: 18px; }
   .tabbar [aria-current] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
   .tabbar [aria-current]::after { display: none; }
+  .tabbar { height: auto; }
+  .tabbar .tb-schiera { color: #fff; background: linear-gradient(160deg, var(--pitch-2), var(--pitch-1)); }
+  .tabbar .tb-schiera:hover { color: #fff; }
+  .tabbar .tb-schiera .ic { width: 18px; height: 18px; padding: 0; margin: 0; border: 0; background: none; box-shadow: none; }
+  .tabbar .tb-schiera[aria-current] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--pitch-2); }
+  .tabbar .tb-schiera[aria-current] .ic { box-shadow: none; }
+  .tabbar .tb-schiera[data-da-fare]::before { top: 3px; left: auto; right: 3px; width: 9px; height: 9px; }
 }
 
 /* il riquadro verde di Schiera */
@@ -124,6 +153,9 @@ a { color: inherit; }
 .schiera-big .t { min-width: 0; }
 .schiera-big b { display: block; font: 700 19px/1.05 var(--display); letter-spacing: .03em; text-transform: uppercase; }
 .schiera-big .t span { display: block; color: rgba(255, 255, 255, .82); font-size: 12.5px; margin-top: 2px; }
+.schiera-big .conto-mini { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.schiera-big .conto-mini i { font-style: normal; font-size: 11px; opacity: .8; text-transform: uppercase; letter-spacing: .06em; }
+.schiera-big .conto-mini b { font: 700 22px/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 
 /* il pannello "Altro": Schiera in cima, poi le altre sezioni a tessere */
 .altro { display: grid; gap: 12px; padding-top: 14px; padding-bottom: 16px; }
@@ -269,7 +301,7 @@ a { color: inherit; }
 .sheet-f .btn { flex: 1; }
 
 .toast {
-  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 80;
+  position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 12px); transform: translateX(-50%); z-index: 80;
   background: var(--primary); color: var(--on-primary); padding: 10px 16px; border-radius: 12px;
   font-size: 14px; font-weight: 600; box-shadow: var(--shadow); max-width: calc(100% - 32px);
 }
@@ -283,3 +315,22 @@ a { color: inherit; }
 .chips.passo { justify-content: space-between; background: none; border: 0; padding: 0; }
 .chips.passo .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .chips.passo .chip:disabled { color: var(--muted); opacity: .6; }
+
+.menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }
+
+/* Schiera dentro il sito: stessa colonna delle altre sezioni, la sua barra
+   (contatore e "Salva") sta sopra la barra delle sezioni */
+#schiera-app { display: contents; }
+#schiera-app .app { max-width: 600px; width: 100%; margin: 0 auto; padding: 0; }
+/* i fogli di Schiera coprono anche la barra delle sezioni */
+#schiera-app .scrim { z-index: 60; }
+/* il pulsante verde della barra sporge in su: la barra di Schiera gli lascia spazio */
+#schiera-app .bar { bottom: var(--tabbar-h); z-index: 44; padding-bottom: 30px; }
+body.in-schiera .site { padding-bottom: calc(var(--tabbar-h) + 116px); }
+body.in-schiera .toast { bottom: calc(var(--tabbar-h) + 104px); }
+@media (min-width: 720px) {
+  #schiera-app .bar { bottom: 0; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  body.in-schiera .site { padding-bottom: 110px; }
+  body.in-schiera .toast { bottom: 96px; }
+  body:not(.in-schiera) .toast { bottom: 24px; }
+}

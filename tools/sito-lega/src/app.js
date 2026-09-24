@@ -829,6 +829,7 @@
     stat: '<path d="M5 20v-7M10 20V6M15 20v-9M20 20V9"/>',
     altro: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>',
     maglia: '<path d="M9 4 4 7l2 4 2-1v10h8V10l2 1 2-4-5-3a3 3 0 0 1-6 0z"/>',
+    schiera: '<path d="M9 4 4 7l2 4 2-1v10h8V10l2 1 2-4-5-3a3 3 0 0 1-6 0z"/><path d="M10.5 13.5l1.5 1.5 3-3"/>',
     rose: '<path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4.5" cy="7" r=".9"/><circle cx="4.5" cy="12" r=".9"/><circle cx="4.5" cy="17" r=".9"/>',
     vs: '<path d="M4 8h12l-3-3M20 16H8l3 3"/>',
     coppa: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7l-1-3h-5z"/>',
@@ -839,12 +840,13 @@
   };
   const icona = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE[k]}</svg>`;
 
-  // le prime quattro stanno nella barra; le altre nel pannello "Altro"
+  // quelle con "barra" stanno nella barra (Schiera al centro); le altre nel pannello "Altro"
   const SEZIONI = [
     { id: '', et: 'Home', ico: 'home', barra: true, vista: home },
     { id: 'calendario', et: 'Calendario', ico: 'cal', barra: true, vista: sezioneCalendario },
+    { id: 'schiera', et: 'Schiera', ico: 'schiera', barra: true, vista: null },
     { id: 'classifiche', et: 'Classifiche', ico: 'podio', barra: true, vista: sezioneClassifiche },
-    { id: 'statistiche', et: 'Statistiche', ico: 'stat', barra: true, vista: sezioneStatistiche },
+    { id: 'statistiche', et: 'Statistiche', ico: 'stat', vista: sezioneStatistiche },
     { id: 'squadra', et: 'Squadra', ico: 'maglia', vista: sezioneSquadra },
     { id: 'rose', et: 'Rose', ico: 'rose', vista: sezioneRose },
     { id: 'confronto', et: 'Testa a testa', ico: 'vs', vista: sezioneConfronto },
@@ -854,24 +856,56 @@
     { id: 'premi', et: 'Premi', ico: 'premi', vista: sezionePremi }
   ];
 
+  // da fare: giornata aperta e formazione non ancora salvata
+  const daSchierare = () => {
+    const sc = window.Schiera ? Schiera.scadenza() : { fase: 'nessuna' };
+    return !!(window.Schiera && Schiera.pronta() && !Schiera.salvata() && !['nessuna', 'chiusa'].includes(sc.fase));
+  };
+
   function navHtml() {
     const qui = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
     return SEZIONI.filter(s => s.barra).map(s =>
-      `<a href="#/${s.id}" ${s === qui ? 'aria-current="page"' : ''}>${icona(s.ico)}<span>${esc(s.et)}</span></a>`).join('') +
+      `<a href="#/${s.id}" ${s === qui ? 'aria-current="page"' : ''}${s.id === 'schiera' ? ` class="tb-schiera"${daSchierare() ? ' data-da-fare' : ''}` : ''}>${icona(s.ico)}<span>${esc(s.et)}</span></a>`).join('') +
       `<button type="button" id="altroBtn" aria-haspopup="dialog" ${qui.barra ? '' : 'aria-current="page"'}>${icona('altro')}<span>${qui.barra ? 'Altro' : esc(qui.et)}</span></button>`;
   }
 
-  // il riquadro verde per andare a schierare: sotto l'intestazione e in cima al pannello "Altro"
-  function schieraDentro() {
-    const r = S.rounds.find(x => !x.giocata);
-    const quando = r ? `Giornata ${r.id} · ${r.serie_a || r.id + 2}ª di Serie A` : 'per la prossima giornata';
-    return `${icona('maglia')}<span class="t"><b>Schiera la formazione</b><span>${esc(quando)}</span></span>${icona('via', 'mini')}`;
+  // il riquadro verde per andare a schierare: in Home, con il conto alla rovescia
+  const due = n => String(n).padStart(2, '0');
+  function contoBreve() {
+    if (!window.Schiera || !Schiera.pronta()) return '';
+    const sc = Schiera.scadenza();
+    if (!sc.t || sc.fase === 'chiusa' || sc.fase === 'nessuna') return '';
+    const p = Schiera.pezzi(sc.t);
+    return (p.g ? p.g + 'g ' : '') + due(p.h) + ':' + due(p.m) + ':' + due(p.s);
   }
+  function schieraDentro() {
+    const pronta = window.Schiera && Schiera.pronta();
+    const sc = pronta ? Schiera.scadenza() : { fase: 'nessuna' };
+    let quando = pronta ? Schiera.giornata() : '';
+    if (!quando) {
+      const r = S.rounds.find(x => !x.giocata);
+      quando = r ? `Giornata ${r.id} (${r.serie_a || r.id + 2}ª di Serie A)` : 'per la prossima giornata';
+    }
+    const stato = !pronta ? '' : sc.fase === 'chiusa' ? 'giornata chiusa'
+      : Schiera.salvata() ? '✓ formazione salvata' : 'formazione non ancora salvata';
+    const conto = contoBreve();
+    return `${icona('schiera')}<span class="t"><b>Schiera la formazione</b><span>${esc(quando)}${stato ? ' · ' + esc(stato) : ''}</span></span>`
+      + (conto ? `<span class="conto-mini"><i>${esc(sc.fase === 'prima' ? 'primo fischio' : 'prossimo blocco')}</i><b data-conto>${esc(conto)}</b></span>` : '');
+  }
+  function aggiornaSchieraSito() {
+    if (!S.pronta) return;
+    $('#nav').innerHTML = navHtml();
+    $('#schieraBig').innerHTML = schieraDentro();
+  }
+  // ogni secondo, solo il numero del conto alla rovescia
+  setInterval(() => {
+    const b = document.querySelector('#schieraBig [data-conto]');
+    if (b && !$('#schieraBig').hidden) b.textContent = contoBreve();
+  }, 1000);
 
   function apriAltro() {
     const qui = S.sezione;
     const el = sheet(`<div class="sheet-b altro">
-      <a class="schiera-big" href="schiera/">${schieraDentro()}</a>
       <div class="altro-grid">${SEZIONI.filter(s => !s.barra).map(s =>
         `<a href="#/${s.id}" ${s.id === qui ? 'aria-current="page"' : ''}>${icona(s.ico)}<span>${esc(s.et)}</span></a>`).join('')}</div>
     </div>`);
@@ -882,6 +916,16 @@
     const sez = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
     $('#nav').innerHTML = navHtml();
     $('#schieraBig').innerHTML = schieraDentro();
+    $('#schieraBig').hidden = sez.id !== '';
+    const inSchiera = sez.id === 'schiera';
+    document.body.classList.toggle('in-schiera', inSchiera);
+    if (window.Schiera) Schiera.mostra(inSchiera);
+    $('#view').hidden = inSchiera;
+    if (inSchiera) {
+      $('#foot').textContent = '';
+      window.scrollTo(0, 0);
+      return;
+    }
     $('#view').innerHTML = '<div class="card"><p class="empty"><span class="spin"></span></p></div>';
     try {
       $('#view').innerHTML = await sez.vista();
@@ -962,6 +1006,9 @@
 
   // ------------------------------------------------------------------ accesso
   function mostraLogin(msg) {
+    if (window.Schiera) Schiera.esci();
+    document.body.classList.remove('in-schiera');
+    $('#view').hidden = false;
     $('#loginCard').hidden = false;
     $('#nav').hidden = true;
     $('#schieraBig').hidden = true;
@@ -979,9 +1026,13 @@
     $('#userBtn').hidden = false;
     $('#userBtn').textContent = S.team ? bel(S.team.name) : 'Account';
     $('#userHead').innerHTML = `<b>${esc(S.profile.display_name || '')}</b><span>${esc(S.team ? bel(S.team.name) : 'senza squadra')}${isAdmin() ? ' · amministratore' : ''}</span>`;
-    $('#adminBtn').hidden = !isAdmin();
+    $('#adminMenu').hidden = !isAdmin();
     $('#sub').textContent = 'stagione 2026/27';
     clearNotices();
+    if (window.Schiera) {
+      Schiera.onCambio = aggiornaSchieraSito;
+      Schiera.avvia();
+    }
     await render();
     avvisaTabelleMancanti();
   }
@@ -1031,6 +1082,24 @@
     mostraLogin();
   });
   $('#adminBtn').addEventListener('click', () => { apriMenu(false); $('#roundFile').click(); });
+  // le funzioni da amministratore di Schiera: si aprono nella sezione Schiera
+  [['#rosterBtn', 'rose'], ['#calBtn', 'calendario'], ['#clubBtn', 'squadre'], ['#matchdayBtn', 'giornata']].forEach(([id, f]) => {
+    $(id).addEventListener('click', () => {
+      apriMenu(false);
+      if (S.sezione !== 'schiera') location.hash = '#/schiera';
+      Schiera.admin[f]();
+    });
+  });
+  // l'app sul telefono (Android): il browser la propone, noi mettiamo il pulsante nel menu
+  let installa = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installa = e; $('#installBtn').hidden = false; });
+  $('#installBtn').addEventListener('click', async () => {
+    apriMenu(false);
+    if (!installa) return;
+    installa.prompt();
+    try { await installa.userChoice; } catch (e) { /* ignora */ }
+    installa = null; $('#installBtn').hidden = true;
+  });
   $('#roundFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; caricaGiornata(f); });
   $('#themeBtn').addEventListener('click', () => {
     apriMenu(false);
@@ -1083,7 +1152,11 @@
     }
     const hash = SB.adoptFromHash ? SB.adoptFromHash() : null;
     try {
-      if (hash && hash.type === 'recovery') { mostraLogin('Apri Schiera Formazione per impostare la nuova password.'); return; }
+      if (hash && hash.type === 'recovery') {
+        mostraLogin();
+        if (window.Schiera) Schiera.nuovaPassword(() => entra());
+        return;
+      }
       if (SB.session()) { await entra(); return; }
     } catch (e) {
       console.error(e);

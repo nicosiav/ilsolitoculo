@@ -6,6 +6,8 @@
 Scrive in docs/icons/:
   favicon-32.png        per i browser che non leggono la favicon in SVG
   apple-touch-icon.png  180x180 a tutto campo (gli angoli li arrotonda iOS)
+  icon-192.png, icon-512.png   l'app installata (manifest)
+  icon-maskable-512.png        per Android: il disegno sta nella zona sicura centrale
 
 Le PNG sono già nel repository: serve rilanciarlo solo se cambia il logo.
 Usa Playwright (pip install playwright) per disegnare l'SVG.
@@ -27,6 +29,13 @@ def a_tutto_campo(svg):
     return re.sub(r'<rect x="1.2"[^>]*/>', '', svg, count=1)
 
 
+def mascherabile(svg):
+    """a tutto campo, con sedere e pallone ristretti all'80% centrale"""
+    svg = a_tutto_campo(svg)
+    i = svg.index('<g transform=')
+    return svg[:i] + '<g transform="translate(6.4 6.4) scale(.8)">' + svg[i:].replace('</svg>', '</g></svg>')
+
+
 async def disegna(pg, svg, size, path):
     await pg.set_viewport_size({'width': size, 'height': size})
     dimensioni = '<svg width="%d" height="%d" ' % (size, size)
@@ -44,6 +53,9 @@ async def main():
         pg = await (await b.new_context(device_scale_factor=1)).new_page()
         await disegna(pg, svg, 32, OUT / 'favicon-32.png')
         await disegna(pg, a_tutto_campo(svg), 180, OUT / 'apple-touch-icon.png')
+        await disegna(pg, svg, 192, OUT / 'icon-192.png')
+        await disegna(pg, svg, 512, OUT / 'icon-512.png')
+        await disegna(pg, mascherabile(svg), 512, OUT / 'icon-maskable-512.png')
         await b.close()
     print('icone aggiornate in', OUT)
 
