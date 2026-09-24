@@ -174,8 +174,7 @@
     const u = ultima();
     if (!u) {
       return `<div class="card"><h2>Ancora nessuna giornata</h2>
-        <p class="muted">Quando l’amministratore carica il primo file di giornata, qui compaiono risultati, classifiche e statistiche.</p>
-        <a class="btn btn-primary" href="schiera/" style="text-align:center;text-decoration:none">Vai a Schiera Formazione</a></div>`;
+        <p class="muted">Quando l’amministratore carica il primo file di giornata, qui compaiono risultati, classifiche e statistiche.</p></div>`;
     }
     const camp = (await classifiche('campionato')).filter(r => r.round === u.id);
     const mia = S.team ? camp.find(r => r.team_id === S.team.id) : null;
@@ -201,7 +200,6 @@
         ${tiles}
         ${ultimaP ? '<div>' + rigaPartita(ultimaP) + '</div>' : ''}
         ${prossima ? `<p class="small muted" style="margin:0">Prossima: <b>${esc(prossima.casa ? teamName(prossima.casa) : 'da definire')}</b> – <b>${esc(prossima.fuori ? teamName(prossima.fuori) : 'da definire')}</b> (giornata ${prossima.round}, ${prossima.round + 2}ª di Serie A)</p>` : ''}
-        <a class="btn btn-primary" href="schiera/" style="text-align:center;text-decoration:none">Schiera la formazione</a>
       </div>
 
       <div class="card">
@@ -331,7 +329,7 @@
           <h2>Giornata ${sel}</h2>
           <span>${r.serie_a ? r.serie_a + 'ª di Serie A' : ''} ${r.fase === 'orologio' ? '· fase a orologio' : ''}</span>
         </div>
-        <div class="chips" style="justify-content:space-between">
+        <div class="chips passo">
           <button type="button" class="chip" data-gio="${prec ? prec.id : ''}" ${prec ? '' : 'disabled'}>‹ precedente</button>
           <button type="button" class="chip" data-gio="${succ ? succ.id : ''}" ${succ ? '' : 'disabled'}>successiva ›</button>
         </div>
@@ -823,28 +821,67 @@
   }
 
   // ------------------------------------------------------------------ sezioni
+  // icone a tratto, 24x24
+  const ICONE = {
+    home: '<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/>',
+    cal: '<rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+    podio: '<path d="M9 20V9.5h6V20M3.5 20v-6H9M15 20v-8.5h5.5V20M2.5 20h19"/>',
+    stat: '<path d="M5 20v-7M10 20V6M15 20v-9M20 20V9"/>',
+    altro: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>',
+    maglia: '<path d="M9 4 4 7l2 4 2-1v10h8V10l2 1 2-4-5-3a3 3 0 0 1-6 0z"/>',
+    rose: '<path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4.5" cy="7" r=".9"/><circle cx="4.5" cy="12" r=".9"/><circle cx="4.5" cy="17" r=".9"/>',
+    vs: '<path d="M4 8h12l-3-3M20 16H8l3 3"/>',
+    coppa: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7l-1-3h-5z"/>',
+    tabellone: '<path d="M3 5h5v4h4M3 13h5V9M12 9v7h4M3 19h9v-3M16 12.5h5"/>',
+    albo: '<circle cx="12" cy="9" r="5"/><path d="m9 13.5-1.5 6.5L12 18l4.5 2L15 13.5"/>',
+    premi: '<circle cx="12" cy="12" r="8"/><path d="M15 9a3.5 3.5 0 1 0 0 6M8 11h5M8 13.5h5"/>',
+    via: '<path d="M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4"/>'
+  };
+  const icona = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE[k]}</svg>`;
+
+  // le prime quattro stanno nella barra; le altre nel pannello "Altro"
   const SEZIONI = [
-    { id: '', et: 'Home', vista: home },
-    { id: 'squadra', et: 'Squadra', vista: sezioneSquadra },
-    { id: 'rose', et: 'Rose', vista: sezioneRose },
-    { id: 'calendario', et: 'Calendario', vista: sezioneCalendario },
-    { id: 'classifiche', et: 'Classifiche', vista: sezioneClassifiche },
-    { id: 'statistiche', et: 'Statistiche', vista: sezioneStatistiche },
-    { id: 'confronto', et: 'Testa a testa', vista: sezioneConfronto },
-    { id: 'coppe', et: 'Coppe', vista: sezioneCoppe },
-    { id: 'playoff', et: 'Playoff', vista: sezionePlayoff },
-    { id: 'albo', et: 'Albo d’oro', vista: sezioneAlbo },
-    { id: 'premi', et: 'Premi', vista: sezionePremi }
+    { id: '', et: 'Home', ico: 'home', barra: true, vista: home },
+    { id: 'calendario', et: 'Calendario', ico: 'cal', barra: true, vista: sezioneCalendario },
+    { id: 'classifiche', et: 'Classifiche', ico: 'podio', barra: true, vista: sezioneClassifiche },
+    { id: 'statistiche', et: 'Statistiche', ico: 'stat', barra: true, vista: sezioneStatistiche },
+    { id: 'squadra', et: 'Squadra', ico: 'maglia', vista: sezioneSquadra },
+    { id: 'rose', et: 'Rose', ico: 'rose', vista: sezioneRose },
+    { id: 'confronto', et: 'Testa a testa', ico: 'vs', vista: sezioneConfronto },
+    { id: 'coppe', et: 'Coppe', ico: 'coppa', vista: sezioneCoppe },
+    { id: 'playoff', et: 'Playoff', ico: 'tabellone', vista: sezionePlayoff },
+    { id: 'albo', et: 'Albo d’oro', ico: 'albo', vista: sezioneAlbo },
+    { id: 'premi', et: 'Premi', ico: 'premi', vista: sezionePremi }
   ];
 
   function navHtml() {
-    return SEZIONI.map(s => `<a href="#/${s.id}" ${s.id === S.sezione ? 'aria-current="page"' : ''}>${esc(s.et)}</a>`).join('') +
-      '<a href="schiera/">Schiera ↗</a>';
+    const qui = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
+    return SEZIONI.filter(s => s.barra).map(s =>
+      `<a href="#/${s.id}" ${s === qui ? 'aria-current="page"' : ''}>${icona(s.ico)}<span>${esc(s.et)}</span></a>`).join('') +
+      `<button type="button" id="altroBtn" aria-haspopup="dialog" ${qui.barra ? '' : 'aria-current="page"'}>${icona('altro')}<span>${qui.barra ? 'Altro' : esc(qui.et)}</span></button>`;
+  }
+
+  // il riquadro verde per andare a schierare: sotto l'intestazione e in cima al pannello "Altro"
+  function schieraDentro() {
+    const r = S.rounds.find(x => !x.giocata);
+    const quando = r ? `Giornata ${r.id} · ${r.serie_a || r.id + 2}ª di Serie A` : 'per la prossima giornata';
+    return `${icona('maglia')}<span class="t"><b>Schiera la formazione</b><span>${esc(quando)}</span></span>${icona('via', 'mini')}`;
+  }
+
+  function apriAltro() {
+    const qui = S.sezione;
+    const el = sheet(`<div class="sheet-b altro">
+      <a class="schiera-big" href="schiera/">${schieraDentro()}</a>
+      <div class="altro-grid">${SEZIONI.filter(s => !s.barra).map(s =>
+        `<a href="#/${s.id}" ${s.id === qui ? 'aria-current="page"' : ''}>${icona(s.ico)}<span>${esc(s.et)}</span></a>`).join('')}</div>
+    </div>`);
+    el.addEventListener('click', ev => { if (ev.target.closest('.altro-grid a')) closeSheet(); });
   }
 
   async function render() {
     const sez = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
     $('#nav').innerHTML = navHtml();
+    $('#schieraBig').innerHTML = schieraDentro();
     $('#view').innerHTML = '<div class="card"><p class="empty"><span class="spin"></span></p></div>';
     try {
       $('#view').innerHTML = await sez.vista();
@@ -927,6 +964,7 @@
   function mostraLogin(msg) {
     $('#loginCard').hidden = false;
     $('#nav').hidden = true;
+    $('#schieraBig').hidden = true;
     $('#userBtn').hidden = true;
     $('#view').innerHTML = '';
     $('#foot').textContent = '';
@@ -937,6 +975,7 @@
     await caricaBase();
     $('#loginCard').hidden = true;
     $('#nav').hidden = false;
+    $('#schieraBig').hidden = false;
     $('#userBtn').hidden = false;
     $('#userBtn').textContent = S.team ? bel(S.team.name) : 'Account';
     $('#userHead').innerHTML = `<b>${esc(S.profile.display_name || '')}</b><span>${esc(S.team ? bel(S.team.name) : 'senza squadra')}${isAdmin() ? ' · amministratore' : ''}</span>`;
@@ -1023,6 +1062,8 @@
     if (cf.dataset.conf === 'a') S.confrontoA = cf.value; else S.confrontoB = cf.value;
     render();
   });
+
+  $('#nav').addEventListener('click', ev => { if (ev.target.closest('#altroBtn')) apriAltro(); });
 
   window.addEventListener('hashchange', () => {
     S.sezione = (location.hash || '').replace(/^#\/?/, '');

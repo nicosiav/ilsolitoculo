@@ -100,24 +100,57 @@ a { color: inherit; }
 .menu-head b { display: block; font-size: 15px; }
 .menu-head span { color: var(--muted); font-size: 12.5px; }
 
-/* navigazione */
-/* Tutte le sezioni a vista: vanno a capo, non scorrono di lato */
-.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.tabs a {
-  flex: none; text-decoration: none; padding: 7px 12px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13.5px;
-  white-space: nowrap;
+/* navigazione: barra in basso al telefono (come un'app), fila di parole in alto sul computer */
+.ic { width: 22px; height: 22px; flex: none; }
+.ic.mini { width: 17px; height: 17px; }
+.site { padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px));
 }
-@media (max-width: 520px) {
-  .tabs a { font-size: 12.5px; padding: 6px 10px; }
+.tabbar a, .tabbar button {
+  display: grid; justify-items: center; gap: 3px; padding: 4px 0; min-width: 0;
+  font: 600 11px/1.1 var(--body); color: var(--muted); background: none; border: 0; text-decoration: none;
 }
+.tabbar span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabbar [aria-current] { color: var(--ink); }
+.tabbar [aria-current] .ic { stroke-width: 2.3; }
+.tabbar [aria-current]::after { content: ''; width: 18px; height: 3px; border-radius: 3px; background: var(--pitch-2); }
 @media (min-width: 720px) {
-  .tabs {
-    position: sticky; top: 0; z-index: 20; padding: 8px 16px; margin: -8px -16px 0;
-    background: linear-gradient(var(--bg) 82%, transparent);
+  .site { padding-bottom: 96px; }
+  .tabbar {
+    position: sticky; top: 0; z-index: 20; display: flex; gap: 4px; border: 0; margin: -6px -16px 0;
+    padding: 6px 16px 8px; background: linear-gradient(var(--bg) 85%, transparent);
   }
+  .tabbar a, .tabbar button { display: flex; align-items: center; gap: 7px; font-size: 14px; padding: 8px 12px; border-radius: 10px; color: var(--muted); }
+  .tabbar a:hover, .tabbar button:hover { color: var(--ink); }
+  .tabbar .ic { width: 18px; height: 18px; }
+  .tabbar [aria-current] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+  .tabbar [aria-current]::after { display: none; }
 }
-.tabs a[aria-current="page"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+
+/* il riquadro verde di Schiera */
+.schiera-big {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px;
+  border-radius: 16px; background: linear-gradient(160deg, var(--pitch-2), var(--pitch-1)); color: #fff; text-decoration: none;
+}
+.schiera-big .ic { width: 26px; height: 26px; }
+.schiera-big .ic.mini { width: 18px; height: 18px; opacity: .8; }
+.schiera-big .t { min-width: 0; }
+.schiera-big b { display: block; font: 700 19px/1.05 var(--display); letter-spacing: .03em; text-transform: uppercase; }
+.schiera-big .t span { display: block; color: rgba(255, 255, 255, .82); font-size: 12.5px; margin-top: 2px; }
+
+/* il pannello "Altro": Schiera in cima, poi le altre sezioni a tessere */
+.altro { display: grid; gap: 12px; padding-top: 14px; padding-bottom: 16px; }
+.altro-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.altro-grid a {
+  display: grid; justify-items: center; gap: 6px; padding: 14px 4px; border-radius: 14px;
+  background: var(--surface-2); font-weight: 600; font-size: 13px; text-align: center; text-decoration: none;
+}
+.altro-grid a[aria-current] { box-shadow: inset 0 0 0 2px var(--pitch-2); }
+@media (min-width: 720px) { .altro-grid { grid-template-columns: repeat(4, 1fr); } }
 
 /* superfici */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; }
@@ -167,12 +200,13 @@ a { color: inherit; }
 [data-r="P"] { --rc: var(--role-p); } [data-r="D"] { --rc: var(--role-d); }
 [data-r="C"] { --rc: var(--role-c); } [data-r="A"] { --rc: var(--role-a); }
 
-.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+/* i filtri dentro le pagine: una barra grigia con la voce scelta in bianco */
+.chips { display: flex; gap: 2px; flex-wrap: wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
 .chip {
-  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
-  padding: 7px 12px; font-size: 13.5px; font-weight: 600;
+  border: 0; background: none; color: var(--muted); border-radius: 9px;
+  padding: 7px 11px; font-size: 13.5px; font-weight: 600;
 }
-.chip[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.chip[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(20, 32, 26, .12), inset 0 0 0 1px var(--line); }
 
 /* partite */
 .match {
@@ -262,6 +296,11 @@ a { color: inherit; }
 .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: sp .7s linear infinite; }
 @keyframes sp { to { transform: rotate(360deg); } }
 
+/* "‹ precedente" e "successiva ›" sono pulsanti, non un filtro */
+.chips.passo { justify-content: space-between; background: none; border: 0; padding: 0; }
+.chips.passo .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.chips.passo .chip:disabled { color: var(--muted); opacity: .6; }
+
 </style>
 </head>
 <body>
@@ -284,7 +323,8 @@ a { color: inherit; }
     </div>
   </header>
 
-  <nav class="tabs" id="nav" aria-label="Sezioni" hidden></nav>
+  <a class="schiera-big" id="schieraBig" href="schiera/" hidden></a>
+  <nav class="tabbar" id="nav" aria-label="Sezioni" hidden></nav>
 
   <section class="card login" id="loginCard" hidden>
     <h2>Entra con il tuo account</h2>
@@ -2221,8 +2261,7 @@ window.SCHIERA_CONFIG = {
     const u = ultima();
     if (!u) {
       return `<div class="card"><h2>Ancora nessuna giornata</h2>
-        <p class="muted">Quando l’amministratore carica il primo file di giornata, qui compaiono risultati, classifiche e statistiche.</p>
-        <a class="btn btn-primary" href="schiera/" style="text-align:center;text-decoration:none">Vai a Schiera Formazione</a></div>`;
+        <p class="muted">Quando l’amministratore carica il primo file di giornata, qui compaiono risultati, classifiche e statistiche.</p></div>`;
     }
     const camp = (await classifiche('campionato')).filter(r => r.round === u.id);
     const mia = S.team ? camp.find(r => r.team_id === S.team.id) : null;
@@ -2248,7 +2287,6 @@ window.SCHIERA_CONFIG = {
         ${tiles}
         ${ultimaP ? '<div>' + rigaPartita(ultimaP) + '</div>' : ''}
         ${prossima ? `<p class="small muted" style="margin:0">Prossima: <b>${esc(prossima.casa ? teamName(prossima.casa) : 'da definire')}</b> – <b>${esc(prossima.fuori ? teamName(prossima.fuori) : 'da definire')}</b> (giornata ${prossima.round}, ${prossima.round + 2}ª di Serie A)</p>` : ''}
-        <a class="btn btn-primary" href="schiera/" style="text-align:center;text-decoration:none">Schiera la formazione</a>
       </div>
 
       <div class="card">
@@ -2378,7 +2416,7 @@ window.SCHIERA_CONFIG = {
           <h2>Giornata ${sel}</h2>
           <span>${r.serie_a ? r.serie_a + 'ª di Serie A' : ''} ${r.fase === 'orologio' ? '· fase a orologio' : ''}</span>
         </div>
-        <div class="chips" style="justify-content:space-between">
+        <div class="chips passo">
           <button type="button" class="chip" data-gio="${prec ? prec.id : ''}" ${prec ? '' : 'disabled'}>‹ precedente</button>
           <button type="button" class="chip" data-gio="${succ ? succ.id : ''}" ${succ ? '' : 'disabled'}>successiva ›</button>
         </div>
@@ -2870,28 +2908,67 @@ window.SCHIERA_CONFIG = {
   }
 
   // ------------------------------------------------------------------ sezioni
+  // icone a tratto, 24x24
+  const ICONE = {
+    home: '<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/>',
+    cal: '<rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+    podio: '<path d="M9 20V9.5h6V20M3.5 20v-6H9M15 20v-8.5h5.5V20M2.5 20h19"/>',
+    stat: '<path d="M5 20v-7M10 20V6M15 20v-9M20 20V9"/>',
+    altro: '<circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>',
+    maglia: '<path d="M9 4 4 7l2 4 2-1v10h8V10l2 1 2-4-5-3a3 3 0 0 1-6 0z"/>',
+    rose: '<path d="M8 7h12M8 12h12M8 17h12"/><circle cx="4.5" cy="7" r=".9"/><circle cx="4.5" cy="12" r=".9"/><circle cx="4.5" cy="17" r=".9"/>',
+    vs: '<path d="M4 8h12l-3-3M20 16H8l3 3"/>',
+    coppa: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7l-1-3h-5z"/>',
+    tabellone: '<path d="M3 5h5v4h4M3 13h5V9M12 9v7h4M3 19h9v-3M16 12.5h5"/>',
+    albo: '<circle cx="12" cy="9" r="5"/><path d="m9 13.5-1.5 6.5L12 18l4.5 2L15 13.5"/>',
+    premi: '<circle cx="12" cy="12" r="8"/><path d="M15 9a3.5 3.5 0 1 0 0 6M8 11h5M8 13.5h5"/>',
+    via: '<path d="M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4"/>'
+  };
+  const icona = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE[k]}</svg>`;
+
+  // le prime quattro stanno nella barra; le altre nel pannello "Altro"
   const SEZIONI = [
-    { id: '', et: 'Home', vista: home },
-    { id: 'squadra', et: 'Squadra', vista: sezioneSquadra },
-    { id: 'rose', et: 'Rose', vista: sezioneRose },
-    { id: 'calendario', et: 'Calendario', vista: sezioneCalendario },
-    { id: 'classifiche', et: 'Classifiche', vista: sezioneClassifiche },
-    { id: 'statistiche', et: 'Statistiche', vista: sezioneStatistiche },
-    { id: 'confronto', et: 'Testa a testa', vista: sezioneConfronto },
-    { id: 'coppe', et: 'Coppe', vista: sezioneCoppe },
-    { id: 'playoff', et: 'Playoff', vista: sezionePlayoff },
-    { id: 'albo', et: 'Albo d’oro', vista: sezioneAlbo },
-    { id: 'premi', et: 'Premi', vista: sezionePremi }
+    { id: '', et: 'Home', ico: 'home', barra: true, vista: home },
+    { id: 'calendario', et: 'Calendario', ico: 'cal', barra: true, vista: sezioneCalendario },
+    { id: 'classifiche', et: 'Classifiche', ico: 'podio', barra: true, vista: sezioneClassifiche },
+    { id: 'statistiche', et: 'Statistiche', ico: 'stat', barra: true, vista: sezioneStatistiche },
+    { id: 'squadra', et: 'Squadra', ico: 'maglia', vista: sezioneSquadra },
+    { id: 'rose', et: 'Rose', ico: 'rose', vista: sezioneRose },
+    { id: 'confronto', et: 'Testa a testa', ico: 'vs', vista: sezioneConfronto },
+    { id: 'coppe', et: 'Coppe', ico: 'coppa', vista: sezioneCoppe },
+    { id: 'playoff', et: 'Playoff', ico: 'tabellone', vista: sezionePlayoff },
+    { id: 'albo', et: 'Albo d’oro', ico: 'albo', vista: sezioneAlbo },
+    { id: 'premi', et: 'Premi', ico: 'premi', vista: sezionePremi }
   ];
 
   function navHtml() {
-    return SEZIONI.map(s => `<a href="#/${s.id}" ${s.id === S.sezione ? 'aria-current="page"' : ''}>${esc(s.et)}</a>`).join('') +
-      '<a href="schiera/">Schiera ↗</a>';
+    const qui = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
+    return SEZIONI.filter(s => s.barra).map(s =>
+      `<a href="#/${s.id}" ${s === qui ? 'aria-current="page"' : ''}>${icona(s.ico)}<span>${esc(s.et)}</span></a>`).join('') +
+      `<button type="button" id="altroBtn" aria-haspopup="dialog" ${qui.barra ? '' : 'aria-current="page"'}>${icona('altro')}<span>${qui.barra ? 'Altro' : esc(qui.et)}</span></button>`;
+  }
+
+  // il riquadro verde per andare a schierare: sotto l'intestazione e in cima al pannello "Altro"
+  function schieraDentro() {
+    const r = S.rounds.find(x => !x.giocata);
+    const quando = r ? `Giornata ${r.id} · ${r.serie_a || r.id + 2}ª di Serie A` : 'per la prossima giornata';
+    return `${icona('maglia')}<span class="t"><b>Schiera la formazione</b><span>${esc(quando)}</span></span>${icona('via', 'mini')}`;
+  }
+
+  function apriAltro() {
+    const qui = S.sezione;
+    const el = sheet(`<div class="sheet-b altro">
+      <a class="schiera-big" href="schiera/">${schieraDentro()}</a>
+      <div class="altro-grid">${SEZIONI.filter(s => !s.barra).map(s =>
+        `<a href="#/${s.id}" ${s.id === qui ? 'aria-current="page"' : ''}>${icona(s.ico)}<span>${esc(s.et)}</span></a>`).join('')}</div>
+    </div>`);
+    el.addEventListener('click', ev => { if (ev.target.closest('.altro-grid a')) closeSheet(); });
   }
 
   async function render() {
     const sez = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
     $('#nav').innerHTML = navHtml();
+    $('#schieraBig').innerHTML = schieraDentro();
     $('#view').innerHTML = '<div class="card"><p class="empty"><span class="spin"></span></p></div>';
     try {
       $('#view').innerHTML = await sez.vista();
@@ -2974,6 +3051,7 @@ window.SCHIERA_CONFIG = {
   function mostraLogin(msg) {
     $('#loginCard').hidden = false;
     $('#nav').hidden = true;
+    $('#schieraBig').hidden = true;
     $('#userBtn').hidden = true;
     $('#view').innerHTML = '';
     $('#foot').textContent = '';
@@ -2984,6 +3062,7 @@ window.SCHIERA_CONFIG = {
     await caricaBase();
     $('#loginCard').hidden = true;
     $('#nav').hidden = false;
+    $('#schieraBig').hidden = false;
     $('#userBtn').hidden = false;
     $('#userBtn').textContent = S.team ? bel(S.team.name) : 'Account';
     $('#userHead').innerHTML = `<b>${esc(S.profile.display_name || '')}</b><span>${esc(S.team ? bel(S.team.name) : 'senza squadra')}${isAdmin() ? ' · amministratore' : ''}</span>`;
@@ -3070,6 +3149,8 @@ window.SCHIERA_CONFIG = {
     if (cf.dataset.conf === 'a') S.confrontoA = cf.value; else S.confrontoB = cf.value;
     render();
   });
+
+  $('#nav').addEventListener('click', ev => { if (ev.target.closest('#altroBtn')) apriAltro(); });
 
   window.addEventListener('hashchange', () => {
     S.sezione = (location.hash || '').replace(/^#\/?/, '');

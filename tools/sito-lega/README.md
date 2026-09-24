@@ -23,7 +23,11 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 | Albo d'oro | la bacheca di sempre e tutte le stagioni dal 1991/92 |
 | Premi | montepremi, ripartizione, crediti per la stagione dopo e come si passa dal punteggio ai gol |
 
-Da ogni pagina si arriva a **Schiera Formazione**, che resta l'app per schierare.
+Al telefono le sezioni si cambiano dalla barra in basso: Home, Calendario,
+Classifiche, Statistiche e **Altro**, che apre un pannello con tutte le altre.
+Sul computer la stessa barra sta in alto. In cima a ogni pagina, e in cima al
+pannello Altro, c'è il riquadro verde per andare a **Schiera Formazione**, che
+resta l'app per schierare.
 
 ## Ogni settimana: carica la giornata
 

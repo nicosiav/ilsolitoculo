@@ -2915,7 +2915,6 @@ window.SCHIERA_CONFIG = {
       body = 'Questa pagina non può scaricare file in questo visualizzatore. Usa la versione offline dell’app.';
     }
     const ok = d.how === 'xls' || d.how === 'direct' || d.how === 'zip';
-    const canShare = d.blob && navigator.canShare && (() => { try { return navigator.canShare({ files: [new File([d.blob], d.name || outName(), { type: 'application/vnd.ms-excel' })] }); } catch (e) { return false; } })();
     const el = sheet(`
       <div class="sheet-h"><div style="display:flex;gap:12px;align-items:center">${ok ? '<span class="done-mark" aria-hidden="true">✓</span>' : ''}<div><h4>${head}</h4><p>${esc(S.sheet)} · modulo ${esc(mod)}</p></div></div></div>
       <div class="sheet-b">
@@ -2927,15 +2926,13 @@ window.SCHIERA_CONFIG = {
         </div>
         <p class="muted small" style="margin:8px 16px 0">È quello che vedrai in Excel nelle celle I5:I29 dopo la macro (${esc(sh[0] || '—')}, ${esc(sh[1] || '—')}, …).</p>
       </div>
-      <div class="sheet-f">${canShare ? '<button type="button" class="btn btn-ghost" data-act="share">Condividi</button>' : ''}<button type="button" class="btn btn-primary" data-act="close">Fatto</button></div>`);
-    el.addEventListener('click', async ev => {
+      <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Fatto</button></div>`);
+    // niente "Condividi": la condivisione di un .xls dal browser funziona solo in pochi casi
+    // (Chrome la rifiuta per questo tipo di file, Firefox non ce l'ha, le app di chat la bloccano)
+    el.addEventListener('click', ev => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
       if (b.dataset.act === 'close') closeSheet();
-      if (b.dataset.act === 'share') {
-        try { await navigator.share({ files: [new File([d.blob], d.name || outName(), { type: 'application/vnd.ms-excel' })], title: d.name || outName() }); }
-        catch (e) { /* annullato */ }
-      }
     });
   }
 

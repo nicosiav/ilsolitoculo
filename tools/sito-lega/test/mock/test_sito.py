@@ -143,4 +143,36 @@ async def main():
                 print(f'  {sez}:', (await pg.inner_text('#view')).strip().replace(chr(10), ' | ')[:80])
         await apri(pw, {'ADMIN': '1', 'NOSTAGIONE': '1'}, s7, "7 database della stagione mancante")
 
+        # 8) la navigazione: barra in basso, "Altro", riquadro verde di Schiera
+        async def s8(pg):
+            await login(pg)
+            barra = await pg.eval_on_selector('#nav', 'e => { const r = e.getBoundingClientRect(); return [getComputedStyle(e).position, Math.round(innerHeight - r.bottom)] }')
+            voci = await pg.locator('#nav > a, #nav > button').all_inner_texts()
+            print('  barra:', barra, '|', ' · '.join(v.strip() for v in voci))
+            assert barra[0] == 'fixed' and barra[1] == 0, 'la barra non sta in basso'
+            assert [v.strip() for v in voci] == ['Home', 'Calendario', 'Classifiche', 'Statistiche', 'Altro']
+            verde = (await pg.inner_text('#schieraBig')).replace(chr(10), ' ')
+            print('  riquadro verde:', verde)
+            assert 'SCHIERA LA FORMAZIONE' in verde.upper() and await pg.is_visible('#schieraBig')
+            assert await pg.locator('#view a[href="schiera/"]').count() == 0, 'il pulsante nero è ancora nella Home'
+            # "Altro": Schiera in cima, poi le tessere
+            await pg.click('#altroBtn'); await pg.wait_for_timeout(300)
+            ordine = await pg.eval_on_selector('.altro', 'e => [...e.children].map(c => c.className)')
+            tessere = await pg.locator('.altro-grid a').all_inner_texts()
+            print('  pannello:', ordine, '|', ' · '.join(tessere))
+            assert ordine[0] == 'schiera-big' and ordine[1] == 'altro-grid', 'Schiera non è in cima al pannello'
+            assert len(tessere) == 7
+            await pg.click('.altro-grid a[href="#/rose"]'); await pg.wait_for_timeout(700)
+            print('  dopo il tocco su Rose:', pg.url.split('#')[1], '| pannello chiuso:', await pg.locator('.scrim').count() == 0,
+                  '| in barra:', (await pg.inner_text('#altroBtn')).strip())
+            assert pg.url.endswith('#/rose') and await pg.locator('.scrim').count() == 0
+            assert (await pg.get_attribute('#altroBtn', 'aria-current')) == 'page'
+            for w in (390, 1100):
+                await pg.set_viewport_size({'width': w, 'height': 800}); await pg.wait_for_timeout(200)
+                sc = await pg.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth')
+                pos = await pg.eval_on_selector('#nav', 'e => getComputedStyle(e).position')
+                print(f'  {w}px: barra {pos}, scorre di lato: {sc}')
+                assert not sc
+        await apri(pw, {}, s8, '8 barra in basso e pannello Altro')
+
 asyncio.run(main())

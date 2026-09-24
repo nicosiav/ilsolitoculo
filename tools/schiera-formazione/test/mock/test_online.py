@@ -55,11 +55,17 @@ async def main():
             saved=json.load(open('/tmp/last_save.json'))
             print('  RPC: giornata',saved['p_matchday'],'modulo',saved['p_module'],'slot',len(saved['p_slots']),
                   '| pos1..3', [s['pos'] for s in saved['p_slots'][:3]], [s['player_id'] for s in saved['p_slots'][:3]])
+            # anche in un browser che dice di saper condividere file, il tasto non deve esserci
+            await pg.evaluate("navigator.canShare = () => true; navigator.share = async () => {}")
             async with pg.expect_download() as dl:
                 await pg.click('[data-act="export"]')
             d=await dl.value; await d.save_as('/tmp/export_online.xls')
             print('  export:', d.suggested_filename, '| log export:', os.path.exists('/tmp/last_export.json'))
             await pg.wait_for_timeout(300)
+            piede = (await pg.inner_text('.sheet-f')).strip()
+            print('  tasti dopo l\'export:', piede.replace('\n', ' | '))
+            assert await pg.locator('[data-act="share"]').count() == 0, 'il tasto Condividi è ancora lì'
+            assert 'Condividi' not in piede
             # storico
             await pg.click('[data-act="close"]'); await pg.click('#menuBtn'); await pg.click('#logBtn'); await pg.wait_for_timeout(400)
             print('  storico:', (await pg.inner_text('.sheet-b')).strip().split('\n')[0][:70])
