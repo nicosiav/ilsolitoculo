@@ -536,7 +536,7 @@
       <div class="sheet-h"><div style="display:flex;gap:12px;align-items:center"><span class="done-mark" aria-hidden="true">✓</span>
         <div><h4>Formazione salvata</h4><p>${esc(S.team.name)} · ${esc(nomeGiornata(S.matchday))} · ${esc(S.module)}</p></div></div></div>
       <div class="sheet-b">
-        <p style="margin:12px 16px 0">${res.action === 'creata' ? 'Registrata adesso.' : 'Ho aggiornato quella di prima.'} L\u2019amministratore la vede online: non devi inviare niente.</p>
+        <p style="margin:12px 16px 0">${res.action === 'creata' ? 'Registrata adesso.' : 'Ho aggiornato quella di prima.'} <b>Ora scarica il file .xls e mandalo all\u2019amministratore</b>, come sempre (WhatsApp o e-mail).</p>
         ${list.length ? `<div class="xl">${list.map(t => `<div class="xr" style="grid-template-columns:1fr">${esc(t)}</div>`).join('')}</div>` : ''}
         <div class="xl" aria-label="Formazione salvata">
           <div class="xh">Titolari</div>${[1,2,3,4,5,6,7,8,9,10,11].map(line).join('')}
@@ -544,7 +544,7 @@
           <div class="xh">Panchina extra</div>${[19,20,21,22].map(line).join('')}
         </div>
       </div>
-      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="export">Esporta .xls</button><button type="button" class="btn btn-primary" data-act="close">Fatto</button></div>`);
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Dopo</button><button type="button" class="btn btn-primary" data-act="export">Scarica il file .xls</button></div>`);
     el.addEventListener('click', ev => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
@@ -843,16 +843,19 @@
   }
 
   // ------------------------------------------------------------- nuova password
-  function askNewPassword(fatto) {
+  // dal link dell'email (obbligatoria) oppure dal menu "Cambia password" (si può annullare)
+  function askNewPassword(fatto, opts) {
+    const libera = !!(opts && opts.annullabile);
     const el = sheet(`
-      <div class="sheet-h"><div><h4>Nuova password</h4><p>Scegline una di almeno 8 caratteri.</p></div></div>
+      <div class="sheet-h"><div><h4>${libera ? 'Cambia password' : 'Nuova password'}</h4><p>Scegline una di almeno 8 caratteri.</p></div></div>
       <div class="sheet-b"><div style="padding:12px 16px"><input id="newPwd" type="password" autocomplete="new-password" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)"></div></div>
-      <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="set">Salva password</button></div>`, { modal: true });
+      <div class="sheet-f">${libera ? '<button type="button" class="btn btn-ghost" data-act="close">Annulla</button>' : ''}<button type="button" class="btn btn-primary" data-act="set">Salva password</button></div>`, libera ? {} : { modal: true });
     el.addEventListener('click', async ev => {
+      if (ev.target.closest('[data-act="close"]')) { closeSheet(); return; }
       if (!ev.target.closest('[data-act="set"]')) return;
       const pwd = el.querySelector('#newPwd').value;
       if (!pwd || pwd.length < 8) { toast('Almeno 8 caratteri'); return; }
-      try { await SB.setPassword(pwd); closeSheet(); toast('Password aggiornata'); if (fatto) await fatto(); else await startOnline(); }
+      try { await SB.setPassword(pwd); closeSheet(); toast('Password aggiornata'); if (fatto) await fatto(); else if (!libera) await startOnline(); }
       catch (e) { notice(e.message || 'Non riesco a cambiare la password.', 'error'); }
     });
   }
@@ -1055,8 +1058,8 @@
     const line = (k) => `<div class="xr"><span class="n">${k}</span><span class="badge" data-r="${esc(lu[k - 1].role)}">${esc(lu[k - 1].role || '·')}</span><span>${esc(lu[k - 1].name || '—')}</span></div>`;
     let head, body;
     if (d.how === 'xls' || d.how === 'direct') {
-      head = 'File salvato';
-      body = `<b>${esc(d.name)}</b> è nei download: invialo all'amministratore (WhatsApp, e-mail…).`;
+      head = 'File scaricato';
+      body = `<b>${esc(d.name)}</b> è nella cartella dei download (Download, oppure File → Download sull’iPhone). Mandalo all'amministratore come sempre: WhatsApp o e-mail.`;
     } else if (d.how === 'zip') {
       head = 'File salvato (in .zip)';
       body = `Da qui Claude non può scaricare file .xls, quindi ho salvato <b>${esc(d.name)}</b>: aprilo, tocca “Estrai” e invia all'amministratore il file .xls che contiene. Con la versione offline dell'app il .xls si scarica direttamente.`;
@@ -1209,7 +1212,7 @@
       squadre: () => clubsSheet(),
       giornata: () => askMatchday()
     },
-    nuovaPassword: fatto => askNewPassword(fatto)
+    nuovaPassword: (fatto, opts) => askNewPassword(fatto, opts)
   };
 
   // Avvio. Nella versione a sé (offline) si lavora sul file .xls; dentro il sito

@@ -18,6 +18,7 @@ versione offline a file singolo.
 2. Tocchi **Schiera** nella barra in basso (sul computer, il riquadro verde in cima alla pagina). Rosa e formazione della giornata arrivano dal [database della lega](../../db/README.md).
 3. Scegli il modulo e tocchi i posti sul campo, in panchina e in panchina extra (oppure tocchi i giocatori "non schierati" per metterli nel primo posto libero).
 4. Tocchi **Salva formazione**: la formazione finisce nel database, la vedono tutti e ogni modifica resta nel log.
+5. Tocchi **Scarica il file .xls** (compare subito dopo il salvataggio, e sta anche in fondo alla pagina) e lo mandi all'amministratore come sempre, su WhatsApp o per e-mail. **Il file resta obbligatorio**: è quello con cui si calcola la giornata.
 
 ### Il conto alla rovescia e i blocchi
 
@@ -37,10 +38,14 @@ barra c'è un pallino rosso.
 Nella pagina: **Ripristina l'ultima salvata** (pesca la più recente, anche da
 giornate precedenti), **Svuota**, **Riserve in ordine libero**; in fondo
 **Formazioni di giornata** (quelle di tutte le squadre, anche delle giornate
-passate), **Esporta il file .xls** (genera `formazioni_AAAAMMGG_Squadra.xls` dal
-modello della lega tenuto in Supabase Storage) e **Storico modifiche**.
+passate), **Scarica il file .xls** (genera `formazioni_AAAAMMGG_Squadra.xls` dal
+modello della lega tenuto in Supabase Storage: è il file da mandare
+all'amministratore) e **Storico modifiche**.
 
-Per l'amministratore, nel menu in alto a destra del sito: **Aggiorna le rose da
+Nel menu in alto a destra del sito (tocca il tuo nome) c'è **Cambia password**:
+serve la prima volta, per sostituire la password provvisoria.
+
+Per l'amministratore, nello stesso menu: **Aggiorna le rose da
 un .xls**, **Aggiorna il calendario di Serie A**, **Squadre dei giocatori** (chi
 non ha una squadra di Serie A si blocca alla prima partita della giornata),
 **Giornata corrente (a mano)**.

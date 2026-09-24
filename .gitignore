@@ -9,3 +9,6 @@ node_modules/
 __pycache__/
 .DS_Store
 tools/sito-lega/test/mock/schermate/
+# account dei partecipanti: email e password provvisorie, restano sul tuo computer
+db/account.csv
+db/credenziali.txt

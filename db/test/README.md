@@ -31,3 +31,18 @@ due squadre, importa tre partite (una già giocata) e verifica che:
 
 Con `02_prova_giornata.sql` si verifica che dal file di giornata escano giornate,
 partite, voti, classifiche e statistiche per giocatore.
+
+## Lo script degli account
+
+`prova_crea_account.py` prova `db/crea_account.py` contro un finto Supabase
+(Admin API e tabelle `teams`/`profiles`) che gira in locale, senza rete e senza
+chiavi vere:
+
+```bash
+python3 db/test/prova_crea_account.py
+```
+
+Controlla la prova a vuoto, gli account nuovi (confermati, con password
+provvisoria), il collegamento a squadra e ruolo, gli account già esistenti
+lasciati con la loro password, `--nuova-password`, i nomi di squadra scritti in
+modo diverso, gli errori chiari e il file dei messaggi.

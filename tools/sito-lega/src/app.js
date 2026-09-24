@@ -1093,6 +1093,7 @@
       Schiera.admin[f]();
     });
   });
+  $('#pwdBtn').addEventListener('click', () => { apriMenu(false); Schiera.nuovaPassword(null, { annullabile: true }); });
   // l'app sul telefono (Android): il browser la propone, noi mettiamo il pulsante nel menu
   let installa = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installa = e; $('#installBtn').hidden = false; });

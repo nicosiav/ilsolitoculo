@@ -55,29 +55,76 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
      tabelle nuove all'app. Se il sito dice *"Could not find the table
      'public.rounds' in the schema cache"*, o questo file non è stato eseguito,
      oppure basta rieseguire quella riga.
-3. In **Authentication → Users → Add user** crea un account per ogni partecipante (email + password, spunta "Auto Confirm User"). Il profilo viene creato da solo.
-4. Torna nel **SQL Editor** e collega ogni account alla sua squadra:
-
-   ```sql
-   update public.profiles p
-   set team_id = t.id, display_name = t.name
-   from public.teams t, auth.users u
-   where p.id = u.id and u.email = 'email@esempio.it' and t.name = 'Valerio';
-
-   -- e per l'amministratore
-   update public.profiles set role = 'admin'
-   where id = (select id from auth.users where email = 'email.admin@esempio.it');
-   ```
+3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
+4. Crea gli account dei partecipanti e collegali alle squadre: vedi
+   [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.
 5. Esegui `05_admin.sql` e poi di nuovo `06_calendario.sql` (l'ordine conta: il
    secondo aggiorna le funzioni del primo): ruolo `admin` agli amministratori e
    funzioni di amministrazione.
    Poi pubblica la funzione `sync-calendario` seguendo
    [`supabase/functions/README.md`](../supabase/functions/README.md) ed esegui
    `07_cron.sql` per l'aggiornamento automatico.
-6. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
-7. In **Authentication → URL Configuration** aggiungi `https://nicosiav.github.io/ilsolitoculo/schiera/` fra le Redirect URLs, per il link di recupero password.
-8. In **Storage** carica il file Excel della lega nel bucket `modelli` con nome `formazioni.xls` (serve solo all'export; in alternativa lo carica l'app quando un amministratore aggiorna le rose).
-9. In **Project Settings → API** copia **Project URL** e chiave **anon public**: servono all'app. Sono valori pubblici: la protezione dei dati sta nelle policy, non nella chiave. La chiave `service_role` invece non va mai messa nel sito.
+6. In **Authentication → URL Configuration** metti `https://nicosiav.github.io/ilsolitoculo/`
+   come **Site URL** e aggiungilo anche fra le **Redirect URLs**: è lì che porta il
+   link "password dimenticata" (il sito apre da solo la finestra per sceglierne
+   una nuova). Il vecchio `…/ilsolitoculo/schiera/` si può lasciare: rimanda al sito.
+7. In **Storage** carica il file Excel della lega nel bucket `modelli` con nome `formazioni.xls` (serve solo all'export; in alternativa lo carica l'app quando un amministratore aggiorna le rose).
+8. In **Project Settings → API** copia **Project URL** e chiave **anon public**: servono all'app. Sono valori pubblici: la protezione dei dati sta nelle policy, non nella chiave. La chiave `service_role` invece non va mai messa nel sito.
+
+## Aggiungere i partecipanti
+
+Gli account li crei tu: le iscrizioni dal sito sono chiuse (passo 3). Due strade,
+scegline una.
+
+### Con lo script (consigliata: fa tutto e prepara i messaggi)
+
+1. Copia `db/account-esempio.csv` in `db/account.csv` e metti le email vere, una
+   riga per partecipante: `email,squadra,nome,ruolo` (ruolo `giocatore` o
+   `amministratore`). `account.csv` resta sul tuo computer: è in `.gitignore`.
+2. In **Project Settings → API** copia la chiave **service_role** (quella
+   segreta). Solo nel terminale del tuo computer, mai nel sito, nella repo o in
+   una chat.
+3. Nel terminale, dalla cartella della repo:
+
+   ```bash
+   export SUPABASE_URL=https://<progetto>.supabase.co
+   export SUPABASE_SERVICE_ROLE_KEY=<chiave service_role>
+   python3 db/crea_account.py db/account.csv            # prova: dice cosa farebbe
+   python3 db/crea_account.py db/account.csv --davvero  # lo fa
+   ```
+
+   Chi non ha un account lo riceve già confermato, con una password provvisoria
+   tipo `traversa-4827`; chi ce l'ha (tu, per esempio) viene solo collegato alla
+   squadra e al ruolo. Nessuna email parte da Supabase.
+4. Apri `db/credenziali.txt`: c'è un messaggio pronto per ciascuno (link, email,
+   password provvisoria, come cambiarla, promemoria del file .xls). Mandali su
+   WhatsApp insieme alla guida, poi **cancella il file**.
+
+Lo script si può rilanciare quando vuoi (un partecipante nuovo, una squadra
+cambiata): non crea doppioni. Con `--nuova-password` rigenera la password anche
+a chi l'account ce l'ha già, per esempio se qualcuno l'ha persa e non riesce a
+usare "password dimenticata". Si prova senza rete con
+`python3 db/test/prova_crea_account.py`.
+
+### Tutta dal pannello di Supabase
+
+1. **Authentication → Users → Add user → Create new user** per ogni
+   partecipante: email, una password provvisoria, spunta **Auto Confirm User**.
+2. Apri `09_account.sql`, metti le email vere ed eseguilo nel **SQL Editor**:
+   collega ogni account a squadra, nome e ruolo, poi mostra una riga per squadra
+   (con "manca l'account" dove qualcosa non torna).
+3. Manda a ciascuno link del sito, email e password provvisoria.
+
+### Dopo
+
+- Ognuno cambia la password dal sito: tocca il suo nome in alto a destra →
+  **Cambia password**. Se la dimentica, "Password dimenticata?" nella pagina di
+  accesso gli manda una mail (servono Site URL e Redirect URLs del passo 6).
+- Le email di Supabase gratuite sono poche all'ora: se molti chiedono il
+  recupero insieme, alcuni devono aspettare. In quel caso fai prima con
+  `--nuova-password` o con **Authentication → Users → … → Reset password**.
+- Chi è entrato almeno una volta: la colonna `ultimo_accesso` in fondo a
+  `09_account.sql` (oppure **Authentication → Users → Last signed in**).
 
 ## Ogni settimana
 
@@ -91,11 +138,11 @@ Dopo ogni giornata, dal sito come amministratore: **menu → Carica la giornata*
 con il file `.xls` della lega. Da quel file nascono risultati, voti, classifiche,
 statistiche, rose e crediti (`import_round()`).
 
-Dopo il mercato, dall'app come amministratore: **Opzioni → Aggiorna le rose da
-un .xls** (allinea le rose e il modello per gli export) e **Opzioni → Aggiorna
-il calendario** con l'abbinamento delle squadre, per far ripartire il blocco
-partita per partita sui giocatori nuovi. Quelli rimasti senza squadra si
-sistemano da **Opzioni → Squadre dei giocatori**.
+Dopo il mercato, dal sito come amministratore: **menu → Aggiorna le rose da
+un .xls** (allinea le rose e il modello per gli export) e **menu → Aggiorna il
+calendario di Serie A** con l'abbinamento delle squadre, per far ripartire il
+blocco partita per partita sui giocatori nuovi. Quelli rimasti senza squadra si
+sistemano da **menu → Squadre dei giocatori**.
 
 A mano, se serve:
 
