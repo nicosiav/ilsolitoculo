@@ -102,16 +102,21 @@ a { color: inherit; }
 .menu-head span { color: var(--muted); font-size: 12.5px; }
 
 /* navigazione */
-.tabs {
-  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
-  padding-bottom: 2px; position: sticky; top: 0; z-index: 20;
-  background: linear-gradient(var(--bg) 70%, transparent);
-  padding-top: 6px; margin: -6px -16px 0; padding-inline: 16px;
-}
-.tabs::-webkit-scrollbar { display: none; }
+/* Tutte le sezioni a vista: vanno a capo, non scorrono di lato */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs a {
-  flex: none; text-decoration: none; padding: 8px 13px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 14px;
+  flex: none; text-decoration: none; padding: 7px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13.5px;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .tabs a { font-size: 12.5px; padding: 6px 10px; }
+}
+@media (min-width: 720px) {
+  .tabs {
+    position: sticky; top: 0; z-index: 20; padding: 8px 16px; margin: -8px -16px 0;
+    background: linear-gradient(var(--bg) 82%, transparent);
+  }
 }
 .tabs a[aria-current="page"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 
@@ -2518,7 +2523,7 @@ window.SCHIERA_CONFIG = {
   function barre(righe) {
     if (!righe.length) return '<p class="empty">Niente da mostrare.</p>';
     const max = Math.max.apply(null, righe.map(r => r.v)) || 1;
-    return `<div class="plist">${righe.map(r => `<div class="prow" style="grid-template-columns:1fr 54px">
+    return `<div class="plist">${righe.map(r => `<div class="prow" style="grid-template-columns:minmax(0,1fr) 84px">
       <span class="who"><b>${esc(r.et)}</b>
         <span style="display:block;height:8px;border-radius:4px;margin-top:5px;background:${r.mio ? 'var(--chart-accent)' : 'var(--chart-mute)'};width:${Math.max(3, Math.round(r.v / max * 100))}%"></span></span>
       <span class="val"><b>${n1(r.v)}</b></span></div>`).join('')}</div>`;
@@ -2559,23 +2564,58 @@ window.SCHIERA_CONFIG = {
     const u = ultima();
     const camp = u ? (await classifiche('campionato')).filter(r => r.round === u.id) : [];
     const p = i => camp[i - 1] ? teamName(camp[i - 1].team_id) : i + 'º classificato';
-    const turno = (titolo, coppie, nota) => `<div class="card">
-      <div class="sec-h"><h3>${esc(titolo)}</h3><span>${esc(nota)}</span></div>
-      <div>${coppie.map(([a, b]) => `<div class="match"><span class="t">${esc(p(a))}</span><span class="score">vs</span><span class="t a">${esc(p(b))}</span></div>`).join('')}</div>
-    </div>`;
+    const riga = (a, b) => `<div class="match"><span class="t">${esc(p(a))}</span><span class="score">vs</span><span class="t a">${esc(p(b))}</span></div>`;
+    const tab = (intestazioni, righe) => `<div class="scroll-x"><table class="tbl"><thead><tr>${intestazioni.map(h => `<th class="l">${esc(h)}</th>`).join('')}</tr></thead><tbody>
+      ${righe.map(r => `<tr>${r.map((c, i) => `<td class="l"${i === 0 ? ' style="font-weight:600"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+
     return `<div class="stack">
       <div class="card">
         <div class="sec-h"><h2>Playoff</h2><span>dalla 24ª di Serie A</span></div>
-        <p class="small muted" style="margin:0">Quattro turni a eliminazione diretta, tabellone generato dalla classifica finale delle 20 giornate.
-        Andata, ritorno ed eventuale bella: chi è meglio piazzato parte con due gol di vantaggio all’andata.</p>
+        <p class="small muted" style="margin:0">Quattro turni a eliminazione diretta. Il tabellone nasce dalla classifica finale delle 20 giornate a scontri diretti: chi è più in alto parte avvantaggiato, e resta avvantaggiato a ogni turno.</p>
       </div>
-      ${turno('Primo turno', [[4, 1], [3, 2], [8, 5], [7, 6]], 'andata in casa del peggio piazzato')}
+
       <div class="card">
-        <div class="sec-h"><h3>Turni successivi</h3><span>secondo turno, semifinali, finali</span></div>
-        <p class="small muted" style="margin:0">Il tabellone si ricostruisce a ogni turno in base ai punti: i vincenti si affrontano fra loro, i perdenti scendono nel tabellone secondario.
-        Le giornate 26, 29, 32 e 35 ospitano le belle, oppure i turni di Coppa se le belle non servono.</p>
+        <div class="sec-h"><h3>Primo turno</h3><span>andata in casa del peggio piazzato</span></div>
+        <div>${[[4, 1], [3, 2], [8, 5], [7, 6]].map(([a, b]) => riga(a, b)).join('')}</div>
+        <p class="small muted" style="margin:0">Accoppiamenti 4–1, 3–2, 8–5, 7–6 sulla classifica di oggi: cambieranno fino alla 20ª giornata.</p>
       </div>
-      ${camp.length ? `<div class="card"><div class="sec-h"><h3>Classifica attuale</h3><span>dopo la ${u.id}ª</span></div>${tabellaCampionato(camp, true)}</div>` : ''}
+
+      <div class="card">
+        <div class="sec-h"><h3>Il vantaggio di chi gioca in casa</h3><span>si somma al punteggio</span></div>
+        ${tab(['Partita', 'Vantaggio di chi è in casa'], [
+          ['Andata', '2'],
+          ['Ritorno', '(differenza punti + 3) ÷ 2, mai meno di 2']
+        ])}
+        <p class="small muted" style="margin:0">La differenza punti è quella fra le due squadre nella classifica finale del campionato. Esempio: con 7 punti di distacco, al ritorno chi è in casa parte da (7 + 3) ÷ 2 = <b>5</b>; con 0 punti di distacco il vantaggio resta 2.</p>
+      </div>
+
+      <div class="card">
+        <div class="sec-h"><h3>Come finisce il doppio confronto</h3><span>niente supplementari né rigori</span></div>
+        ${tab(['Esito', 'Cosa succede'], [
+          ['Passa chi è meglio piazzato', 'Passa il turno, niente bella'],
+          ['Perfetta parità<div class="muted small">1–1 e 1–1, 2–1 e 1–2, 2–2 e 1–1…</div>', 'Bella in campo neutro'],
+          ['Passa chi è peggio piazzato', 'Bella in casa sua, se il distacco in classifica è di <b>almeno 3 punti</b>.<div class="muted small">Sotto i 3 punti passa il turno direttamente.</div>']
+        ])}
+      </div>
+
+      <div class="card">
+        <div class="sec-h"><h3>La bella</h3><span>quando chi passa era peggio piazzato</span></div>
+        ${tab(['Come è andato il doppio confronto', 'Vantaggio nella bella', 'Punti recuperati'], [
+          ['Due vittorie', '6', 'tutto il distacco'],
+          ['Una vittoria e un pareggio', '4', '3/4 del distacco'],
+          ['Una vittoria e una sconfitta', '2', 'metà del distacco'],
+          ['Due pareggi', '2', 'metà del distacco']
+        ])}
+        <p class="small muted" style="margin:0">I punti recuperati riducono il distacco in classifica verso chi è stato eliminato, fino a un massimo di <b>8</b>: servono al vantaggio dei turni successivi.</p>
+      </div>
+
+      <div class="card">
+        <div class="sec-h"><h3>Le giornate</h3><span>24ª–35ª di Serie A</span></div>
+        <p class="small muted" style="margin:0">Ogni turno occupa due giornate più una per l'eventuale bella (24–26, 27–29, 30–32, 33–35). Se una bella non serve, quella giornata va alla Coppa: è così che semifinali e finale di Coppa possono passare da gara secca ad andata e ritorno.</p>
+      </div>
+
+      ${camp.length ? `<div class="card"><div class="sec-h"><h3>Classifica attuale</h3><span>dopo la ${u.id}ª</span></div>${tabellaCampionato(camp, true)}
+        <p class="small muted" style="margin:0">Il tabellone sopra usa questa classifica: diventerà definitivo dopo la 20ª giornata.</p></div>` : ''}
     </div>`;
   }
 

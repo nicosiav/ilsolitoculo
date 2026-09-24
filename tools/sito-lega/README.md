@@ -19,7 +19,7 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 | Statistiche | cannonieri, migliori fantamedie e medie voto, prestazioni della giornata, punteggi a confronto |
 | Testa a testa | due squadre a confronto: scontri diretti, medie, giornate vinte, punteggi giornata per giornata |
 | Coppe | classifica parallela della Coppa con gli accoppiamenti dei quarti, Coppa di Lega, Supercoppa |
-| Playoff | il tabellone e le regole dei turni |
+| Playoff | tabellone, vantaggio di chi gioca in casa, i tre esiti del doppio confronto e le regole della bella |
 | Albo d'oro | la bacheca di sempre e tutte le stagioni dal 1991/92 |
 | Premi | montepremi, ripartizione, crediti per la stagione dopo e come si passa dal punteggio ai gol |
 

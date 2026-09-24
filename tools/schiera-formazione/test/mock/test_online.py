@@ -43,6 +43,7 @@ async def main():
         async def s2(pg):
             await login(pg)
             print('  header:', await pg.inner_text('#fileName'), '|', await pg.inner_text('#fileMeta'))
+            assert 'Giornata 5 (7' in await pg.inner_text('#fileName'), 'manca la doppia numerazione'
             print('  sub:', await pg.inner_text('#sub'), '| login nascosto:', not await pg.is_visible('#loginCard'))
             await pg.click('[data-mod="4-3-3"]')
             for n in ['Meret','Couto','Ramon','Estupinan','Bellanova','Paz N.','De Roon','Fazzini','Davis K.','Woltemade','Laurientè',

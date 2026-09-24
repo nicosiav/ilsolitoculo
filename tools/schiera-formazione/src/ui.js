@@ -16,7 +16,8 @@
     module: '3-4-3', free: false,
     starters: Array(11).fill(null), bench: Array(7).fill(null), extra: Array(4).fill(null),
     profile: null, team: null, matchday: null, closed: false, savedAt: null,
-    fixtures: []             // partite della giornata: da qui i blocchi partita per partita
+    fixtures: [],            // partite della giornata: da qui i blocchi partita per partita
+    rounds: []               // giornate della lega: servono a scrivere "Giornata 4 (6ª di Serie A)"
   };
   const online = () => S.mode === 'online';
   const loaded = () => online() ? !!S.team : !!S.wb;
@@ -331,6 +332,20 @@
     if (h >= 24) return Math.floor(h / 24) + ' giorni';
     return h ? h + ' ore e ' + m + ' min' : m + ' min';
   }
+  // Le giornate hanno due numeri: quello della lega e quello di Serie A.
+  // La 1ª di lega è la 3ª di Serie A (regolamento, punto 5.1).
+  function legaDi(serieA) {
+    const r = S.rounds.find(x => x.serie_a === serieA);
+    if (r) return r.id;
+    return serieA >= 3 && serieA <= 22 ? serieA - 2 : null;
+  }
+  function nomeGiornata(md) {
+    if (!md) return '';
+    const lega = legaDi(md.id);
+    return lega == null ? (md.label || 'Giornata ' + md.id)
+      : 'Giornata ' + lega + ' (' + md.id + '\u00aa di Serie A)';
+  }
+
   function fmtHour(d) {
     return new Date(d).toLocaleString('it-IT', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   }
@@ -340,7 +355,7 @@
   function renderOnlineBar() {
     const md = S.matchday;
     const el = $('#fileMeta');
-    $('#fileName').textContent = (S.team ? S.team.name : '') + (md ? ' · ' + (md.label || 'Giornata ' + md.id) : '');
+    $('#fileName').textContent = (S.team ? S.team.name : '') + (md ? ' · ' + nomeGiornata(md) : '');
     $('#teamField').hidden = true;
     if (!md) { el.textContent = 'nessuna giornata aperta'; el.style.color = 'var(--role-a)'; return; }
     const resta = timeLeft(closeTime(md));
@@ -401,6 +416,8 @@
     S.fixtures = S.matchday
       ? await SB.select('fixtures', 'select=id,home,away,kickoff,status&matchday=eq.' + S.matchday.id + '&order=kickoff')
       : [];
+    // se il database della stagione c'è, da lì arriva la numerazione della lega
+    try { S.rounds = await SB.select('rounds', 'select=id,serie_a&order=id'); } catch (e) { S.rounds = []; }
     const players = await SB.select('players', 'select=id,slot,role,name,club&team_id=eq.' + S.team.id + '&order=slot');
     S.roster = rosterFromDb(players);
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
@@ -470,7 +487,7 @@
     };
     const el = sheet(`
       <div class="sheet-h"><div style="display:flex;gap:12px;align-items:center"><span class="done-mark" aria-hidden="true">✓</span>
-        <div><h4>Formazione salvata</h4><p>${esc(S.team.name)} · ${esc(S.matchday.label || 'Giornata ' + S.matchday.id)} · ${esc(S.module)}</p></div></div></div>
+        <div><h4>Formazione salvata</h4><p>${esc(S.team.name)} · ${esc(nomeGiornata(S.matchday))} · ${esc(S.module)}</p></div></div></div>
       <div class="sheet-b">
         <p style="margin:12px 16px 0">${res.action === 'creata' ? 'Registrata adesso.' : 'Ho aggiornato quella di prima.'} L\u2019amministratore la vede online: non devi inviare niente.</p>
         ${list.length ? `<div class="xl">${list.map(t => `<div class="xr" style="grid-template-columns:1fr">${esc(t)}</div>`).join('')}</div>` : ''}
@@ -520,7 +537,7 @@
         const list = changesText(r.changes);
         return `<div class="xr" style="grid-template-columns:1fr"><div><b>${esc(fmtDate(r.at))}</b> · ${esc(r.action)}<div class="muted small">${list.length ? esc(list.join(' · ')) : 'nessun dettaglio'}</div></div></div>`;
       }).join('') : '<p class="muted" style="padding:12px 16px">Ancora nessuna modifica per questa giornata.</p>';
-      sheet(`<div class="sheet-h"><div><h4>Storico modifiche</h4><p>${esc(S.team.name)} · ${esc(S.matchday.label || 'Giornata ' + S.matchday.id)}</p></div></div>
+      sheet(`<div class="sheet-h"><div><h4>Storico modifiche</h4><p>${esc(S.team.name)} · ${esc(nomeGiornata(S.matchday))}</p></div></div>
         <div class="sheet-b"><div class="xl">${body}</div></div>
         <div class="sheet-f"><button type="button" class="btn btn-primary" onclick="this.closest('.scrim').remove()">Chiudi</button></div>`);
     } catch (e) { notice(e.message || 'Non riesco a leggere lo storico.', 'error'); }
@@ -566,7 +583,7 @@
     let mds = [];
     try { mds = await SB.select('matchdays', 'select=id,label&order=id.desc'); }
     catch (e) { mds = [{ id: S.matchday.id, label: S.matchday.label }]; }
-    const opts = mds.map(m => `<option value="${m.id}" ${m.id === S.matchday.id ? 'selected' : ''}>${esc(m.label || 'Giornata ' + m.id)}</option>`).join('');
+    const opts = mds.map(m => `<option value="${m.id}" ${m.id === S.matchday.id ? 'selected' : ''}>${esc(nomeGiornata(m))}</option>`).join('');
     const el = sheet(`
       <div class="sheet-h"><div style="width:100%">
         <h4>Formazioni di giornata</h4>

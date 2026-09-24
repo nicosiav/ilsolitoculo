@@ -87,16 +87,21 @@ a { color: inherit; }
 .menu-head span { color: var(--muted); font-size: 12.5px; }
 
 /* navigazione */
-.tabs {
-  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
-  padding-bottom: 2px; position: sticky; top: 0; z-index: 20;
-  background: linear-gradient(var(--bg) 70%, transparent);
-  padding-top: 6px; margin: -6px -16px 0; padding-inline: 16px;
-}
-.tabs::-webkit-scrollbar { display: none; }
+/* Tutte le sezioni a vista: vanno a capo, non scorrono di lato */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs a {
-  flex: none; text-decoration: none; padding: 8px 13px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 14px;
+  flex: none; text-decoration: none; padding: 7px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13.5px;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .tabs a { font-size: 12.5px; padding: 6px 10px; }
+}
+@media (min-width: 720px) {
+  .tabs {
+    position: sticky; top: 0; z-index: 20; padding: 8px 16px; margin: -8px -16px 0;
+    background: linear-gradient(var(--bg) 82%, transparent);
+  }
 }
 .tabs a[aria-current="page"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 

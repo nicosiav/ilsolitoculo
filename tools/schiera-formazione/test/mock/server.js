@@ -61,6 +61,8 @@ http.createServer((req,res)=>{
       return json(res,200,[{id:7,label:'Giornata 7'},{id:6,label:'Giornata 6'},{id:5,label:'Giornata 5'}]);
     }
     if(p==='/rest/v1/fixtures') return json(res,200,fixtures);
+    if(p==='/rest/v1/rounds') return process.env.NOROUNDS ? json(res,404,{code:'PGRST205',message:"Could not find the table 'public.rounds' in the schema cache"})
+      : json(res,200,[{id:5,serie_a:7},{id:4,serie_a:6},{id:3,serie_a:5}]);
     if(p==='/rest/v1/players'){
       if(String(q.select||'').includes('teams('))
         return json(res,200,players.map(x=>({id:x.id,name:x.name,role:x.role,club:state.clubs[x.id]!==undefined?state.clubs[x.id]:x.club,team_id:TEAM.id,teams:{name:TEAM.name}})));
