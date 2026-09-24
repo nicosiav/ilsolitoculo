@@ -81,22 +81,30 @@ scegline una.
 1. Copia `db/account-esempio.csv` in `db/account.csv` e metti le email vere, una
    riga per partecipante: `email,squadra,nome,ruolo` (ruolo `giocatore` o
    `amministratore`). `account.csv` resta sul tuo computer: è in `.gitignore`.
-2. In **Project Settings → API** copia la chiave **service_role** (quella
-   segreta). Solo nel terminale del tuo computer, mai nel sito, nella repo o in
-   una chat.
-3. Nel terminale, dalla cartella della repo:
+2. Tieni a portata la chiave segreta: **Project Settings → API Keys**, la
+   **service_role** (o una *secret key* `sb_secret_…`). Mai la `anon` o la
+   *publishable*: lo script le riconosce e si ferma. La chiave resta sul tuo
+   computer: mai nel sito, nella repo o in una chat.
+3. Nel terminale, dalla cartella della repo (quella con dentro `db/` e `docs/`):
 
-   ```bash
-   export SUPABASE_URL=https://<progetto>.supabase.co
-   export SUPABASE_SERVICE_ROLE_KEY=<chiave service_role>
-   python3 db/crea_account.py db/account.csv                                  # prova: dice cosa farebbe
-   python3 db/crea_account.py db/account.csv --password <provvisoria> --davvero  # lo fa
+   ```
+   python3 db/crea_account.py db/account.csv --password PROVVISORIA
    ```
 
+   (al posto di `PROVVISORIA` la password comune che hai scelto). Lo script
+   chiede la chiave: incollala e premi Invio (mentre incolli non si
+   vede niente, è normale). È una prova: dice cosa farebbe e non cambia niente.
+   Se torna tutto, rilancia lo stesso comando con `--davvero` in fondo.
+
+   Scrivi i comandi così come sono, senza segni `<` `>` e senza commenti con
+   `#`: in zsh (il terminale del Mac) i primi danno *parse error* e i secondi
+   finiscono dentro il comando. L'indirizzo del progetto lo script lo prende da
+   solo dalla configurazione del sito.
+
    Chi non ha un account lo riceve già confermato, con la password provvisoria
-   di `--password`, uguale per tutti (almeno 6 caratteri; non scriverla nella
-   repo, che è pubblica). Senza `--password` ognuno ne riceve una diversa, tipo
-   `traversa-4827`. Chi l'account ce l'ha già (tu e Sebi) viene solo collegato
+   di `--password`, uguale per tutti (almeno 6 caratteri; la scrivi solo nel
+   comando, mai in un file della repo, che è pubblica). Senza `--password`
+   ognuno ne riceve una diversa, tipo `traversa-4827`. Chi l'account ce l'ha già (tu e Sebi) viene solo collegato
    alla squadra e al ruolo, e la sua password non cambia. Nessuna email parte da
    Supabase.
 

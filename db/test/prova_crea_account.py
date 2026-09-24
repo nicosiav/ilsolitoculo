@@ -8,6 +8,7 @@ collegamento alla squadra e al ruolo, account già esistenti lasciati con la
 loro password, --nuova-password, squadre scritte in modo diverso, errori chiari
 su squadra sconosciuta e indirizzo d'esempio, credenziali.txt.
 """
+import base64
 import http.server
 import json
 import os
@@ -22,6 +23,7 @@ import uuid
 QUI = pathlib.Path(__file__).resolve().parent
 SCRIPT = QUI.parent / 'crea_account.py'
 CHIAVE = 'finta-service-role'
+CHIAVE_NUOVA = 'sb_secret_finta'
 SQUADRE = [{'id': str(uuid.uuid4()), 'name': n, 'sheet_name': n}
            for n in ['Massimo', 'Giovanni', 'Colombrita', 'Giuseppe', 'MarcoI', 'MarcoII', 'Valerio', 'Sebi']]
 STATO = {'utenti': {}, 'profili': {}, 'chiamate': []}
@@ -54,7 +56,10 @@ class Finto(http.server.BaseHTTPRequestHandler):
 
     def gestisci(self, metodo):
         STATO['chiamate'].append((metodo, self.path))
-        if self.headers.get('apikey') != CHIAVE or self.headers.get('Authorization') != 'Bearer ' + CHIAVE:
+        auth = self.headers.get('Authorization')
+        if self.headers.get('apikey') not in (CHIAVE, CHIAVE_NUOVA) or \
+                (self.headers.get('apikey') == CHIAVE and auth != 'Bearer ' + CHIAVE) or \
+                (self.headers.get('apikey') == CHIAVE_NUOVA and auth is not None):
             return self.rispondi(401, {'msg': 'chiave sbagliata'})
         p = self.path
         if metodo == 'GET' and p.startswith('/auth/v1/admin/users'):
@@ -99,10 +104,16 @@ class Finto(http.server.BaseHTTPRequestHandler):
         self.gestisci('PATCH')
 
 
-def lancia(csv_testo, *opzioni, cartella):
+def lancia(csv_testo, *opzioni, cartella, chiave=CHIAVE, digitata=None):
     f = pathlib.Path(cartella) / 'account.csv'
     f.write_text(csv_testo, encoding='utf-8')
-    env = dict(os.environ, SUPABASE_URL=URL, SUPABASE_SERVICE_ROLE_KEY=CHIAVE)
+    env = dict(os.environ, SUPABASE_URL=URL, SUPABASE_SERVICE_ROLE_KEY=chiave or '')
+    if digitata is not None:   # la chiave incollata quando lo script la chiede
+        env.pop('SUPABASE_SERVICE_ROLE_KEY')
+        pre = 'import getpass, runpy, sys; getpass.getpass = lambda p="": %r; sys.argv = sys.argv[1:]; ' \
+              'runpy.run_path(sys.argv[0], run_name="__main__")' % digitata
+        return subprocess.run([sys.executable, '-c', pre, str(SCRIPT), str(f), *opzioni], env=env,
+                              capture_output=True, text=True)
     return subprocess.run([sys.executable, str(SCRIPT), str(f), *opzioni], env=env,
                           capture_output=True, text=True)
 
@@ -186,6 +197,20 @@ with tempfile.TemporaryDirectory() as tmp:
     controlla(r.returncode != 0 and '6 caratteri' in r.stderr, 'password troppo corta rifiutata')
     r = lancia(CSV2, '--pasword', 'x', cartella=tmp)
     controlla(r.returncode != 0 and 'sconosciuta' in r.stderr, 'opzione scritta male rifiutata')
+
+    print('la chiave')
+    r = lancia(CSV2, cartella=tmp, chiave=CHIAVE_NUOVA)
+    controlla(r.returncode == 0, 'secret key nuova (sb_secret_) solo nell\'header apikey: ' + r.stderr.strip()[:200])
+    r = lancia(CSV2, cartella=tmp, digitata='  "' + CHIAVE_NUOVA + '"  ')
+    controlla(r.returncode == 0, 'chiave incollata quando la chiede, con spazi e virgolette: ' + r.stderr.strip()[:200])
+    anon = 'eyJhbGciOiJIUzI1NiJ9.' + base64.urlsafe_b64encode(b'{"role":"anon"}').decode().rstrip('=') + '.firma'
+    r = lancia(CSV2, cartella=tmp, digitata=anon)
+    controlla(r.returncode != 0 and 'anon' in r.stderr, 'la chiave anon viene riconosciuta e rifiutata')
+    r = lancia(CSV2, cartella=tmp, digitata='sb_publishable_xyz')
+    controlla(r.returncode != 0 and 'publishable' in r.stderr, 'la chiave publishable viene rifiutata')
+    r = subprocess.run([sys.executable, str(SCRIPT), 'non/esiste.csv'], capture_output=True, text=True,
+                       env=dict(os.environ, SUPABASE_URL=URL, SUPABASE_SERVICE_ROLE_KEY=CHIAVE))
+    controlla(r.returncode != 0 and 'cartella della repo' in r.stderr, 'file .csv non trovato: dice dove lanciarlo')
 
     print('errori')
     r = lancia('email,squadra\nx@prova.it,Juventus\n', cartella=tmp)
