@@ -1,23 +1,60 @@
 # Schiera Formazione
 
-App web per schierare la formazione dal telefono sul file Excel (`.xls`) della lega, senza scrivere a mano i numeri nella colonna D.
+Lo strumento per schierare la formazione dal telefono senza scrivere a mano i
+numeri nella colonna D del file Excel della lega.
 
-**Usala qui:** https://nicosiav.github.io/ilsolitoculo/schiera/
+**Da settembre 2026 è una sezione del sito della lega:**
+https://nicosiav.github.io/ilsolitoculo/#/schiera — al telefono il pulsante
+verde al centro della barra in basso, sul computer il riquadro verde in cima a
+ogni sezione. Il vecchio indirizzo `…/schiera/` porta lì da solo.
 
-## Come si usa
+Questa cartella contiene il codice di Schiera: il sito lo prende da qui
+(`tools/sito-lega/build.py`) e lo monta nella sua pagina. Da qui esce anche la
+versione offline a file singolo.
 
-1. Apri l'app e carica il file `.xls` ricevuto dall'amministratore (la prima volta scegli la tua squadra).
-2. Scegli il modulo e tocca i posti sul campo, in panchina e in panchina extra (oppure tocca i giocatori "non schierati" per metterli nel primo posto libero).
-3. Tocca **Salva file Excel**: scarichi `formazioni_AAAAMMGG_Squadra.xls`, da inviare all'amministratore.
+## Come si usa (dentro il sito)
 
-Il file viene letto e scritto **solo sul telefono**: non viene inviato a nessun server.
+1. Entri nel sito con email e password: lo stesso account vale per tutto.
+2. Tocchi **Schiera** nella barra in basso (sul computer, il riquadro verde in cima alla pagina). Rosa e formazione della giornata arrivano dal [database della lega](../../db/README.md).
+3. Scegli il modulo e tocchi i posti sul campo, in panchina e in panchina extra (oppure tocchi i giocatori "non schierati" per metterli nel primo posto libero).
+4. Tocchi **Salva formazione**: la formazione finisce nel database, la vedono tutti e ogni modifica resta nel log.
+5. Tocchi **Scarica il file .xls** (compare subito dopo il salvataggio, e sta anche in fondo alla pagina) e lo mandi all'amministratore come sempre, su WhatsApp o per e-mail. **Il file resta obbligatorio**: è quello con cui si calcola la giornata.
 
-### Installarla come app (Android, Chrome)
+### Il conto alla rovescia e i blocchi
 
-Apri il link in Chrome → menu ⋮ → **Installa app** (o "Aggiungi a schermata Home"), oppure usa il pulsante "Installa l'app sul telefono" che compare nell'app.
-Una volta installata:
-- si apre a schermo intero e funziona anche senza connessione;
-- compare tra le app di **Condividi**: da WhatsApp/Gmail puoi condividere direttamente il `.xls` con "Schiera".
+In cima alla pagina c'è il **conto alla rovescia al primo fischio** della
+giornata (giorni, ore, minuti, secondi); lo stesso numero compare nel riquadro
+verde della Home. Da lì in poi **ogni giocatore si blocca quando la sua squadra
+scende in campo**: chi è già in campo resta dov'è (segnato con un pallino, non
+selezionabile), tutti gli altri si cambiano a piacere, e il conto passa al
+prossimo dei tuoi che scende in campo. La giornata si chiude dopo l'ultima
+partita. È il database ad applicare la regola, non solo la pagina.
+
+Finché la formazione della giornata non è salvata, sul pulsante Schiera della
+barra c'è un pallino rosso.
+
+### I comandi
+
+Nella pagina: **Ripristina l'ultima salvata** (pesca la più recente, anche da
+giornate precedenti), **Svuota**, **Riserve in ordine libero**; in fondo
+**Formazioni di giornata** (quelle di tutte le squadre, anche delle giornate
+passate), **Scarica il file .xls** (genera `formazioni_AAAAMMGG_Squadra.xls` dal
+modello della lega tenuto in Supabase Storage: è il file da mandare
+all'amministratore) e **Storico modifiche**.
+
+Nel menu in alto a destra del sito (tocca il tuo nome) c'è **Cambia password**:
+serve la prima volta, per sostituire la password provvisoria.
+
+Per l'amministratore, nello stesso menu: **Aggiorna le rose da
+un .xls**, **Aggiorna il calendario di Serie A**, **Squadre dei giocatori** (chi
+non ha una squadra di Serie A si blocca alla prima partita della giornata),
+**Giornata corrente (a mano)**.
+
+## Versione offline (senza account)
+
+`dist/Schiera-Formazione-offline.html` è un file unico che non parla con il
+database: carichi il file .xls della lega, schieri e scarichi il file
+aggiornato. Serve solo come riserva, se il sito non fosse raggiungibile.
 
 ## Cosa scrive nel file
 
@@ -32,20 +69,26 @@ Replica esattamente la macro `Formazioni` (pulsante "Schiera formazione") del fo
 
 Tutto il resto del file (macro VBA, pulsante, formati, altri fogli) resta identico byte per byte.
 
-Le riserve sono per ruolo (12 P, 13–14 D, 15–16 C, 17–18 A), come previsto dalle formule "riserva d'ufficio" del foglio; dal menu **Opzioni** si possono mettere in ordine libero.
-Se mancano numeri, l'app avvisa: come con la macro, l'ordine "scala" e i posti vuoti vengono presi dai giocatori successivi.
+Le riserve sono per ruolo (12 P, 13–14 D, 15–16 C, 17–18 A), come previsto dalle formule "riserva d'ufficio" del foglio; con **Riserve in ordine libero** entrano nell'ordine scelto.
+Se mancano numeri, la pagina avvisa: come con la macro, l'ordine "scala" e i posti vuoti vengono presi dai giocatori successivi.
 
 ## Sviluppo
 
 - `src/engine.js` — lettura/scrittura `.xls` (BIFF8 in contenitore CFB) senza librerie esterne, con valutatore delle formule del foglio.
-- `src/ui.html`, `src/ui.css`, `src/ui.js` — interfaccia.
-- `src/manifest.webmanifest`, `src/sw.js` — app installabile, funzionamento offline, ricezione file condivisi.
-- `icons/make_icons.py` — genera le icone in `docs/schiera/icons/`.
+- `src/sb.js` — client minimo per Supabase (login, query, RPC, funzioni, storage), senza librerie esterne.
+- `src/config.js` — indirizzo e chiave pubblica del progetto Supabase (la chiave `anon` è pubblica per scelta; la `service_role` non va mai qui).
+- `src/ui.html`, `src/ui.css`, `src/ui.js` — la pagina. Le parti fra `<!--solo-app-->` e `<!--/solo-app-->` servono solo alla versione offline; dentro il sito cerca i suoi elementi solo sotto `#schiera-app` e parla col sito tramite `window.Schiera` (avvia, mostra, esci, scadenza, funzioni da amministratore, nuova password).
+- `icons/make_icons.py` — le vecchie icone in `docs/schiera/icons/` (le icone dell'app ora sono quelle del sito).
 
 ```bash
-python3 tools/schiera-formazione/build.py          # aggiorna docs/schiera/ (pubblicato da GitHub Pages)
+python3 tools/sito-lega/build.py                   # il sito, con Schiera dentro (docs/index.html)
+python3 tools/schiera-formazione/build.py          # docs/schiera/: il vecchio indirizzo che porta al sito
 python3 tools/schiera-formazione/build.py --all    # anche la versione offline a file singolo in dist/
 node tools/schiera-formazione/test/engine.test.js "Formazioni.xls" NomeSquadra
 ```
+
+Le prove di Schiera (accesso, salvataggio, export, blocchi, formazioni
+pubbliche, ripristino, amministrazione) girano sul sito, nella sezione
+`#/schiera`, contro un finto Supabase: vedi [`test/mock/`](test/mock/README.md).
 
 I file `.xls` della lega non vanno messi nella repo (sono esclusi da `.gitignore`).

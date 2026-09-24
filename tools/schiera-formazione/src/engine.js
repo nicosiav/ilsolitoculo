@@ -915,6 +915,34 @@
       sheetNames: teamSheets,
       allSheets: book.sheets.map(s => s.name),
       roster(name) { return readRoster(book, name); },
+      clubs() { return readListone(book); },
+      has(name) { return book.sheets.some(s => s.name === name); },
+      // Lettura libera di un foglio: serve al file di giornata (classifiche, calendario, voti...)
+      grid(name) {
+        const m = buildSheet(book, sheetByName(book, name));
+        const get = (r, c) => { const v = freshValue(m, r, c); return v.t === 'blank' || v.t === 'e' ? null : v.v; };
+        return {
+          get,
+          num(r, c) { const v = get(r, c); return typeof v === 'number' ? v : null; },
+          str(r, c) { const v = get(r, c); return typeof v === 'string' ? v.trim() : (v == null || v === false ? '' : String(v)); },
+          // cerca un testo nella zona indicata e ritorna {r, c}
+          find(re, r0, r1, c0, c1) {
+            for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
+              const v = get(r, c);
+              if (typeof v === 'string' && re.test(v.trim())) return { r, c };
+            }
+            return null;
+          },
+          findAll(re, r0, r1, c0, c1) {
+            const out = [];
+            for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
+              const v = get(r, c);
+              if (typeof v === 'string' && re.test(v.trim())) out.push({ r, c });
+            }
+            return out;
+          }
+        };
+      },
       build(name, numbers) { return buildFile(book, name, numbers); },
       _book: book
     };
@@ -950,6 +978,41 @@
       });
     }
     return players;
+  }
+
+  // Listone: un foglio con le colonne Ruolo | Nome | Squadra. Serve solo a sapere
+  // in che squadra di Serie A gioca chi è in rosa (per il blocco partita per partita).
+  // Ritorna una mappa "nome|ruolo" -> squadra, più la chiave "nome" da sola.
+  const plainName = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[.'`’-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  function readListone(book) {
+    const out = new Map();
+    for (const sh of book.sheets) {
+      if (sh.type !== 0) continue;
+      let m;
+      try { m = buildSheet(book, sh); } catch (e) { continue; }
+      let head = -1;
+      for (let r = 0; r < 6 && head < 0; r++) {
+        const a = cellValue(m, r, 0), b = cellValue(m, r, 1), c = cellValue(m, r, 2);
+        if (a.t === 's' && b.t === 's' && c.t === 's' &&
+            /ruol/i.test(a.v) && /nom/i.test(b.v) && /squadr/i.test(c.v)) head = r;
+      }
+      if (head < 0) continue;
+      let vuote = 0;
+      for (let r = head + 1; vuote < 40 && r < head + 2000; r++) {
+        const ro = freshValue(m, r, 0), nm = freshValue(m, r, 1), cl = freshValue(m, r, 2);
+        const name = nm.t === 's' ? nm.v.trim() : '';
+        const club = cl.t === 's' ? cl.v.trim() : '';
+        if (!name || !club) { vuote++; continue; }
+        vuote = 0;
+        const role = ro.t === 's' ? ro.v.trim().toUpperCase() : '';
+        const k = plainName(name);
+        out.set(k + '|' + role, club);
+        if (!out.has(k)) out.set(k, club);
+      }
+    }
+    return out;
   }
 
   // numbers: array di 31 elementi (numero o null) per le righe 1..31 della colonna D.
@@ -1021,7 +1084,7 @@
     return { bytes: outFile, lineup, shown, modulo, recalc: rc };
   }
 
-  const api = { load, XlsError, _internals: { readCFB, openWorkbook, buildSheet, serialize, cfbReplaceStream, cellValue, recalc, parseRecords, evaluate, SID } };
+  const api = { load, XlsError, norm: plainName, _internals: { readCFB, openWorkbook, buildSheet, serialize, cfbReplaceStream, cellValue, recalc, parseRecords, evaluate, SID } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.XlsFormazione = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -192,8 +192,9 @@ button { cursor: pointer; }
   text-transform: uppercase;
 }
 .section-h span { color: var(--muted); font-size: 13px; }
-.modules { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
-.modules::-webkit-scrollbar { display: none; }
+/* i moduli vanno a capo invece di scorrere di lato */
+.modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
+.modules .chip { white-space: nowrap; padding-inline: 4px; }
 .chip {
   flex: none;
   border: 1px solid var(--line);
@@ -420,3 +421,52 @@ button { cursor: pointer; }
   .token { width: 44px; height: 44px; font-size: 21px; }
   .slot .nm { font-size: 12px; }
 }
+
+/* blocco partita per partita: chi è già sceso in campo resta dov'è */
+.slot.locked { opacity: 1; }
+.slot.locked .token { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line); font-size: 13px; }
+.slot.locked .nm { opacity: .75; }
+.row.locked { opacity: .7; }
+.row.locked .num { text-decoration: line-through; }
+.pchip.locked { opacity: .5; }
+.pchip .lk { font-size: 10px; color: var(--muted); margin-left: 2px; }
+.sheet-b .row.locked { opacity: .55; }
+
+/* formazioni di tutta la lega */
+.team-block { border-top: 1px solid var(--line); }
+.team-block:first-child { border-top: 0; }
+.team-block > summary {
+  padding: 12px 16px; cursor: pointer; list-style: none;
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+}
+.team-block > summary::-webkit-details-marker { display: none; }
+.team-block > summary::before { content: '›'; color: var(--muted); transition: transform .15s ease; }
+.team-block[open] > summary::before { transform: rotate(90deg); }
+.team-block .xl { margin-top: 0; }
+
+/* comandi dentro la pagina (una volta stavano nel menu "Opzioni") */
+.tools, .online-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.tools { margin-top: -6px; }
+.tool {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 600;
+}
+.tool:disabled { opacity: .45; cursor: default; }
+.online-tools { padding-top: 4px; border-top: 1px solid var(--line); }
+.online-tools .tool { flex: 1 1 auto; }
+.switch { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); padding: 2px 4px; }
+.switch input { width: 18px; height: 18px; accent-color: var(--pitch-2); }
+
+/* conto alla rovescia per schierare */
+.conto { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 6px; }
+.conto-lbl { font: 700 12px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.conto-num { display: flex; gap: 6px; }
+.conto-num span {
+  flex: 1 1 0; min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 8px 4px 6px;
+  border-radius: 12px; background: linear-gradient(160deg, var(--pitch-2), var(--pitch-1)); color: #fff;
+}
+.conto-num b { font: 700 30px/1 var(--display); font-variant-numeric: tabular-nums; }
+.conto-num i { font-style: normal; font-size: 11px; opacity: .85; }
+.conto-sub { color: var(--muted); font-size: 13px; }
+.conto[data-fase="blocchi"] .conto-num span, .conto[data-fase="incampo"] .conto-num span { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+.conto[data-fase="chiusa"] .conto-lbl { color: var(--role-a); }

@@ -1,0 +1,92 @@
+# Il sito della lega
+
+Il sito con tutto quello che succede nella lega: rose, calendario e risultati,
+classifiche, statistiche, coppe, playoff, albo d'oro e premi.
+
+**Aprilo qui:** https://nicosiav.github.io/ilsolitoculo/
+
+Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
+
+## Le sezioni
+
+| Sezione | Cosa c'è |
+|---|---|
+| Home | il riquadro verde per schierare, con il conto alla rovescia; la tua squadra, il risultato dell'ultima giornata, la prossima partita, l'andamento e la classifica |
+| Schiera | la formazione della giornata: campo, panchina, blocco partita per partita, conto alla rovescia al primo fischio, export `.xls` ([dettagli](../schiera-formazione/README.md)) |
+| Squadra | una pagina per squadra: posizioni, punteggi di giornata, andamento, tutte le partite con l'esito e i migliori della rosa |
+| Rose | le otto rose con ruolo, squadra di Serie A, costo, presenze, media e fantamedia; crediti residui e gol reali |
+| Calendario | tutte le 20 giornate; toccando una partita esce il tabellino con voti, subentri e marcatori |
+| Classifiche | campionato, campionato "corretto", Coppa di Lega, sfigometro, gol reali e classifica della Coppa |
+| Statistiche | cannonieri, migliori fantamedie e medie voto, prestazioni della giornata, punteggi a confronto |
+| Testa a testa | due squadre a confronto: scontri diretti, medie, giornate vinte, punteggi giornata per giornata |
+| Coppe | classifica parallela della Coppa con gli accoppiamenti dei quarti, Coppa di Lega, Supercoppa |
+| Playoff | tabellone, vantaggio di chi gioca in casa, i tre esiti del doppio confronto e le regole della bella |
+| Albo d'oro | la bacheca di sempre e tutte le stagioni dal 1991/92 |
+| Premi | montepremi, ripartizione, crediti per la stagione dopo e come si passa dal punteggio ai gol |
+
+Al telefono le sezioni si cambiano dalla barra in basso: Home, Calendario,
+**Schiera** (il pulsante verde al centro, con un pallino rosso finché la
+formazione della giornata non è salvata), Classifiche e **Altro**, che apre un
+pannello con tutte le altre (Statistiche compresa). In Home il riquadro verde
+porta a Schiera e tiene il conto alla rovescia al primo fischio.
+
+Sul computer la barra sta in alto (Home, Calendario, Classifiche, Altro) e
+Schiera non ci sta: al suo posto il riquadro verde con il conto alla rovescia
+compare in cima a ogni sezione, tranne dentro Schiera.
+
+Il sito si installa come app: su Android dal menu in alto a destra ("Installa
+l'app sul telefono") o dal menu di Chrome; su iPhone da Safari → Condividi →
+"Aggiungi alla schermata Home".
+
+## Ogni settimana: carica la giornata
+
+L'amministratore apre il menu in alto a destra → **Carica la giornata** e sceglie
+il file `.xls` della giornata (quello con i fogli `voti`, `CALENDARIO`,
+`CLASSIFICHE`, `SUPERCLASSIFICA`, `GOL REALI`, `ROSE` e un foglio per squadra).
+
+Il sito legge il file nel browser, mostra un'anteprima (giornata, partite, voti,
+punteggi di ogni squadra) e, dopo la conferma, scrive tutto nel database in una
+sola operazione: risultati e calendario, voti e fantavoti di ogni giocatore,
+formazioni realmente schierate con subentri e marcatori, classifiche,
+superclassifica, gol reali, rose e crediti.
+
+Le formazioni salvate in Schiera **non vengono toccate**: se non coincidono con
+quelle del file, il sito le mostra a confronto. Vale il file, perché è quello
+con cui sono stati calcolati i punteggi.
+
+La giornata 1 della lega è la 3ª di Serie A (regolamento, punto 5.1): il
+collegamento lo fa il sito da solo.
+
+## Se il sito dice che manca una tabella
+
+*"Could not find the table 'public.rounds' in the schema cache"* vuol dire che
+il database della stagione non c'è ancora: esegui `db/08_stagione.sql` nel SQL
+Editor di Supabase. Se le tabelle ci sono già, è solo la cache di PostgREST:
+
+```sql
+notify pgrst, 'reload schema';
+```
+
+Il sito in quel caso entra lo stesso e lo dice in chiaro all'amministratore: le
+sezioni restano vuote finché le tabelle non ci sono.
+
+## Sviluppo
+
+- `src/index.html`, `src/app.css`, `src/app.js` — il sito.
+- `src/giornata.js` — lettura del file .xls di giornata (tutti i fogli).
+- Schiera arriva da `tools/schiera-formazione/src/` (`ui.html`, `ui.css`, `ui.js`): `build.py` la mette al posto del segnaposto in `src/index.html` e ne chiude lo stile sotto `.sch`, così non tocca il resto del sito.
+- `src/manifest.webmanifest`, `src/sw.js` — il sito come app installabile (il service worker non tiene niente in cache).
+- `src/logo.svg` — il marchio della lega (il "colpo di culo"). `build.py` lo mette
+  nell'intestazione e lo usa come favicon; `icons/make_icons.py` ne ricava le PNG
+  in `docs/icons/` (favicon, icone dell'app e icona per la schermata Home dell'iPhone). Se cambi il
+  logo, rilancia tutti e due.
+- il motore `.xls` e il client Supabase arrivano da `tools/schiera-formazione/src/`.
+
+```bash
+python3 tools/sito-lega/build.py                      # aggiorna docs/index.html
+node -e "const G=require('./tools/sito-lega/src/giornata.js'),fs=require('fs');
+         console.log(Object.keys(G.parse(new Uint8Array(fs.readFileSync('giornata.xls')),'x')))"
+```
+
+Le prove del sito girano contro un finto Supabase costruito dal file di giornata
+vero: vedi [`test/mock/`](test/mock/README.md).

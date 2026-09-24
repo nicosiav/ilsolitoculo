@@ -1,0 +1,21 @@
+{
+  "name": "Il Solito Culo — fantacalcio",
+  "short_name": "Il Solito Culo",
+  "description": "La lega Il Solito Culo: schiera la formazione, rose, calendario, classifiche e statistiche.",
+  "lang": "it",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDF1EA",
+  "theme_color": "#1D6A3E",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Schiera la formazione", "short_name": "Schiera", "url": "./#/schiera", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

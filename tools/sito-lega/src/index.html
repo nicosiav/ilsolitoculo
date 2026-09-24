@@ -1,0 +1,53 @@
+<div class="site">
+  <header class="top">
+    <div class="brand">
+      <span class="crest" aria-hidden="true"></span>
+      <div>
+        <h1>Il Solito Culo</h1>
+        <small id="sub">fantacalcio dal 1991</small>
+      </div>
+    </div>
+    <button class="icon-btn" id="userBtn" type="button" aria-haspopup="true" aria-expanded="false" hidden></button>
+    <div class="menu-pop" id="userPop" hidden>
+      <div class="menu-head" id="userHead"></div>
+      <span id="adminMenu" hidden style="display:contents">
+        <button type="button" id="adminBtn">Carica la giornata</button>
+        <button type="button" id="rosterBtn">Aggiorna le rose da un .xls</button>
+        <button type="button" id="calBtn">Aggiorna il calendario di Serie A</button>
+        <button type="button" id="clubBtn">Squadre dei giocatori</button>
+        <button type="button" id="matchdayBtn">Giornata corrente (a mano)</button>
+        <hr>
+      </span>
+      <button type="button" id="installBtn" hidden>Installa l'app sul telefono</button>
+      <button type="button" id="pwdBtn">Cambia password</button>
+      <button type="button" id="themeBtn">Tema chiaro / scuro</button>
+      <button type="button" id="logoutBtn">Esci</button>
+    </div>
+  </header>
+
+  <a class="schiera-big" id="schieraBig" href="#/schiera" hidden></a>
+  <nav class="tabbar" id="nav" aria-label="Sezioni" hidden></nav>
+
+  <section class="card login" id="loginCard" hidden>
+    <h2>Entra con il tuo account</h2>
+    <p>La tua formazione, e poi rose, calendario, classifiche e statistiche della lega, sempre aggiornati.</p>
+    <form id="loginForm">
+      <label class="small muted" for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label class="small muted" for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="btn btn-primary" type="submit" id="loginBtn">Entra</button>
+    </form>
+    <div class="row-links">
+      <button type="button" id="recoverBtn" class="linkish">Password dimenticata</button>
+    </div>
+  </section>
+
+  <div id="notices"></div>
+  <main id="view" aria-live="polite"></main>
+  <!-- schiera: qui build.py mette Schiera Formazione (tools/schiera-formazione/src/ui.html) -->
+
+  <footer class="foot" id="foot"></footer>
+</div>
+<div id="layer"></div>
+<input type="file" id="roundFile" accept=".xls,application/vnd.ms-excel" hidden>
