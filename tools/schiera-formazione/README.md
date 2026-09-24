@@ -4,8 +4,9 @@ Lo strumento per schierare la formazione dal telefono senza scrivere a mano i
 numeri nella colonna D del file Excel della lega.
 
 **Da settembre 2026 è una sezione del sito della lega:**
-https://nicosiav.github.io/ilsolitoculo/#/schiera — il pulsante verde al centro
-della barra in basso. Il vecchio indirizzo `…/schiera/` porta lì da solo.
+https://nicosiav.github.io/ilsolitoculo/#/schiera — al telefono il pulsante
+verde al centro della barra in basso, sul computer il riquadro verde in cima a
+ogni sezione. Il vecchio indirizzo `…/schiera/` porta lì da solo.
 
 Questa cartella contiene il codice di Schiera: il sito lo prende da qui
 (`tools/sito-lega/build.py`) e lo monta nella sua pagina. Da qui esce anche la
@@ -14,7 +15,7 @@ versione offline a file singolo.
 ## Come si usa (dentro il sito)
 
 1. Entri nel sito con email e password: lo stesso account vale per tutto.
-2. Tocchi **Schiera** nella barra in basso. Rosa e formazione della giornata arrivano dal [database della lega](../../db/README.md).
+2. Tocchi **Schiera** nella barra in basso (sul computer, il riquadro verde in cima alla pagina). Rosa e formazione della giornata arrivano dal [database della lega](../../db/README.md).
 3. Scegli il modulo e tocchi i posti sul campo, in panchina e in panchina extra (oppure tocchi i giocatori "non schierati" per metterli nel primo posto libero).
 4. Tocchi **Salva formazione**: la formazione finisce nel database, la vedono tutti e ogni modifica resta nel log.
 

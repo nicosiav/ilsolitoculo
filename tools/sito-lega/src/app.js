@@ -916,7 +916,10 @@
     const sez = SEZIONI.find(s => s.id === S.sezione) || SEZIONI[0];
     $('#nav').innerHTML = navHtml();
     $('#schieraBig').innerHTML = schieraDentro();
-    $('#schieraBig').hidden = sez.id !== '';
+    // il riquadro verde: al telefono solo in Home (c'è il pulsante al centro della
+    // barra), sul computer in tutte le sezioni; mai dentro Schiera
+    document.body.dataset.sez = sez.id || 'home';
+    $('#schieraBig').hidden = sez.id === 'schiera';
     const inSchiera = sez.id === 'schiera';
     document.body.classList.toggle('in-schiera', inSchiera);
     if (window.Schiera) Schiera.mostra(inSchiera);

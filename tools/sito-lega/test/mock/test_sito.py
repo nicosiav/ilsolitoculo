@@ -189,6 +189,15 @@ async def main():
                 assert not sc
             await pg.evaluate("location.hash = '#/classifiche'"); await pg.wait_for_timeout(600)
             assert not await pg.is_visible('#pitch') and await pg.is_visible('#view')
+            # sul computer (siamo a 1100 px): Schiera è il riquadro verde in ogni sezione, non una voce della barra
+            voci_pc = [v.strip() for v in await pg.locator('#nav > a:visible, #nav > button:visible').all_inner_texts()]
+            print('  computer, barra:', ' · '.join(voci_pc), '| riquadro in Classifiche:', await pg.is_visible('#schieraBig'))
+            assert 'Schiera' not in voci_pc and await pg.is_visible('#schieraBig')
+            await pg.click('#schieraBig'); await pg.wait_for_timeout(800)
+            print('  computer, dal riquadro a:', pg.url.split('#')[1], '| riquadro dentro Schiera:', await pg.is_visible('#schieraBig'))
+            assert pg.url.endswith('#/schiera') and not await pg.is_visible('#schieraBig') and await pg.is_visible('#pitch')
+            await pg.set_viewport_size({'width': 390, 'height': 800}); await pg.evaluate("location.hash = '#/classifiche'"); await pg.wait_for_timeout(600)
+            assert not await pg.is_visible('#schieraBig'), 'al telefono il riquadro sta solo in Home'
         await apri(pw, {}, s8, '8 barra, Schiera al centro, riquadro verde in Home')
 
 asyncio.run(main())

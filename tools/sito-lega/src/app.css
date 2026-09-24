@@ -135,12 +135,12 @@ a { color: inherit; }
   .tabbar [aria-current] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
   .tabbar [aria-current]::after { display: none; }
   .tabbar { height: auto; }
-  .tabbar .tb-schiera { color: #fff; background: linear-gradient(160deg, var(--pitch-2), var(--pitch-1)); }
-  .tabbar .tb-schiera:hover { color: #fff; }
-  .tabbar .tb-schiera .ic { width: 18px; height: 18px; padding: 0; margin: 0; border: 0; background: none; box-shadow: none; }
-  .tabbar .tb-schiera[aria-current] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--pitch-2); }
-  .tabbar .tb-schiera[aria-current] .ic { box-shadow: none; }
-  .tabbar .tb-schiera[data-da-fare]::before { top: 3px; left: auto; right: 3px; width: 9px; height: 9px; }
+  /* sul computer Schiera non sta nella barra: c'è il riquadro verde in ogni sezione */
+  .tabbar .tb-schiera { display: none; }
+}
+/* al telefono il riquadro verde sta solo in Home */
+@media (max-width: 719px) {
+  body:not([data-sez="home"]) #schieraBig { display: none; }
 }
 
 /* il riquadro verde di Schiera */

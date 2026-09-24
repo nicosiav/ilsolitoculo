@@ -27,9 +27,12 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 Al telefono le sezioni si cambiano dalla barra in basso: Home, Calendario,
 **Schiera** (il pulsante verde al centro, con un pallino rosso finché la
 formazione della giornata non è salvata), Classifiche e **Altro**, che apre un
-pannello con tutte le altre (Statistiche compresa). Sul computer la stessa barra
-sta in alto. In Home il riquadro verde porta a Schiera e tiene il conto alla
-rovescia al primo fischio.
+pannello con tutte le altre (Statistiche compresa). In Home il riquadro verde
+porta a Schiera e tiene il conto alla rovescia al primo fischio.
+
+Sul computer la barra sta in alto (Home, Calendario, Classifiche, Altro) e
+Schiera non ci sta: al suo posto il riquadro verde con il conto alla rovescia
+compare in cima a ogni sezione, tranne dentro Schiera.
 
 Il sito si installa come app: su Android dal menu in alto a destra ("Installa
 l'app sul telefono") o dal menu di Chrome; su iPhone da Safari → Condividi →
