@@ -169,6 +169,8 @@ declare
   v_out     jsonb := '{}'::jsonb;
   v_ignote  text;
   v_diff    jsonb;
+  v_ultima  smallint;
+  v_vecchio boolean;
 begin
   if not public.is_admin() then
     raise exception 'Solo l''amministratore può caricare la giornata' using errcode = 'P0005';
@@ -184,6 +186,12 @@ begin
   if v_ignote is not null then
     raise exception 'Squadre non riconosciute: %', v_ignote using errcode = 'P0006';
   end if;
+
+  -- Un file di una giornata passata, caricato dopo uno più recente (per recuperare le
+  -- giornate mancanti), aggiorna solo quella giornata e i risultati fino a lì: non
+  -- riporta indietro i risultati delle giornate dopo, le rose con i costi e l'albo.
+  select max(id) into v_ultima from public.rounds where caricata_at is not null and id <> v_round;
+  v_vecchio := v_ultima is not null and v_round < v_ultima;
 
   -- giornate: dal calendario completo, così il sito le ha tutte
   insert into public.rounds (id, serie_a, fase, label, giocata)
@@ -202,9 +210,10 @@ begin
   update public.rounds set caricata_at = now(), file = p ->> 'file', serie_a = coalesce(v_seriea, serie_a)
   where id = v_round;
 
-  -- partite di tutte le giornate presenti nel file
+  -- partite di tutte le giornate presenti nel file (con un file passato: solo fino alla sua)
   delete from public.matches m
   where m.competizione = 'campionato'
+    and (not v_vecchio or m.round <= v_round)
     and m.round in (select distinct (e ->> 'giornata')::smallint
                     from jsonb_array_elements(coalesce(p -> 'calendario', '[]'::jsonb)) e);
 
@@ -220,7 +229,8 @@ begin
     from jsonb_array_elements(coalesce(p -> 'calendario', '[]'::jsonb)) with ordinality t(e, ord)
   )
   insert into public.matches (round, competizione, slot, casa, fuori, pos_casa, pos_fuori, gol_casa, gol_fuori)
-  select round, 'campionato', slot, casa, fuori, pos_casa, pos_fuori, gol_casa, gol_fuori from src;
+  select round, 'campionato', slot, casa, fuori, pos_casa, pos_fuori, gol_casa, gol_fuori from src
+  where not v_vecchio or round <= v_round;
   get diagnostics v_n = row_count;
   v_out := v_out || jsonb_build_object('partite', v_n);
 
@@ -241,7 +251,8 @@ begin
   get diagnostics v_n = row_count;
   v_out := v_out || jsonb_build_object('squadre', v_n);
 
-  -- completa i punteggi delle partite di questa giornata dal tabellino
+  -- completa i punteggi delle partite dai tabellini: di tutte le giornate caricate,
+  -- perché le partite appena riscritte dal calendario non li hanno
   update public.matches m set
     punti_casa = c.punteggio, punti_fuori = f.punteggio,
     campo_casa = c.fattore_campo, campo_fuori = f.fattore_campo,
@@ -249,7 +260,7 @@ begin
     modulo_casa = c.modulo, modulo_fuori = f.modulo,
     totale_casa = c.totale, totale_fuori = f.totale
   from public.round_teams c, public.round_teams f
-  where m.round = v_round and c.round = v_round and f.round = v_round
+  where m.competizione = 'campionato' and c.round = m.round and f.round = m.round
     and c.team_id = m.casa and f.team_id = m.fuori;
 
   -- voti di tutti i giocatori
@@ -339,12 +350,12 @@ begin
   get diagnostics v_n = row_count;
   v_out := v_out || jsonb_build_object('marcatori', v_n);
 
-  -- costo e valore dei giocatori
+  -- costo e valore dei giocatori (non da un file passato: valgono quelli più recenti)
   insert into public.roster_costs (team_id, slot, nome, costo, valore)
   select public.team_by_name(e ->> 'squadra'), (e ->> 'slot')::smallint, e ->> 'nome',
          nullif(e ->> 'costo', '')::numeric, nullif(e ->> 'valore', '')::numeric
   from jsonb_array_elements(coalesce(p -> 'rose', '[]'::jsonb)) e
-  where public.team_by_name(e ->> 'squadra') is not null
+  where public.team_by_name(e ->> 'squadra') is not null and not v_vecchio
   on conflict (team_id, slot) do update
     set nome = excluded.nome, costo = excluded.costo, valore = excluded.valore;
 
@@ -353,7 +364,7 @@ begin
   select e ->> 'stagione', nullif(e ->> 'campionato', ''), nullif(e ->> 'coppa', ''),
          nullif(e ->> 'coppa_lega', ''), nullif(e ->> 'supercoppa', '')
   from jsonb_array_elements(coalesce(p -> 'albo', '[]'::jsonb)) e
-  where coalesce(e ->> 'stagione', '') <> ''
+  where coalesce(e ->> 'stagione', '') <> '' and not v_vecchio
   on conflict (stagione) do update set
     campionato = coalesce(excluded.campionato, public.albo.campionato),
     coppa = coalesce(excluded.coppa, public.albo.coppa),
@@ -379,7 +390,7 @@ begin
     where rt.round = v_round and a.nomi is not null and f.nomi is distinct from a.nomi
   ) q;
 
-  return v_out || jsonb_build_object('giornata', v_round, 'serie_a', v_seriea,
+  return v_out || jsonb_build_object('giornata', v_round, 'serie_a', v_seriea, 'passata', v_vecchio,
                                      'differenze', coalesce(v_diff, '[]'::jsonb));
 end $$;
 

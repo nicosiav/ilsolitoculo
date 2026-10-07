@@ -158,6 +158,15 @@ Dopo ogni giornata, dal sito come amministratore: **menu → Carica la giornata*
 con il file `.xls` della lega. Da quel file nascono risultati, voti, classifiche,
 statistiche, rose e crediti (`import_round()`).
 
+**Giornate passate.** Si può caricare anche il file di una giornata già passata
+(per esempio le prime, se mancano), in qualsiasi ordine: `import_round()` si
+accorge che è già caricata una giornata più recente e aggiorna solo i dati di
+quella giornata (voti, tabellini, classifiche fotografate) e i risultati fino a
+lì; i risultati delle giornate dopo, i costi delle rose e l'albo restano quelli
+dell'ultimo file. Il sito lo dice nell'anteprima. Per avere questa regola su un
+database già installato basta rieseguire `08_stagione.sql` (si può rieseguire:
+non tocca i dati).
+
 Dopo il mercato, dal sito come amministratore: **menu → Aggiorna le rose da
 un .xls** (allinea le rose e il modello per gli export) e **menu → Aggiorna il
 calendario di Serie A** con l'abbinamento delle squadre, per far ripartire il

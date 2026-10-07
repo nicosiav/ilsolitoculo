@@ -1027,6 +1027,9 @@
       return;
     }
     const giocate = dati.calendario.filter(m => m.giocata).length;
+    // una giornata passata, caricata dopo una più recente (per recuperare quelle mancanti)
+    const ultimaCaricata = S.rounds.filter(r => r.caricata_at && r.id !== dati.giornata).reduce((m, r) => Math.max(m, r.id), 0);
+    const passata = ultimaCaricata > dati.giornata;
     const el = sheet(`<div class="sheet-h"><div><h4>Caricare la giornata ${dati.giornata}?</h4><p>${esc(file.name)}</p></div></div>
       <div class="sheet-b">
         <div class="tiles" style="margin-top:12px">
@@ -1040,6 +1043,7 @@
             <span class="who"><b>${esc(bel(t.squadra))}</b><span>${esc(t.modulo || '')} · ${t.gol_fatti != null ? t.gol_fatti + '–' + t.gol_subiti + ' con ' + esc(t.avversario || '') : 'senza partita'}</span></span>
             <span class="val"><b>${n1(t.punteggio)}</b><span>punteggio</span></span></div>`).join('')}
         </div>
+        ${passata ? `<p class="small" style="margin:12px 0 0"><b>È una giornata passata</b>: è già caricata la ${ultimaCaricata}ª. Aggiorno solo i dati della ${dati.giornata}ª (voti, tabellini, classifiche di quella giornata) e i risultati fino a lì; i risultati delle giornate dopo e i costi delle rose restano quelli dell'ultimo file.</p>` : ''}
         <p class="small muted" style="margin:12px 0 0">Vengono aggiornati risultati, classifiche, voti, marcatori, rose e crediti.
         Le formazioni salvate in Schiera restano dove sono: se non coincidono con il file te lo dico.</p>
       </div>
@@ -1057,7 +1061,7 @@
         S.giornataScelta = res.giornata;
         render();
         const diff = res.differenze || [];
-        notice('Giornata ' + res.giornata + ' caricata: ' + res.partite + ' partite, ' + res.voti + ' voti, ' + res.classifiche + ' righe di classifica.');
+        notice('Giornata ' + res.giornata + (res.passata ? ' (passata)' : '') + ' caricata: ' + res.partite + ' partite, ' + res.voti + ' voti, ' + res.classifiche + ' righe di classifica.');
         if (diff.length) mostraDifferenze(diff);
       } catch (e) {
         console.error(e);
