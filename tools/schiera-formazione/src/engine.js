@@ -816,14 +816,18 @@
   }
 
   // ---------------------------------------------------------- Serialize ----
-  function serialize(book, model, addUncalced = true) {
-    const { recs, sheets } = book;
+  function serialize(book, models, addUncalced = true) {
+    const { recs } = book;
+    // uno o più fogli modificati (il file unico con tutte le formazioni ne cambia otto)
+    const lista = !models ? [] : Array.isArray(models) ? models : [models];
+    const perInizio = new Map(lista.map(m => [m.sh.start, m]));
     const out = []; // {sid, data, oldOff, tag}
     const push = (sid, data, oldOff, tag) => out.push({ sid, data, oldOff, tag });
-    const sh = model ? model.sh : null;
     for (let i = 0; i < recs.length; i++) {
       const r = recs[i];
-      if (sh && i === sh.start) {
+      const model = perInizio.get(i);
+      if (model) {
+        const sh = model.sh;
         for (const x of model.before) {
           push(x.sid, x.data, x.off);
           if (addUncalced && x.sid === SID.BOF && x === model.before[0] && !model.before.some(y => y.sid === SID.UNCALCED)) push(SID.UNCALCED, new Uint8Array(2), null);
@@ -854,8 +858,8 @@
       if (!best) throw new XlsError('Impossibile ricalcolare gli indici del file.');
       return best[1] - (best[0] - old);
     };
-    // DBCELL del foglio modificato
-    if (model) {
+    // DBCELL dei fogli modificati
+    for (const model of lista) {
       model.blocks.filter(b => b.dbOld && b.rows.length).forEach(b => {
         const rowsRecs = out.filter(o => o.tag && o.tag.rowOf === b);
         const cellRecs = out.filter(o => o.tag && o.tag.cellOf === b);
@@ -944,6 +948,8 @@
         };
       },
       build(name, numbers) { return buildFile(book, name, numbers); },
+      // tutte le squadre in un file: [{ name, numbers, vuoto }]
+      buildMany(voci) { return buildMany(book, voci); },
       _book: book
     };
   }
@@ -1016,7 +1022,9 @@
   }
 
   // numbers: array di 31 elementi (numero o null) per le righe 1..31 della colonna D.
-  function buildFile(book, name, numbers) {
+  // Prepara un foglio squadra: colonna D, replica della macro, ricalcolo.
+  // vuoto = nessuna formazione: colonna D e H31:K52 svuotate (niente formazione "finta").
+  function prepareSheet(book, name, numbers, vuoto) {
     const sh = sheetByName(book, name);
     const m = buildSheet(book, sh);
     // 0) allinea i valori memorizzati delle formule in A1:G31 (se il file li ha persi)
@@ -1029,59 +1037,82 @@
     }
     // 1) colonna D
     for (let r = 0; r < 31; r++) {
-      const n = numbers[r];
+      const n = vuoto ? null : numbers[r];
       setValue(m, r, 3, n === null || n === undefined || n === '' ? { t: 'blank' } : { t: 'n', v: +n });
     }
-    // 2) replica della macro "Formazioni": ordina A1:G31 per D (vuoti in fondo) poi A,
-    //    copia valori B1:C22 -> H31:I52 e F1:G22 -> J31:K52
-    const rows = [];
-    for (let r = 0; r < 31; r++) {
-      const vals = [];
-      for (let c = 0; c < 7; c++) vals.push(cellValue(m, r, c));
-      rows.push({ r, vals });
-    }
-    const sortKey = v => v.t === 'blank' ? [4] : v.t === 'n' ? [0, v.v] : v.t === 's' ? [1, v.v.toLowerCase()] : v.t === 'b' ? [2, +v.v] : [3, 0];
-    const cmpKeys = (x, y) => {
-      for (let i = 0; i < Math.max(x.length, y.length); i++) {
-        if (x[i] === undefined) return -1;
-        if (y[i] === undefined) return 1;
-        if (x[i] < y[i]) return -1;
-        if (x[i] > y[i]) return 1;
+    if (vuoto) {
+      for (let i = 0; i < 22; i++) for (let c = 7; c <= 10; c++) setValue(m, 30 + i, c, { t: 'blank' });
+    } else {
+      // 2) replica della macro "Formazioni": ordina A1:G31 per D (vuoti in fondo) poi A,
+      //    copia valori B1:C22 -> H31:I52 e F1:G22 -> J31:K52
+      const rows = [];
+      for (let r = 0; r < 31; r++) {
+        const vals = [];
+        for (let c = 0; c < 7; c++) vals.push(cellValue(m, r, c));
+        rows.push({ r, vals });
       }
-      return 0;
-    };
-    rows.sort((p, q) => cmpKeys(sortKey(p.vals[3]), sortKey(q.vals[3])) || cmpKeys(sortKey(p.vals[0]), sortKey(q.vals[0])) || p.r - q.r);
-    const pasteVal = v => (v.t === 'n' || v.t === 's' || v.t === 'b') ? (v.t === 'b' ? { t: 'n', v: +v.v } : v) : { t: 'blank' };
-    for (let i = 0; i < 22; i++) {
-      const src = rows[i].vals;
-      setValue(m, 30 + i, 7, pasteVal(src[1]));
-      setValue(m, 30 + i, 8, pasteVal(src[2]));
-      setValue(m, 30 + i, 9, pasteVal(src[5]));
-      setValue(m, 30 + i, 10, pasteVal(src[6]));
+      const sortKey = v => v.t === 'blank' ? [4] : v.t === 'n' ? [0, v.v] : v.t === 's' ? [1, v.v.toLowerCase()] : v.t === 'b' ? [2, +v.v] : [3, 0];
+      const cmpKeys = (x, y) => {
+        for (let i = 0; i < Math.max(x.length, y.length); i++) {
+          if (x[i] === undefined) return -1;
+          if (y[i] === undefined) return 1;
+          if (x[i] < y[i]) return -1;
+          if (x[i] > y[i]) return 1;
+        }
+        return 0;
+      };
+      rows.sort((p, q) => cmpKeys(sortKey(p.vals[3]), sortKey(q.vals[3])) || cmpKeys(sortKey(p.vals[0]), sortKey(q.vals[0])) || p.r - q.r);
+      const pasteVal = v => (v.t === 'n' || v.t === 's' || v.t === 'b') ? (v.t === 'b' ? { t: 'n', v: +v.v } : v) : { t: 'blank' };
+      for (let i = 0; i < 22; i++) {
+        const src = rows[i].vals;
+        setValue(m, 30 + i, 7, pasteVal(src[1]));
+        setValue(m, 30 + i, 8, pasteVal(src[2]));
+        setValue(m, 30 + i, 9, pasteVal(src[5]));
+        setValue(m, 30 + i, 10, pasteVal(src[6]));
+      }
     }
     // 3) aggiorna i valori calcolati delle formule che dipendono dalle celle cambiate
     const rc = recalc(m);
+    return { m, rc };
+  }
+
+  // Più fogli in un solo file. voci: [{ name, numbers, vuoto }]
+  function buildMany(book, voci) {
+    if (!voci.length) throw new XlsError('Nessun foglio da scrivere.');
+    const nomi = new Set();
+    voci.forEach(v => { if (nomi.has(v.name)) throw new XlsError('Foglio "' + v.name + '" ripetuto.'); nomi.add(v.name); });
+    const pronti = voci.map(v => Object.assign({ voce: v }, prepareSheet(book, v.name, v.numbers || [], !!v.vuoto)));
     // 4) serializza
-    const wb = serialize(book, m);
+    const wb = serialize(book, pronti.map(p => p.m));
     const outFile = cfbReplaceStream(book.cfb, book.ent, wb);
     // 5) verifica: rileggi il file e controlla le celle scritte
     const check = openWorkbook(outFile);
-    const m2 = buildSheet(check, sheetByName(check, name));
-    for (let r = 0; r < 31; r++) {
-      const d = cellValue(m2, r, 3);
-      const want = numbers[r];
-      if ((want === null || want === undefined || want === '') ? d.t !== 'blank' : !(d.t === 'n' && d.v === +want)) throw new XlsError('Verifica fallita sulla cella D' + (r + 1) + '.');
-    }
     for (const s of check.sheets) if (check.recs[s.start].sid !== SID.BOF) throw new XlsError('Verifica fallita sugli indici dei fogli.');
-    const lineup = [];
-    for (let i = 0; i < 22; i++) {
-      const h = cellValue(m2, 30 + i, 7), n = cellValue(m2, 30 + i, 8);
-      lineup.push({ pos: i + 1, role: h.t === 's' ? h.v : '', name: n.t === 's' ? n.v : '' });
-    }
-    const shown = [];
-    for (let r = 4; r <= 28; r++) { const v = cellValue(m2, r, 8); shown.push(v.t === 's' ? v.v : v.t === 'n' ? String(v.v) : ''); }
-    const modulo = [cellValue(m2, 1, 8), cellValue(m2, 1, 9), cellValue(m2, 1, 10)].map(v => v.t === 'n' ? v.v : null);
-    return { bytes: outFile, lineup, shown, modulo, recalc: rc };
+    const fogli = pronti.map(p => {
+      const v = p.voce;
+      const m2 = buildSheet(check, sheetByName(check, v.name));
+      for (let r = 0; r < 31; r++) {
+        const d = cellValue(m2, r, 3);
+        const want = v.vuoto ? null : (v.numbers || [])[r];
+        if ((want === null || want === undefined || want === '') ? d.t !== 'blank' : !(d.t === 'n' && d.v === +want)) throw new XlsError('Verifica fallita sulla cella D' + (r + 1) + ' del foglio "' + v.name + '".');
+      }
+      const lineup = [];
+      for (let i = 0; i < 22; i++) {
+        const h = cellValue(m2, 30 + i, 7), n = cellValue(m2, 30 + i, 8);
+        lineup.push({ pos: i + 1, role: h.t === 's' ? h.v : '', name: n.t === 's' ? n.v : '' });
+      }
+      const shown = [];
+      for (let r = 4; r <= 28; r++) { const x = cellValue(m2, r, 8); shown.push(x.t === 's' ? x.v : x.t === 'n' ? String(x.v) : ''); }
+      const modulo = [cellValue(m2, 1, 8), cellValue(m2, 1, 9), cellValue(m2, 1, 10)].map(x => x.t === 'n' ? x.v : null);
+      return { name: v.name, vuoto: !!v.vuoto, lineup, shown, modulo, recalc: p.rc };
+    });
+    return { bytes: outFile, fogli };
+  }
+
+  function buildFile(book, name, numbers) {
+    const r = buildMany(book, [{ name, numbers }]);
+    const f = r.fogli[0];
+    return { bytes: r.bytes, lineup: f.lineup, shown: f.shown, modulo: f.modulo, recalc: f.recalc };
   }
 
   const api = { load, XlsError, norm: plainName, _internals: { readCFB, openWorkbook, buildSheet, serialize, cfbReplaceStream, cellValue, recalc, parseRecords, evaluate, SID } };

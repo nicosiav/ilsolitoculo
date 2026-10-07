@@ -69,6 +69,20 @@ function gestisci(req,res,p,q,b){
     }
     if(p==='/rest/v1/lineups'){
       const sel=String(q.select||'');
+      // formazioni di tutta la lega (sezione Giornata → Formazioni, file unico per l'amministratore):
+      // Valerio (quella salvata qui), Sebi e Massimo; le altre squadre non hanno ancora schierato
+      if(!q.team_id && sel.includes('players(') && String(q.matchday||'')==='eq.'+MD){
+        const pl=x=>({name:x.name,role:x.role,club:x.club||null,slot:x.slot});
+        const altra=(nome,mod,ore)=>{ const r=(rose[nome]||[]).map((x,i)=>({slot:x.slot,name:x.name,role:x.role,club:CLUBS[i%CLUBS.length]}));
+          const per=k=>r.filter(x=>x.role===k);
+          const ord=[...per('P').slice(0,1),...per('D').slice(0,4),...per('C').slice(0,3),...per('A').slice(0,3),...per('P').slice(1,2),...per('D').slice(4,6),...per('C').slice(3,5),...per('A').slice(3,5)];
+          return {team_id:'team-'+nome,module:mod,updated_at:new Date(now-ore*H).toISOString(),lineup_slots:ord.map((x,i)=>({pos:i+1,players:pl(x)}))}; };
+        const out=[];
+        if(state.lineup) out.push({team_id:TEAM.id,module:state.lineup.module,updated_at:state.lineup.updated_at,
+          lineup_slots:state.lineup.lineup_slots.map(s=>({pos:s.pos,players:pl(byId.get(s.player_id)||{})}))});
+        if(!process.env.SOLO_MIA){ out.push(altra('Sebi','4-3-3',1)); out.push(altra('Massimo','4-3-3',5)); }
+        return json(res,200,out);
+      }
       if(sel.includes('teams(')){           // formazioni di tutta la lega
         const out=[];
         if(state.lineup) out.push(Object.assign({team_id:TEAM.id,module:state.lineup.module,updated_at:state.lineup.updated_at},

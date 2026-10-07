@@ -33,11 +33,14 @@ async def main():
         # 8) formazioni di giornata pubbliche
         async def s8(pg):
             await login(pg)
-            await pg.click('#allBtn'); await pg.wait_for_timeout(800)
-            print('  titolo:', (await pg.inner_text('.sheet-h')).replace('\n',' · ')[:80])
-            print('  squadre elencate:', await pg.locator('#allBody .team-block, #allBody .xr').count())
-            print('  blocco squadre:', (await pg.inner_text('#allBody')).strip().replace('\n',' | ')[:160])
-            print('  giornate selezionabili:', await pg.locator('#mdPick option').count())
+            # dentro il sito "Formazioni di giornata" porta a Giornata → Formazioni
+            await pg.click('#allBtn'); await pg.wait_for_timeout(1200)
+            print('  indirizzo:', pg.url.split('#')[1], '| Schiera nascosta:', not await pg.is_visible('#pitch'))
+            assert pg.url.endswith('#/giornata/formazioni') and not await pg.is_visible('#pitch')
+            n = await pg.locator('.form-sq').count(); salvate = await pg.locator('details.form-sq').count()
+            print('  squadre elencate:', n, '| con la formazione salvata:', salvate)
+            assert n == 8 and salvate >= 1
+            print('  la mia:', (await pg.inner_text('details.form-sq[open]')).strip().replace('\n',' | ')[:120])
         await scenario(pw,'8 formazioni di giornata',{'PRELOAD':'1'},s8)
 
         # 9) ripristino dall'ultima formazione salvata (giornate precedenti)

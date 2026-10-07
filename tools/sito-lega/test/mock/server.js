@@ -74,6 +74,26 @@ const roster_costs = dati.rose.map(r => ({ team_id: idOf(r.squadra), slot: r.slo
 const players = dati.rose.map(r => ({ id: 'pl-' + idOf(r.squadra) + '-' + r.slot, team_id: idOf(r.squadra), slot: r.slot, name: r.nome, club: null,
   role: (dati.voti.find(v => v.nome === r.nome && idOf(v.squadra) === idOf(r.squadra)) || {}).ruolo || 'C' }));
 const player_votes = dati.voti.map(v => ({ round: dati.giornata, team_id: idOf(v.squadra), nome: v.nome, ruolo: v.ruolo, voto: v.voto, fantavoto: v.fantavoto }));
+// Le giornate prima di quella del file: voti e formazioni inventati (sempre gli stessi) partendo
+// da quelli veri, così le statistiche hanno più di una giornata. NOSTORICO per farne a meno.
+if (!process.env.NOSTORICO) {
+  const h = s => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const sposta = (nome, r) => ((h(nome) + r * 13) % 7 - 3) * 0.5;
+  for (let r = 1; r < dati.giornata; r++) {
+    const voti = dati.voti.map(v => ({ round: r, team_id: idOf(v.squadra), nome: v.nome, ruolo: v.ruolo, voto: v.voto,
+      fantavoto: v.voto ? Math.max(3, v.fantavoto + sposta(v.nome, r)) : v.fantavoto }));
+    player_votes.push(...voti);
+    dati.squadre_giornata.forEach(t => {
+      const fv = n => (voti.find(v => v.nome === n && v.team_id === idOf(t.squadra)) || {}).fantavoto;
+      const formazione = t.formazione.map(x => Object.assign({}, x, x.giocato ? { fantavoto: fv(x.nome) } : {}));
+      const schierati = t.schierati.map(x => Object.assign({}, x, x.voto ? { fantavoto: fv(x.nome) } : {}));
+      const punteggio = formazione.filter(x => x.giocato).reduce((a, x) => a + x.fantavoto, 0);
+      round_teams.push({ round: r, team_id: idOf(t.squadra), modulo: t.modulo, punteggio, somma_voti: null, fattore_campo: null,
+        bonus_modulo: null, totale: null, gol_fatti: null, gol_subiti: null, avversario: null, in_casa: null,
+        sostituzioni: t.sostituzioni, marcatori: [], formazione, schierati });
+    });
+  }
+}
 const player_stats = (() => {
   const m = new Map();
   player_votes.forEach(v => {
@@ -92,7 +112,17 @@ const player_stats = (() => {
 const albo = dati.albo.map(a => ({ stagione: a.stagione, campionato: a.campionato, coppa: a.coppa, coppa_lega: a.coppa_lega, supercoppa: a.supercoppa }))
   .sort((a, b) => b.stagione.localeCompare(a.stagione));
 
-const TAB = { teams, rounds, matches, round_teams, standings, team_season, scorers, roster_costs, players, player_votes, player_stats, albo };
+// medie di Fantacalcio.it: vuote finché l'amministratore non le carica (FC=file.xlsx per partire già carichi)
+const fc_stats = [], fc_stats_meta = [];
+const FC = process.env.FC;
+if (FC) {
+  require('../../src/fantacalcio.js').leggi(new Uint8Array(fs.readFileSync(FC)), path.basename(FC)).then(r => {
+    r.righe.forEach((x, i) => fc_stats.push(Object.assign({ id: i + 1 }, x)));
+    fc_stats_meta.push({ aggiornate_at: new Date().toISOString(), file: path.basename(FC), stagione: r.stagione, righe: r.righe.length });
+  });
+}
+
+const TAB = { teams, rounds, matches, round_teams, standings, team_season, scorers, roster_costs, players, player_votes, player_stats, albo, fc_stats, fc_stats_meta };
 
 // filtri PostgREST minimi: eq, lt, is, in
 function filtra(righe, q) {
@@ -157,8 +187,21 @@ http.createServer((req, res) => {
         'scorers', 'roster_costs', 'player_votes', 'player_stats', 'albo'].includes(m[1])) {
       return json(res, 404, { code: 'PGRST205', message: "Could not find the table 'public." + m[1] + "' in the schema cache" });
     }
+    if (p === '/rest/v1/rpc/import_fc_stats') {
+      if (!process.env.ADMIN) return json(res, 400, { code: 'P0005', message: "Solo l'amministratore può caricare le medie" });
+      if (process.env.NOFC) return json(res, 404, { code: 'PGRST202', message: 'Could not find the function public.import_fc_stats(p) in the schema cache' });
+      fc_stats.length = 0; fc_stats_meta.length = 0;
+      (b.p.righe || []).forEach((x, i) => fc_stats.push(Object.assign({ id: i + 1 }, x)));
+      fc_stats_meta.push({ aggiornate_at: new Date().toISOString(), file: b.p.file, stagione: b.p.stagione, righe: fc_stats.length });
+      fs.writeFileSync('/tmp/import_fc.json', JSON.stringify({ file: b.p.file, stagione: b.p.stagione, righe: fc_stats.length }));
+      return json(res, 200, { righe: fc_stats.length, aggiornate_at: new Date().toISOString() });
+    }
+    if (m && process.env.NOFC && ['fc_stats', 'fc_stats_meta'].includes(m[1])) {
+      return json(res, 404, { code: 'PGRST205', message: "Could not find the table 'public." + m[1] + "' in the schema cache" });
+    }
     if (m && TAB[m[1]]) {
       let righe = filtra(TAB[m[1]], q);
+      if (q.offset) righe = righe.slice(+q.offset);
       if (q.limit) righe = righe.slice(0, +q.limit);
       return json(res, 200, righe);
     }

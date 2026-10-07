@@ -21,6 +21,7 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 | `player_votes` | voto e fantavoto di ogni giocatore, giornata per giornata |
 | `standings` | le classifiche fotografate a ogni giornata (campionato, Coppa di Lega, sfigometro, gol reali, Coppa) |
 | `team_season`, `scorers`, `roster_costs`, `albo` | crediti, gol reali per giocatore, costo delle rose, albo d'oro |
+| `fc_stats`, `fc_stats_meta` | medie di Serie A di Fantacalcio.it (caricate a mano dall'amministratore), con data e file |
 
 ## Regole applicate dal database (non solo dall'app)
 
@@ -55,6 +56,9 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
      tabelle nuove all'app. Se il sito dice *"Could not find the table
      'public.rounds' in the schema cache"*, o questo file non è stato eseguito,
      oppure basta rieseguire quella riga.
+   - `10_fantacalcio.sql` — le medie di Serie A di Fantacalcio.it mostrate in Rosa
+     (`fc_stats`, `fc_stats_meta`, `import_fc_stats()`): le carica l'amministratore
+     dal sito con l'Excel scaricato a mano.
 3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
 4. Crea gli account dei partecipanti e collegali alle squadre: vedi
    [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.

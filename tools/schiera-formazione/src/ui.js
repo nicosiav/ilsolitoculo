@@ -1117,7 +1117,8 @@
   // ------------------------------------------------------------ eventi
   on('#exportBtn', 'click', () => exportXls());
   on('#adminFile', 'change', e => { const f = e.target.files[0]; e.target.value = ''; importRosters(f); });
-  on('#allBtn', 'click', () => showAll());
+  // dentro il sito le formazioni di tutti stanno in Giornata → Formazioni
+  on('#allBtn', 'click', () => { if (EMBED) location.hash = '#/giornata/formazioni'; else showAll(); });
   on('#logBtn', 'click', () => showLog());
   on('#pickBtn', 'click', () => $('#fileInput').click());
   on('#changeFileBtn2', 'click', () => { toggleMenu(false); $('#fileInput').click(); });
@@ -1205,6 +1206,8 @@
     scadenza,
     pezzi,
     salvata: () => !!S.savedAt,
+    // per il sito: scaricare un file con lo stesso meccanismo dell'export (anche nel visore)
+    scarica: (bytes, nome) => deliver(bytes, nome),
     giornata: () => S.matchday ? nomeGiornata(S.matchday) : '',
     admin: {
       rose: () => $('#adminFile').click(),
