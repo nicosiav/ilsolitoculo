@@ -119,6 +119,13 @@
     const r = S.md ? S.rounds.find(x => x.serie_a === S.md.id) : null;
     return r || S.rounds.find(x => !x.giocata) || ultima();
   }
+  // "mer 16:00" se è di questa settimana, altrimenti "7 ott"
+  const quandoBreve = ts => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return Date.now() - d < 6 * 864e5 ? d.toLocaleString('it-IT', { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+  };
   const quando = ts => ts ? new Date(ts).toLocaleString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 
   // ------------------------------------------------- calcoli fatti in casa
@@ -420,12 +427,18 @@
       <p class="small muted" style="margin:0">${r.giocata ? 'Tocca una partita per il tabellino con voti, subentri e marcatori.' : 'Tocca una partita per le formazioni salvate in Schiera.'}</p>`;
   }
 
-  // l'ordine delle squadre: la tua per prima, poi le coppie delle partite
+  // l'ordine delle squadre: la tua e il tuo avversario per primi, poi le coppie delle altre partite
   function ordineSquadre(round) {
+    const ms = S.matches.filter(m => m.round === round);
     const ids = [];
-    S.matches.filter(m => m.round === round).forEach(m => [m.casa, m.fuori].forEach(id => { if (id && !ids.includes(id)) ids.push(id); }));
-    S.teams.forEach(t => { if (!ids.includes(t.id)) ids.push(t.id); });
-    if (S.team) { const i = ids.indexOf(S.team.id); if (i > 0) { ids.splice(i, 1); ids.unshift(S.team.id); } }
+    const metti = id => { if (id && !ids.includes(id)) ids.push(id); };
+    if (S.team) {
+      const mia = ms.find(m => m.casa === S.team.id || m.fuori === S.team.id);
+      metti(S.team.id);
+      if (mia) metti(mia.casa === S.team.id ? mia.fuori : mia.casa);
+    }
+    ms.forEach(m => { metti(m.casa); metti(m.fuori); });
+    S.teams.forEach(t => metti(t.id));
     return ids;
   }
 
@@ -467,30 +480,81 @@
     return gruppo('Titolari', 1, 11) + gruppo('Panchina', 12, 18) + gruppo('Panchina extra', 19, 22);
   }
 
+  // Giornata → Formazioni: in cima si sceglie la squadra, sotto c'è la sua formazione.
+  // Le formazioni sono già tutte nella pagina: cambiare squadra è immediato.
   async function formazioniGiornata(r) {
     const ids = ordineSquadre(r.id);
     const rt = r.giocata ? await tabellini(r.id) : [];
     const ln = (!r.giocata || !rt.length) ? await salvate(r.serie_a) : [];
-    const blocchi = ids.map(id => {
-      const t = rt.find(x => x.team_id === id);
-      const l = ln.find(x => x.team_id === id);
-      const mio = isMe(id) ? ' open' : '';
-      if (t) {
-        return `<details class="form-sq"${mio}><summary><b>${esc(teamName(id))}</b><span>${esc(t.modulo || '')} · ${n1(t.punteggio)} punti</span></summary>${elencoGiocata(t)}</details>`;
-      }
-      if (l) {
-        return `<details class="form-sq"${mio}><summary><b>${esc(teamName(id))}</b><span>${esc(l.module || '')} · salvata ${esc(quando(l.updated_at))}</span></summary>${elencoSalvata(l)}</details>`;
-      }
-      return `<div class="form-sq vuota"><b>${esc(teamName(id))}</b><span>${r.giocata ? 'nessuna formazione' : 'non ancora schierata'}</span></div>`;
-    }).join('');
+    const scelta = ids.includes(S.formScelta) ? S.formScelta : ids[0];
+    const di = id => ({ t: rt.find(x => x.team_id === id), l: ln.find(x => x.team_id === id) });
+    const chip = id => {
+      const { t, l } = di(id);
+      const [stato, cls] = t ? [n1(t.punteggio) + ' pt', ''] : l ? ['salvata', 'ok'] : [r.giocata ? '—' : 'non ancora', 'no'];
+      return `<button type="button" class="chip" data-form-sq="${esc(id)}" aria-pressed="${id === scelta}" title="${esc(teamName(id))}"><b>${esc(teamName(id))}</b><span class="${cls}">${esc(stato)}</span></button>`;
+    };
+    const pannello = id => {
+      const { t, l } = di(id);
+      const m = S.matches.find(x => x.round === r.id && (x.casa === id || x.fuori === id));
+      const avv = m && (m.casa === id ? m.fuori : m.casa);
+      const tocco = avv ? (m.gol_casa != null ? `data-match="${m.round}:${m.slot}"` : `data-formazioni="${m.round}:${m.slot}"`) : '';
+      const sotto = t ? `${t.modulo || ''} · ${n1(t.punteggio)} punti` : l ? `${l.module || ''} · salvata ${quandoBreve(l.updated_at)}`
+        : r.giocata ? 'nessuna formazione' : 'non ancora schierata';
+      const corpo = t ? elencoGiocata(t) : l ? elencoSalvata(l)
+        : `<p class="empty">${r.giocata ? 'Per questa giornata non c’è la formazione.' : 'Non ha ancora salvato la formazione.'}</p>`;
+      return `<div class="form-pan" data-pan="${esc(id)}"${id === scelta ? '' : ' hidden'}>
+        <div class="form-testa"><div><h3>${esc(teamName(id))}</h3><span>${esc(sotto)}</span></div>
+          ${tocco ? `<button type="button" class="contro" ${tocco}>contro <b>${esc(teamName(avv))}</b> ›</button>` : ''}</div>
+        ${corpo}</div>`;
+    };
     const salvateN = ln.length;
     const nota = rt.length ? 'Le formazioni come risultano dal file di giornata: fantavoto, chi è entrato e chi no.'
       : r.giocata ? 'Per questa giornata il file non è stato caricato: qui ci sono le formazioni salvate in Schiera.'
       : `Le formazioni salvate in Schiera: ${salvateN} su ${S.teams.length}. Si vedono tutte, sempre, e cambiano finché i giocatori non scendono in campo.`;
     const admin = isAdmin() && r.serie_a
       ? `<button type="button" class="btn" data-tutte="${r.serie_a}">Scarica tutte in un file .xls</button>` : '';
-    return `<div class="forms">${blocchi}</div><p class="small muted" style="margin:0">${esc(nota)}</p>${admin}`;
+    return `<div class="chips sq-sel" role="group" aria-label="Squadra" style="--col:${Math.min(ids.length, 8)}">${ids.map(chip).join('')}</div>
+      ${ids.map(pannello).join('')}
+      <p class="small muted" style="margin:0">${esc(nota)}</p>${admin}`;
   }
+
+  // cambio squadra in Formazioni senza ricaricare niente
+  function mostraFormazione(id) {
+    S.formScelta = id;
+    document.querySelectorAll('[data-form-sq]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.formSq === id)));
+    document.querySelectorAll('.form-pan').forEach(p => { p.hidden = p.dataset.pan !== id; });
+  }
+
+  // ---- una partita, le due squadre affiancate: casa a sinistra, fuori a destra (a specchio)
+  // intestazione: le due squadre ai lati, il risultato in mezzo; resta in vista mentre si scorre
+  function tabellone(m, sotto, info) {
+    const g = m.gol_casa != null;
+    const perde = lato => g && (lato === 'sx' ? m.gol_casa < m.gol_fuori : m.gol_fuori < m.gol_casa) ? ' perde' : '';
+    const sq = (id, lato, s) => `<div class="sq ${lato}${perde(lato)}"><b>${esc(teamName(id))}</b>${[].concat(s || []).filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('')}</div>`;
+    return `<div class="sheet-h duo"><p>${esc(info)}</p>
+      <div class="tabellone">${sq(m.casa, 'sx', sotto[0])}
+        <div class="ris${g ? '' : ' da'}">${g ? `${m.gol_casa}<span aria-hidden="true">–</span>${m.gol_fuori}` : 'vs'}</div>
+        ${sq(m.fuori, 'dx', sotto[1])}</div></div>`;
+  }
+
+  // le due colonne riga per riga, così titolari e panchine restano allineati.
+  // gruppi = [{ et, sx: [celle], dx: [celle], testo }]; le celle vuote non contano
+  function duello(gruppi) {
+    return `<div class="duello">${gruppi.map(gr => {
+      const sx = gr.sx.filter(Boolean), dx = gr.dx.filter(Boolean);
+      const n = Math.max(sx.length, dx.length);
+      if (!n) return '';
+      let h = gr.et ? `<div class="group-h">${esc(gr.et)}</div>` : '';
+      for (let i = 0; i < n; i++) {
+        const c = (lato, v) => `<div class="dc ${lato}${i ? '' : ' primo'}${gr.testo ? ' testo' : ''}">${v || ''}</div>`;
+        h += c('sx', sx[i]) + c('dx', dx[i]);
+      }
+      return h;
+    }).join('')}</div>`;
+  }
+
+  const cellaGiocatore = (ruolo, nome, sotto, val) => `<span class="badge" data-r="${esc(ruolo || '')}">${esc(ruolo || '·')}</span>
+    <span class="who"><b>${esc(nome || '—')}</b>${sotto ? `<span>${esc(sotto)}</span>` : ''}</span>${val ? `<span class="val">${val}</span>` : ''}`;
 
   // la partita di una giornata non ancora giocata: le due formazioni salvate
   async function apriFormazioni(round, slot) {
@@ -498,14 +562,18 @@
     const r = S.rounds.find(x => x.id === round);
     if (!m || !r) return;
     const ln = await salvate(r.serie_a);
-    const col = id => {
-      const l = ln.find(x => x.team_id === id);
-      return `<div><div class="sec-h" style="margin-bottom:4px"><h3>${esc(teamName(id))}</h3><span>${l ? esc((l.module || '') + ' · salvata ' + quando(l.updated_at)) : 'non ancora schierata'}</span></div>
-        ${l ? elencoSalvata(l) : '<p class="empty">Ancora nessuna formazione salvata.</p>'}</div>`;
+    const la = ln.find(x => x.team_id === m.casa), lb = ln.find(x => x.team_id === m.fuori);
+    const sotto = l => l ? [l.module, 'salvata ' + quandoBreve(l.updated_at)] : ['non ancora schierata'];
+    const celle = (l, a, b) => {
+      if (!l) return a === 1 ? ['<p class="empty">Ancora nessuna formazione salvata.</p>'] : [];
+      return (l.lineup_slots || []).filter(x => x.pos >= a && x.pos <= b).sort((x, y) => x.pos - y.pos)
+        .map(x => { const p = x.players || {}; return cellaGiocatore(p.role, p.name, p.club); });
     };
-    sheet(`<div class="sheet-h"><div><h4>${esc(teamName(m.casa))} – ${esc(teamName(m.fuori))}</h4>
-        <p>Giornata ${round}${r.serie_a ? ' · ' + r.serie_a + 'ª di Serie A' : ''} · formazioni salvate in Schiera</p></div></div>
-      <div class="sheet-b stack">${col(m.casa)}<hr style="border:0;border-top:1px solid var(--line);margin:0">${col(m.fuori)}</div>
+    const gruppi = [['Titolari', 1, 11], ['Panchina', 12, 18], ['Panchina extra', 19, 22]]
+      .map(([et, a, b]) => ({ et, sx: celle(la, a, b), dx: celle(lb, a, b) }));
+    const vuote = !la && !lb;
+    sheet(`${tabellone(m, [sotto(la), sotto(lb)], `Giornata ${round}${r.serie_a ? ' · ' + r.serie_a + 'ª di Serie A' : ''} · formazioni salvate`)}
+      <div class="sheet-b duo">${vuote ? '<p class="empty">Nessuna delle due ha ancora salvato la formazione.</p>' : duello(gruppi)}</div>
       <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
   }
 
@@ -580,34 +648,30 @@
   async function apriPartita(round, slot) {
     const m = S.matches.find(x => x.round === round && x.slot === slot);
     if (!m) return;
+    const r = S.rounds.find(x => x.id === round) || {};
     const rt = await tabellini(round);
     const box = id => rt.find(x => x.team_id === id);
     const a = box(m.casa), b = box(m.fuori);
-    const colonna = (t, mm) => {
-      if (!t) return '<p class="empty">Nessun tabellino.</p>';
-      const inCampo = (t.formazione || []).filter(x => x.giocato);
-      const fuori = (t.formazione || []).filter(x => !x.giocato);
-      const s = t.sostituzioni || {};
-      return `<div>
-        <div class="sec-h" style="margin-bottom:6px"><h3>${esc(teamName(t.team_id))}</h3><span>${esc(t.modulo || '')}</span></div>
-        <div class="tiles" style="grid-template-columns:repeat(4,1fr)">
-          ${tile(n1(t.punteggio), 'punteggio')}
-          ${tile(n1(t.fattore_campo), 'campo')}
-          ${tile(n1(t.bonus_modulo), 'modulo avv.')}
-          ${tile(n1(t.totale), 'totale')}
-        </div>
-        <div class="plist">${inCampo.map(x => `<div class="prow">
-          <span class="badge" data-r="${esc(x.ruolo)}">${esc(x.ruolo)}</span>
-          <span class="who"><b>${esc(x.nome)}</b></span>
-          <span class="val"><b>${n1(x.fantavoto)}</b><span>voto ${n1(x.voto)}</span></span></div>`).join('')}</div>
-        ${fuori.length ? `<div class="group-h">Non entrati</div><p class="small muted" style="margin:0">${esc(fuori.map(x => x.nome).join(', '))}</p>` : ''}
-        ${s.tot ? `<p class="small muted" style="margin:8px 0 0">Sostituzioni: ${s.tot} (P ${nz(s.P)} · D ${nz(s.D)} · C ${nz(s.C)} · A ${nz(s.A)})</p>` : ''}
-        ${(t.marcatori || []).length ? `<p class="small" style="margin:6px 0 0">⚽ ${esc((t.marcatori || []).join(', '))}</p>` : ''}
-      </div>`;
-    };
-    sheet(`<div class="sheet-h"><div><h4>${esc(teamName(m.casa))} ${m.gol_casa}–${m.gol_fuori} ${esc(teamName(m.fuori))}</h4>
-        <p>Giornata ${round} · ${n1(m.totale_casa)} contro ${n1(m.totale_fuori)}</p></div></div>
-      <div class="sheet-b stack">${colonna(a, m)}<hr style="border:0;border-top:1px solid var(--line)">${colonna(b, m)}</div>
+    // i numeri della partita: a sinistra la casa, a destra la squadra fuori
+    const voce = (k, et, cls) => `<div class="cr ${cls || ''}"><b>${a ? n1(a[k]) : '—'}</b><span>${et}</span><b>${b ? n1(b[k]) : '—'}</b></div>`;
+    const numeri = `<div class="confronto">${voce('punteggio', 'Punteggio')}${voce('fattore_campo', 'Fattore campo')}${voce('bonus_modulo', 'Bonus modulo avv.')}${voce('totale', 'Totale', 'tot')}</div>`;
+    const inCampo = t => !t ? ['<p class="empty">Nessun tabellino.</p>']
+      : (t.formazione || []).filter(x => x.giocato).map(x => cellaGiocatore(x.ruolo, x.nome, '', `<b>${n1(x.fantavoto)}</b><span>voto ${n1(x.voto)}</span>`));
+    const nonEntrati = t => { const f = t ? (t.formazione || []).filter(x => !x.giocato) : []; return f.length ? esc(f.map(x => x.nome).join(', ')) : ''; };
+    const sost = t => { const s = (t && t.sostituzioni) || {}; const r = ['P', 'D', 'C', 'A'].filter(k => nz(s[k])).map(k => k + ' ' + s[k]);
+      return s.tot ? s.tot + (r.length ? ' (' + r.join(' · ') + ')' : '') : ''; };
+    const marc = t => t && (t.marcatori || []).length ? '⚽ ' + esc(t.marcatori.join(', ')) : '';
+    // se una sola delle due ha sostituzioni o marcatori, dall'altra parte si scrive che non ce ne sono
+    const coppia = (f, nessuno) => { const x = f(a), y = f(b); return x || y ? [x || (a ? nessuno : ''), y || (b ? nessuno : '')] : ['', '']; };
+    const [sa, sb] = coppia(sost, 'nessuna'), [ma, mb] = coppia(marc, 'nessuno');
+    const gruppi = [
+      { et: 'In campo', sx: inCampo(a), dx: inCampo(b) },
+      { et: 'Non entrati', sx: [nonEntrati(a)], dx: [nonEntrati(b)], testo: true },
+      { et: 'Sostituzioni', sx: [sa], dx: [sb], testo: true },
+      { et: 'Marcatori', sx: [ma], dx: [mb], testo: true }
+    ];
+    sheet(`${tabellone(m, [a && a.modulo, b && b.modulo], `Giornata ${round}${r.serie_a ? ' · ' + r.serie_a + 'ª di Serie A' : ''}`)}
+      <div class="sheet-b duo">${numeri}${duello(gruppi)}</div>
       <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
   }
 
@@ -1676,6 +1740,8 @@
 
   // tocchi dentro le sezioni
   $('#view').addEventListener('click', ev => {
+    const fsq = ev.target.closest('[data-form-sq]');
+    if (fsq) { mostraFormazione(fsq.dataset.formSq); return; }
     const m = ev.target.closest('[data-match]');
     if (m) { const [r, s] = m.dataset.match.split(':').map(Number); apriPartita(r, s); return; }
     const fm = ev.target.closest('[data-formazioni]');

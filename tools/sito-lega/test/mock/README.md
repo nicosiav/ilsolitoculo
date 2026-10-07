@@ -18,8 +18,9 @@ l'amministratore che carica la giornata (con le differenze fra la formazione
 salvata in Schiera e quella del file), il database della stagione mancante, la
 navigazione (barra in basso con Schiera al centro, pannello Altro con Squadre e
 Lega, riquadro verde con il conto alla rovescia, barra in alto sul computer), le
-formazioni della giornata (salvate e giocate, e le partite da giocare che si
-toccano), il file unico con tutte le formazioni (riletto con il motore: foglio
+formazioni della giornata (selettore delle squadre in cima, salvate e giocate,
+le partite che si toccano con le due formazioni affiancate e allineate riga per
+riga, a 360, 390 e 1100 px), il file unico con tutte le formazioni (riletto con il motore: foglio
 pieno per chi ha salvato, vuoto per gli altri), le medie di Fantacalcio.it
 caricate dall'amministratore e mostrate in Rosa, le statistiche (grafici, tabelle
 dei numeri, tocco sulle colonne, niente scorrimento di lato).

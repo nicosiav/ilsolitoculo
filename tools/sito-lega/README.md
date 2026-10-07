@@ -18,7 +18,7 @@ conto alla rovescia in cima a ogni sezione.
 | Sezione | Schede | Cosa c'è |
 |---|---|---|
 | Home | | il riquadro verde per schierare, con il conto alla rovescia; la tua squadra, l'ultima giornata, la prossima partita, l'andamento, la classifica |
-| Giornata | Partite · Formazioni | le partite di ogni giornata (tocca una partita giocata per il tabellino, una da giocare per le formazioni salvate); le formazioni di tutte le squadre, salvate in Schiera o, per le giornate giocate, come risultano dal file con i fantavoti. All'amministratore: **Scarica tutte in un file .xls** |
+| Giornata | Partite · Formazioni | le partite di ogni giornata: toccandone una si aprono le due squadre affiancate, casa a sinistra e fuori a destra (tabellino con i fantavoti se è giocata, formazioni salvate in Schiera se è da giocare); in Formazioni si sceglie la squadra in cima (si vede subito chi ha salvato) e sotto c'è la sua formazione, salvata in Schiera o, per le giornate giocate, come risulta dal file con i fantavoti, con **contro …** per la partita. All'amministratore: **Scarica tutte in un file .xls** |
 | Schiera | | la formazione della giornata ([dettagli](../schiera-formazione/README.md)) |
 | Classifiche | Campionato · Corretta · Coppa di Lega · Sfigometro · Gol reali · Coppa · Playoff | tutte le classifiche del regolamento, la Coppa con gli accoppiamenti e la Supercoppa, il tabellone e le regole dei playoff |
 | Squadre | Sintesi · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |

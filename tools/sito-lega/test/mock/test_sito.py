@@ -49,6 +49,19 @@ async def login(pg):
     await pg.wait_for_timeout(900)
 
 
+async def affiancate(pg):
+    """Le due formazioni della partita stanno una accanto all'altra, riga per riga, senza scorrere di lato."""
+    a = await pg.eval_on_selector('.sheet .dc.sx.primo', 'e => e.getBoundingClientRect().toJSON()')
+    b = await pg.eval_on_selector('.sheet .dc.dx.primo', 'e => e.getBoundingClientRect().toJSON()')
+    assert abs(a['top'] - b['top']) < 1 and b['left'] >= a['right'] - 1, (a, b)
+    largo = await pg.eval_on_selector('.sheet', 'e => e.scrollWidth > e.clientWidth')
+    assert not largo, 'il foglio scorre di lato'
+    righe = await pg.eval_on_selector_all('.sheet .dc.sx', 'l => l.map(e => Math.round(e.getBoundingClientRect().top))')
+    righe_dx = await pg.eval_on_selector_all('.sheet .dc.dx', 'l => l.map(e => Math.round(e.getBoundingClientRect().top))')
+    assert righe == righe_dx, 'le righe delle due colonne non sono allineate'
+    print(f'  affiancate: {round(a["width"])} + {round(b["width"])} px, {len(righe)} righe allineate')
+
+
 async def main():
     async with async_playwright() as pw:
         async def s1(pg):
@@ -62,7 +75,7 @@ async def main():
         async def s2(pg):
             await login(pg)
             for sez, atteso in [('squadre', '.prow'), ('squadre/rosa', '.prow'), ('squadre/statistiche', 'svg.chart'),
-                                ('squadre/confronto', '.tile'), ('giornata', '.match'), ('giornata/formazioni', '.form-sq'),
+                                ('squadre/confronto', '.tile'), ('giornata', '.match'), ('giornata/formazioni', '.form-pan'),
                                 ('classifiche', '.tbl'), ('classifiche/coppa', '.tbl'), ('classifiche/playoff', '.match'),
                                 ('lega', '.prow'), ('lega/albo', '.tbl'), ('lega/premi', '.prow')]:
                 await pg.goto(BASE + '#/' + sez)
@@ -86,9 +99,12 @@ async def main():
             await pg.click('.match[data-match]')
             await pg.wait_for_timeout(700)
             print('  tabellino:', (await pg.inner_text('.sheet-h')).replace('\n', ' · ')[:90])
-            print('  giocatori:', await pg.locator('.sheet .prow').count(), '| riquadri:', await pg.locator('.sheet .tile').count())
+            sx, dx = await pg.locator('.sheet .dc.sx .badge').count(), await pg.locator('.sheet .dc.dx .badge').count()
+            print('  giocatori in campo:', sx, '+', dx, '| numeri:', await pg.locator('.sheet .confronto .cr').count())
+            assert sx >= 10 and dx >= 10 and await pg.locator('.sheet .confronto .cr').count() == 4
+            await affiancate(pg)
             body = await pg.inner_text('.sheet-b')
-            print('  contiene marcatori:', '⚽' in body, '| contiene sostituzioni:', 'Sostituzioni' in body)
+            print('  contiene marcatori:', '⚽' in body, '| contiene sostituzioni:', 'SOSTITUZIONI' in body.upper())
         await apri(pw, {}, s3, '3 tabellino di una partita')
 
         async def s4(pg):
@@ -221,28 +237,49 @@ async def main():
             await login(pg)
             await pg.goto(BASE + '#/giornata/formazioni'); await pg.wait_for_timeout(1000)
             testa = (await pg.inner_text('.card .sec-h')).replace(chr(10), ' ')
-            blocchi = await pg.locator('.form-sq').count()
-            aperte = await pg.locator('details.form-sq').count()
-            vuote = await pg.locator('.form-sq.vuota').count()
-            print(f'  {testa} | squadre {blocchi} · salvate {aperte} · da schierare {vuote}')
-            assert 'GIORNATA 5' in testa.upper() and 'in corso' in testa and blocchi == 8 and aperte == 3
-            prima = (await pg.inner_text('.form-sq')).split(chr(10))[0]
-            assert prima.strip() == 'Valerio', 'la propria formazione deve stare in cima'
-            assert await pg.locator('details.form-sq[open] .prow').count() >= 11
-            # una giornata già giocata: le formazioni del file, con i fantavoti
+            chip = [c.replace(chr(10), ' ') for c in await pg.locator('.sq-sel .chip').all_inner_texts()]
+            visibili = await pg.locator('.form-pan:visible').count()
+            print(f'  {testa} | selettore: {" · ".join(chip)}')
+            assert 'GIORNATA 5' in testa.upper() and 'in corso' in testa and len(chip) == 8 and visibili == 1
+            assert sum('salvata' in c for c in chip) == 3 and sum('non ancora' in c for c in chip) == 5
+            # la propria squadra è scelta, l'avversario è subito accanto
+            assert chip[0].startswith('Valerio') and (await pg.get_attribute('.sq-sel .chip >> nth=0', 'aria-pressed')) == 'true'
+            pan = await pg.inner_text('.form-pan:visible')
+            assert pan.upper().startswith('VALERIO') and await pg.locator('.form-pan:visible .prow').count() >= 11
+            # tutto il selettore sta in vista, senza scorrere
+            assert not await pg.eval_on_selector('.sq-sel', 'e => e.scrollWidth > e.clientWidth')
+            alto = await pg.eval_on_selector('.sq-sel', 'e => Math.round(e.getBoundingClientRect().height)')
+            print('  selettore alto', alto, 'px | prima:', pan.replace(chr(10), ' ')[:70])
+            # un'altra squadra: si cambia senza ricaricare
+            await pg.click('.sq-sel .chip:has-text("Colombrita")'); await pg.wait_for_timeout(200)
+            pan = await pg.inner_text('.form-pan:visible')
+            assert pan.upper().startswith('COLOMBRITA') and 'non ancora schierata' in pan, pan[:80]
+            assert await pg.locator('.form-pan:visible').count() == 1
+            # "contro …" apre la partita con le due formazioni affiancate
+            await pg.click('.sq-sel .chip:has-text("Sebi")'); await pg.wait_for_timeout(200)
+            await pg.click('.form-pan:visible .contro'); await pg.wait_for_timeout(900)
+            print('  contro:', (await pg.inner_text('.sheet-h')).replace(chr(10), ' · ')[:100])
+            await affiancate(pg)
+            await pg.click('.sheet [data-act="close"]'); await pg.wait_for_timeout(200)
+            # una giornata già giocata: le formazioni del file, con i fantavoti; la squadra scelta resta Sebi
             await pg.click('[data-gio="3"]'); await pg.wait_for_timeout(900)
-            assert await pg.locator('details.form-sq').count() == 8
-            mia = await pg.inner_text('details.form-sq[open]')
-            print('  giornata 3:', mia.replace(chr(10), ' ')[:120])
-            assert 'punti' in mia and 'TITOLARI' in mia.upper()
-            # Partite: la giornata in corso, una partita da giocare si tocca e mostra le formazioni salvate
+            chip = [c.replace(chr(10), ' ') for c in await pg.locator('.sq-sel .chip').all_inner_texts()]
+            assert all(' pt' in c for c in chip), chip
+            mia = await pg.inner_text('.form-pan:visible')
+            print('  giornata 3:', ' · '.join(chip)[:90], '|', mia.replace(chr(10), ' ')[:80])
+            assert mia.upper().startswith('SEBI') and 'punti' in mia and 'TITOLARI' in mia.upper()
+            # Partite: la giornata in corso, una partita da giocare si tocca e mostra le formazioni affiancate
             await pg.click('a.chip[href="#/giornata"]'); await pg.wait_for_timeout(700)
             assert 'GIORNATA 3' in (await pg.inner_text('.card .sec-h')).upper(), 'Partite riparte dalla giornata scelta'
             await pg.click('[data-gio="5"]'); await pg.wait_for_timeout(700)
             await pg.click('.match[data-formazioni]:has-text("Valerio")'); await pg.wait_for_timeout(900)
             foglio = await pg.inner_text('.sheet')
             print('  partita da giocare:', foglio.replace(chr(10), ' ')[:140])
-            assert 'formazioni salvate' in foglio and await pg.locator('.sheet .prow').count() >= 11
+            assert 'formazioni salvate' in foglio and await pg.locator('.sheet .dc .badge').count() >= 11
+            await affiancate(pg)
+            for w in (360, 1100):
+                await pg.set_viewport_size({'width': w, 'height': 800}); await pg.wait_for_timeout(300)
+                await affiancate(pg)
         await apri(pw, {'PRELOAD': '1', 'FORMAZIONI': FORMAZIONI}, s9, '9 formazioni della giornata')
 
         # 10) l'amministratore scarica tutte le formazioni in un file
