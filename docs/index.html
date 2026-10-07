@@ -425,6 +425,7 @@ a.chip { text-decoration: none; display: inline-block; }
 /* sul computer i grafici non diventano giganti */
 @media (min-width: 720px) { .chart-wrap { max-width: 560px; } }
 .tiles.q3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 420px) { .chips.larghe .chip { padding: 7px 2px; font-size: 12.5px; letter-spacing: -.01em; } }
 
 </style>
 <style>
@@ -5638,7 +5639,7 @@ window.SCHIERA_EMBED = true;
     const corpo = tab === 'rosa' ? await vistaRosa(id) : tab === 'statistiche' ? await vistaStatSquadra(id)
       : tab === 'confronto' ? await vistaConfronto(id) : await vistaSquadra(id);
     return `<div class="stack">
-      ${schede('squadre', [{ id: '', et: 'Panoramica' }, { id: 'rosa', et: 'Rosa' }, { id: 'statistiche', et: 'Statistiche' }, { id: 'confronto', et: 'Confronto' }], tab, 'larghe')}
+      ${schede('squadre', [{ id: '', et: 'Sintesi' }, { id: 'rosa', et: 'Rosa' }, { id: 'statistiche', et: 'Statistiche' }, { id: 'confronto', et: 'Confronto' }], tab, 'larghe')}
       <div class="chips scorre" id="sqChips">${S.teams.map(x => `<button type="button" class="chip" data-squadra="${x.id}" aria-pressed="${x.id === id}">${esc(bel(x.name))}</button>`).join('')}</div>
       ${corpo}
     </div>`;

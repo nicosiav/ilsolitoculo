@@ -405,3 +405,4 @@ a.chip { text-decoration: none; display: inline-block; }
 /* sul computer i grafici non diventano giganti */
 @media (min-width: 720px) { .chart-wrap { max-width: 560px; } }
 .tiles.q3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 420px) { .chips.larghe .chip { padding: 7px 2px; font-size: 12.5px; letter-spacing: -.01em; } }

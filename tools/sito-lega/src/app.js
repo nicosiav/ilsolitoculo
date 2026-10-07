@@ -1306,7 +1306,7 @@
     const corpo = tab === 'rosa' ? await vistaRosa(id) : tab === 'statistiche' ? await vistaStatSquadra(id)
       : tab === 'confronto' ? await vistaConfronto(id) : await vistaSquadra(id);
     return `<div class="stack">
-      ${schede('squadre', [{ id: '', et: 'Panoramica' }, { id: 'rosa', et: 'Rosa' }, { id: 'statistiche', et: 'Statistiche' }, { id: 'confronto', et: 'Confronto' }], tab, 'larghe')}
+      ${schede('squadre', [{ id: '', et: 'Sintesi' }, { id: 'rosa', et: 'Rosa' }, { id: 'statistiche', et: 'Statistiche' }, { id: 'confronto', et: 'Confronto' }], tab, 'larghe')}
       <div class="chips scorre" id="sqChips">${S.teams.map(x => `<button type="button" class="chip" data-squadra="${x.id}" aria-pressed="${x.id === id}">${esc(bel(x.name))}</button>`).join('')}</div>
       ${corpo}
     </div>`;

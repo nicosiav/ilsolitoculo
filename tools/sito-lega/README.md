@@ -21,7 +21,7 @@ conto alla rovescia in cima a ogni sezione.
 | Giornata | Partite · Formazioni | le partite di ogni giornata (tocca una partita giocata per il tabellino, una da giocare per le formazioni salvate); le formazioni di tutte le squadre, salvate in Schiera o, per le giornate giocate, come risultano dal file con i fantavoti. All'amministratore: **Scarica tutte in un file .xls** |
 | Schiera | | la formazione della giornata ([dettagli](../schiera-formazione/README.md)) |
 | Classifiche | Campionato · Corretta · Coppa di Lega · Sfigometro · Gol reali · Coppa · Playoff | tutte le classifiche del regolamento, la Coppa con gli accoppiamenti e la Supercoppa, il tabellone e le regole dei playoff |
-| Squadre | Panoramica · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |
+| Squadre | Sintesi · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |
 | Lega | Statistiche · Albo d'oro · Premi | record e curiosità, punteggi di ogni giornata, punti lasciati in panchina, cannonieri, migliori medie; la bacheca e tutte le stagioni dal 1991/92; montepremi e crediti |
 
 I vecchi indirizzi (`#/calendario`, `#/rose`, `#/statistiche`…) portano da soli
