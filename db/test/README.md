@@ -44,5 +44,6 @@ python3 db/test/prova_crea_account.py
 
 Controlla la prova a vuoto, gli account nuovi (confermati, con password
 provvisoria), il collegamento a squadra e ruolo, gli account già esistenti
-lasciati con la loro password, `--nuova-password`, i nomi di squadra scritti in
+lasciati con la loro password, `--nuova-password`, la password uguale per tutti
+(`--password`), la chiave (incollata quando la chiede, `sb_secret_` o service_role; anon e publishable rifiutate), i nomi di squadra scritti in
 modo diverso, gli errori chiari e il file dei messaggi.

@@ -21,6 +21,7 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 | `player_votes` | voto e fantavoto di ogni giocatore, giornata per giornata |
 | `standings` | le classifiche fotografate a ogni giornata (campionato, Coppa di Lega, sfigometro, gol reali, Coppa) |
 | `team_season`, `scorers`, `roster_costs`, `albo` | crediti, gol reali per giocatore, costo delle rose, albo d'oro |
+| `fc_stats`, `fc_stats_meta` | medie di Serie A di Fantacalcio.it (caricate a mano dall'amministratore), con data e file |
 
 ## Regole applicate dal database (non solo dall'app)
 
@@ -55,6 +56,9 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
      tabelle nuove all'app. Se il sito dice *"Could not find the table
      'public.rounds' in the schema cache"*, o questo file non è stato eseguito,
      oppure basta rieseguire quella riga.
+   - `10_fantacalcio.sql` — le medie di Serie A di Fantacalcio.it mostrate in Rosa
+     (`fc_stats`, `fc_stats_meta`, `import_fc_stats()`): le carica l'amministratore
+     dal sito con l'Excel scaricato a mano.
 3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
 4. Crea gli account dei partecipanti e collegali alle squadre: vedi
    [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.
@@ -81,29 +85,45 @@ scegline una.
 1. Copia `db/account-esempio.csv` in `db/account.csv` e metti le email vere, una
    riga per partecipante: `email,squadra,nome,ruolo` (ruolo `giocatore` o
    `amministratore`). `account.csv` resta sul tuo computer: è in `.gitignore`.
-2. In **Project Settings → API** copia la chiave **service_role** (quella
-   segreta). Solo nel terminale del tuo computer, mai nel sito, nella repo o in
-   una chat.
-3. Nel terminale, dalla cartella della repo:
+2. Tieni a portata la chiave segreta: **Project Settings → API Keys**, la
+   **service_role** (o una *secret key* `sb_secret_…`). Mai la `anon` o la
+   *publishable*: lo script le riconosce e si ferma. La chiave resta sul tuo
+   computer: mai nel sito, nella repo o in una chat.
+3. Nel terminale, dalla cartella della repo (quella con dentro `db/` e `docs/`):
 
-   ```bash
-   export SUPABASE_URL=https://<progetto>.supabase.co
-   export SUPABASE_SERVICE_ROLE_KEY=<chiave service_role>
-   python3 db/crea_account.py db/account.csv            # prova: dice cosa farebbe
-   python3 db/crea_account.py db/account.csv --davvero  # lo fa
+   ```
+   python3 db/crea_account.py db/account.csv --password PROVVISORIA
    ```
 
-   Chi non ha un account lo riceve già confermato, con una password provvisoria
-   tipo `traversa-4827`; chi ce l'ha (tu, per esempio) viene solo collegato alla
-   squadra e al ruolo. Nessuna email parte da Supabase.
+   (al posto di `PROVVISORIA` la password comune che hai scelto). Lo script
+   chiede la chiave: incollala e premi Invio (mentre incolli non si
+   vede niente, è normale). È una prova: dice cosa farebbe e non cambia niente.
+   Se torna tutto, rilancia lo stesso comando con `--davvero` in fondo.
+
+   Scrivi i comandi così come sono, senza segni `<` `>` e senza commenti con
+   `#`: in zsh (il terminale del Mac) i primi danno *parse error* e i secondi
+   finiscono dentro il comando. L'indirizzo del progetto lo script lo prende da
+   solo dalla configurazione del sito.
+
+   Chi non ha un account lo riceve già confermato, con la password provvisoria
+   di `--password`, uguale per tutti (almeno 6 caratteri; la scrivi solo nel
+   comando, mai in un file della repo, che è pubblica). Senza `--password`
+   ognuno ne riceve una diversa, tipo `traversa-4827`. Chi l'account ce l'ha già (tu e Sebi) viene solo collegato
+   alla squadra e al ruolo, e la sua password non cambia. Nessuna email parte da
+   Supabase.
+
+   Con la password uguale per tutti, finché qualcuno non la cambia chiunque
+   conosca la sua email può entrare al posto suo: chiedi a tutti di cambiarla
+   appena entrano (menu in alto a destra → **Cambia password**).
 4. Apri `db/credenziali.txt`: c'è un messaggio pronto per ciascuno (link, email,
    password provvisoria, come cambiarla, promemoria del file .xls). Mandali su
    WhatsApp insieme alla guida, poi **cancella il file**.
 
 Lo script si può rilanciare quando vuoi (un partecipante nuovo, una squadra
-cambiata): non crea doppioni. Con `--nuova-password` rigenera la password anche
-a chi l'account ce l'ha già, per esempio se qualcuno l'ha persa e non riesce a
-usare "password dimenticata". Si prova senza rete con
+cambiata): non crea doppioni. Con `--nuova-password` cambia la password anche
+a chi l'account ce l'ha già (generata a caso, o quella di `--password`), per
+esempio se qualcuno l'ha persa e non riesce a usare "password dimenticata":
+in quel caso metti nel file solo la sua riga. Si prova senza rete con
 `python3 db/test/prova_crea_account.py`.
 
 ### Tutta dal pannello di Supabase
@@ -137,6 +157,15 @@ insieme al loro log.
 Dopo ogni giornata, dal sito come amministratore: **menu → Carica la giornata**
 con il file `.xls` della lega. Da quel file nascono risultati, voti, classifiche,
 statistiche, rose e crediti (`import_round()`).
+
+**Giornate passate.** Si può caricare anche il file di una giornata già passata
+(per esempio le prime, se mancano), in qualsiasi ordine: `import_round()` si
+accorge che è già caricata una giornata più recente e aggiorna solo i dati di
+quella giornata (voti, tabellini, classifiche fotografate) e i risultati fino a
+lì; i risultati delle giornate dopo, i costi delle rose e l'albo restano quelli
+dell'ultimo file. Il sito lo dice nell'anteprima. Per avere questa regola su un
+database già installato basta rieseguire `08_stagione.sql` (si può rieseguire:
+non tocca i dati).
 
 Dopo il mercato, dal sito come amministratore: **menu → Aggiorna le rose da
 un .xls** (allinea le rose e il modello per gli export) e **menu → Aggiorna il

@@ -30,3 +30,7 @@ con un server pulito; le variabili d'ambiente decidono la situazione:
 | `ADMIN` | l'account è amministratore |
 | `FORCE_P0007` | il database rifiuta qualsiasi salvataggio |
 | `MD` | la giornata corrente di Serie A (7 se non indicata) |
+
+Le formazioni di tutta la lega (Giornata → Formazioni del sito e il file unico
+dell'amministratore) per la giornata corrente sono quella di Valerio salvata qui,
+più due inventate per Sebi e Massimo; con `SOLO_MIA` c'è solo quella di Valerio.

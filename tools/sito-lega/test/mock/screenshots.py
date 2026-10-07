@@ -65,7 +65,7 @@ async def main():
         # 2 · il menu con "Carica la giornata"
         await pg.click('#userBtn')
         await pg.wait_for_timeout(400)
-        await pg.screenshot(path=f'{OUT}/02-menu.png', clip={'x': 0, 'y': 0, 'width': 400, 'height': 350})
+        await pg.screenshot(path=f'{OUT}/02-menu.png', clip={'x': 0, 'y': 0, 'width': 400, 'height': 600})
 
         # 3 · l'anteprima del caricamento
         await pg.set_input_files('#roundFile', XLS_PULITO)
@@ -85,7 +85,7 @@ async def main():
         await pg.screenshot(path=f'{OUT}/05-esito.png', clip={'x': 0, 'y': 0, 'width': 400, 'height': 330})
 
         # 6 · il tabellino di una partita (cosa vedono i partecipanti)
-        await pg.goto(SITO + '#/calendario')
+        await pg.goto(SITO + '#/giornata')
         await pg.wait_for_timeout(1200)
         await pg.click('.match[data-match]')
         await pg.wait_for_timeout(1200)
@@ -105,7 +105,7 @@ async def main():
         # il menu dell'amministratore, con le funzioni di Schiera
         await pg.click('#userBtn')
         await pg.wait_for_timeout(500)
-        await pg.screenshot(path=f'{OUT}/07-schiera-opzioni.png', clip={'x': 0, 'y': 0, 'width': 400, 'height': 460})
+        await pg.screenshot(path=f'{OUT}/07-schiera-opzioni.png', clip={'x': 0, 'y': 0, 'width': 400, 'height': 600})
         await pg.click('#userBtn')
         # la pagina Schiera: conto alla rovescia e campo
         await pg.evaluate("location.hash = '#/schiera'")

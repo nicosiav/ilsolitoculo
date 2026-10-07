@@ -37,15 +37,16 @@ barra c'è un pallino rosso.
 
 Nella pagina: **Ripristina l'ultima salvata** (pesca la più recente, anche da
 giornate precedenti), **Svuota**, **Riserve in ordine libero**; in fondo
-**Formazioni di giornata** (quelle di tutte le squadre, anche delle giornate
-passate), **Scarica il file .xls** (genera `formazioni_AAAAMMGG_Squadra.xls` dal
+**Formazioni di giornata** (porta a Giornata → Formazioni del sito, con quelle di
+tutte le squadre, anche delle giornate passate), **Scarica il file .xls** (genera `formazioni_AAAAMMGG_Squadra.xls` dal
 modello della lega tenuto in Supabase Storage: è il file da mandare
 all'amministratore) e **Storico modifiche**.
 
 Nel menu in alto a destra del sito (tocca il tuo nome) c'è **Cambia password**:
 serve la prima volta, per sostituire la password provvisoria.
 
-Per l'amministratore, nello stesso menu: **Aggiorna le rose da
+Per l'amministratore, nello stesso menu (oltre a **Scarica tutte le formazioni**,
+che usa lo stesso motore per scrivere tutti i fogli squadra in un file solo): **Aggiorna le rose da
 un .xls**, **Aggiorna il calendario di Serie A**, **Squadre dei giocatori** (chi
 non ha una squadra di Serie A si blocca alla prima partita della giornata),
 **Giornata corrente (a mano)**.

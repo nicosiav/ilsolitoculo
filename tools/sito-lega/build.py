@@ -156,6 +156,12 @@ window.SCHIERA_EMBED = true;
 {read(SRC / 'giornata.js')}
 </script>
 <script>
+{read(SRC / 'calcoli.js')}
+</script>
+<script>
+{read(SRC / 'fantacalcio.js')}
+</script>
+<script>
 {read(SRC / 'app.js')}
 </script>
 <script>

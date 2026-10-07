@@ -9,34 +9,53 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 
 ## Le sezioni
 
-| Sezione | Cosa c'è |
-|---|---|
-| Home | il riquadro verde per schierare, con il conto alla rovescia; la tua squadra, il risultato dell'ultima giornata, la prossima partita, l'andamento e la classifica |
-| Schiera | la formazione della giornata: campo, panchina, blocco partita per partita, conto alla rovescia al primo fischio, export `.xls` ([dettagli](../schiera-formazione/README.md)) |
-| Squadra | una pagina per squadra: posizioni, punteggi di giornata, andamento, tutte le partite con l'esito e i migliori della rosa |
-| Rose | le otto rose con ruolo, squadra di Serie A, costo, presenze, media e fantamedia; crediti residui e gol reali |
-| Calendario | tutte le 20 giornate; toccando una partita esce il tabellino con voti, subentri e marcatori |
-| Classifiche | campionato, campionato "corretto", Coppa di Lega, sfigometro, gol reali e classifica della Coppa |
-| Statistiche | cannonieri, migliori fantamedie e medie voto, prestazioni della giornata, punteggi a confronto |
-| Testa a testa | due squadre a confronto: scontri diretti, medie, giornate vinte, punteggi giornata per giornata |
-| Coppe | classifica parallela della Coppa con gli accoppiamenti dei quarti, Coppa di Lega, Supercoppa |
-| Playoff | tabellone, vantaggio di chi gioca in casa, i tre esiti del doppio confronto e le regole della bella |
-| Albo d'oro | la bacheca di sempre e tutte le stagioni dal 1991/92 |
-| Premi | montepremi, ripartizione, crediti per la stagione dopo e come si passa dal punteggio ai gol |
+Sei sezioni. Al telefono la barra in basso ha Home, Giornata, **Schiera** (il
+pulsante verde al centro, con un pallino rosso finché la formazione della
+giornata non è salvata), Classifiche e **Altro**, che apre Squadre e Lega. Sul
+computer stanno tutte nella barra in alto e Schiera è il riquadro verde con il
+conto alla rovescia in cima a ogni sezione.
 
-Al telefono le sezioni si cambiano dalla barra in basso: Home, Calendario,
-**Schiera** (il pulsante verde al centro, con un pallino rosso finché la
-formazione della giornata non è salvata), Classifiche e **Altro**, che apre un
-pannello con tutte le altre (Statistiche compresa). In Home il riquadro verde
-porta a Schiera e tiene il conto alla rovescia al primo fischio.
+| Sezione | Schede | Cosa c'è |
+|---|---|---|
+| Home | | il riquadro verde per schierare, con il conto alla rovescia; la tua squadra, l'ultima giornata, la prossima partita, l'andamento, la classifica |
+| Giornata | Partite · Formazioni | le partite di ogni giornata: toccandone una si aprono le due squadre affiancate, casa a sinistra e fuori a destra (tabellino con i fantavoti se è giocata, formazioni salvate in Schiera se è da giocare); in Formazioni si sceglie la squadra in cima (si vede subito chi ha salvato) e sotto c'è la sua formazione, salvata in Schiera o, per le giornate giocate, come risulta dal file con i fantavoti, con **contro …** per la partita. All'amministratore: **Scarica tutte in un file .xls** |
+| Schiera | | la formazione della giornata ([dettagli](../schiera-formazione/README.md)) |
+| Classifiche | Campionato · Corretta · Coppa di Lega · Sfigometro · Gol reali · Coppa · Playoff | tutte le classifiche del regolamento, la Coppa con gli accoppiamenti e la Supercoppa, il tabellone e le regole dei playoff |
+| Squadre | Sintesi · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |
+| Lega | Statistiche · Albo d'oro · Premi | record e curiosità, punteggi di ogni giornata, punti lasciati in panchina, cannonieri, migliori medie; la bacheca e tutte le stagioni dal 1991/92; montepremi e crediti |
 
-Sul computer la barra sta in alto (Home, Calendario, Classifiche, Altro) e
-Schiera non ci sta: al suo posto il riquadro verde con il conto alla rovescia
-compare in cima a ogni sezione, tranne dentro Schiera.
+I vecchi indirizzi (`#/calendario`, `#/rose`, `#/statistiche`…) portano da soli
+alla sezione nuova.
+
+### La formazione ideale
+
+Per ogni squadra e giornata: i migliori di chi ha preso un voto, con un portiere e
+il modulo che dà più punti fra quelli ammessi (3-4-3, 3-5-2, 4-3-3, 4-4-2, 4-5-1,
+5-3-2, 5-4-1). I "punti lasciati in panchina" sono la differenza con i fantavoti di
+chi è entrato davvero (il punteggio di Coppa di Lega: senza fattore campo e bonus
+del modulo). I calcoli stanno in `src/calcoli.js`.
 
 Il sito si installa come app: su Android dal menu in alto a destra ("Installa
 l'app sul telefono") o dal menu di Chrome; su iPhone da Safari → Condividi →
 "Aggiungi alla schermata Home".
+
+## Per l'amministratore
+
+Nel menu in alto a destra, oltre a **Carica la giornata** (qui sotto):
+
+- **Scarica tutte le formazioni**: un solo `.xls` con il modello della lega
+  (Supabase Storage, `modelli/formazioni.xls`) e ogni foglio squadra compilato con
+  la formazione salvata, come se ognuno avesse scaricato il suo; chi non ha salvato
+  resta con il foglio vuoto (colonna D e H31:K52) e il sito lo dice prima. Lo stesso
+  pulsante sta in fondo a Giornata → Formazioni, per qualsiasi giornata.
+- **Carica le medie di Fantacalcio.it**: l'Excel scaricato a mano dalla pagina
+  [Statistiche Serie A](https://www.fantacalcio.it/statistiche-serie-a) (`.xlsx`, o
+  `.xls`). Il sito lo legge nel browser (`src/fantacalcio.js`), abbina i giocatori
+  per nome (e ruolo e squadra quando serve), mostra un'anteprima e lo salva con
+  `import_fc_stats()` ([`db/10_fantacalcio.sql`](../../db/10_fantacalcio.sql)).
+  Niente scaricamenti automatici: le condizioni d'uso di Fantacalcio.it (art. 3.3 e
+  8) non li permettono, né permettono di ripubblicare i dati; in Rosa compaiono solo
+  ai partecipanti, con la fonte e la data.
 
 ## Ogni settimana: carica la giornata
 
@@ -74,6 +93,8 @@ sezioni restano vuote finché le tabelle non ci sono.
 
 - `src/index.html`, `src/app.css`, `src/app.js` — il sito.
 - `src/giornata.js` — lettura del file .xls di giornata (tutti i fogli).
+- `src/calcoli.js` — formazione ideale, punti per reparto, serie, record, distribuzione dei punteggi, posizioni nel tempo (funzioni pure, provate da `test/calcoli.test.js`).
+- `src/fantacalcio.js` — lettura dell'Excel delle statistiche di Fantacalcio.it (`.xlsx` senza librerie, `.xls` con il motore di Schiera) e abbinamento alle rose.
 - Schiera arriva da `tools/schiera-formazione/src/` (`ui.html`, `ui.css`, `ui.js`): `build.py` la mette al posto del segnaposto in `src/index.html` e ne chiude lo stile sotto `.sch`, così non tocca il resto del sito.
 - `src/manifest.webmanifest`, `src/sw.js` — il sito come app installabile (il service worker non tiene niente in cache).
 - `src/logo.svg` — il marchio della lega (il "colpo di culo"). `build.py` lo mette
@@ -89,4 +110,9 @@ node -e "const G=require('./tools/sito-lega/src/giornata.js'),fs=require('fs');
 ```
 
 Le prove del sito girano contro un finto Supabase costruito dal file di giornata
-vero: vedi [`test/mock/`](test/mock/README.md).
+vero: vedi [`test/mock/`](test/mock/README.md). I calcoli si provano anche da soli:
+
+```bash
+python3 tools/sito-lega/test/mock/fantacalcio_finto.py /tmp/fc_stats.xlsx    # un Excel di Fantacalcio.it finto
+node tools/sito-lega/test/calcoli.test.js "giornata.xls" /tmp/fc_stats.xlsx
+```

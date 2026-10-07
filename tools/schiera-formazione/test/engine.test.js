@@ -52,3 +52,36 @@ order.forEach((row, i) => assert.strictEqual(again[row].number, i + 1));
 assert.strictEqual(res.lineup[0].name, roster[order[0]].name);
 assert.deepStrictEqual(res.modulo, [3, 4, 3]);
 console.log('ok  formazione scritta e riletta sul foglio', sheet, '(modulo', res.modulo.join('-') + ')');
+
+// 4) tutte le squadre in un solo file: metà schierate, metà con il foglio vuoto
+const voci = wb.sheetNames.map((name, k) => {
+  const ro = wb.roster(name);
+  const per = r => ro.filter(p => p.name && p.role === r).map(p => p.row);
+  const p4 = per('P'), d4 = per('D'), c4 = per('C'), a4 = per('A');
+  const ord = [p4[0], d4[0], d4[1], d4[2], d4[3], c4[0], c4[1], c4[2], a4[0], a4[1], a4[2]].filter(x => x !== undefined);
+  const n = Array(31).fill(null);
+  ord.forEach((row, i) => { n[row] = i + 1; });
+  return { name, numbers: n, vuoto: k % 2 === 1, ord };
+});
+const tutte = wb.buildMany(voci);
+const riletto = E.load(tutte.bytes);
+voci.forEach(v => {
+  const ro = riletto.roster(v.name);
+  if (v.vuoto) {
+    assert.ok(ro.every(p => p.number == null), 'colonna D non vuota nel foglio ' + v.name);
+  } else {
+    v.ord.forEach((row, i) => assert.strictEqual(ro[row].number, i + 1, v.name));
+  }
+});
+const f0 = tutte.fogli.find(f => !f.vuoto), f1 = tutte.fogli.find(f => f.vuoto);
+assert.deepStrictEqual(f0.modulo, [4, 3, 3]);
+assert.ok(f1.lineup.every(x => !x.name), 'formazione "finta" nel foglio vuoto ' + f1.name);
+// i fogli non toccati restano identici
+const b1 = I.openWorkbook(u8), b2 = I.openWorkbook(tutte.bytes);
+b1.sheets.filter(s => !voci.some(v => v.name === s.name)).forEach(s => {
+  const recA = b1.recs.slice(s.start, s.end + 1).map(r => Buffer.from(r.data).toString('hex')).join('|');
+  const s2 = b2.sheets.find(x => x.name === s.name);
+  const recB = b2.recs.slice(s2.start, s2.end + 1).map(r => Buffer.from(r.data).toString('hex')).join('|');
+  assert.strictEqual(recA, recB, 'foglio cambiato: ' + s.name);
+});
+console.log('ok  tutte le formazioni in un file:', voci.filter(v => !v.vuoto).length, 'schierate,', voci.filter(v => v.vuoto).length, 'vuote');
