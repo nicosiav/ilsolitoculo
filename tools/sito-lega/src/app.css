@@ -358,6 +358,8 @@ a.chip { text-decoration: none; display: inline-block; }
 .sq-sel .chip span { font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .sq-sel .chip span.ok { color: var(--ok); }
 .sq-sel .chip span.ok::before { content: '✓ '; }
+.sq-sel .chip span.warn { color: var(--warn-ink); font-weight: 700; }
+.sq-sel .chip span.warn::before { content: '⚠ '; }
 .form-testa { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 4px; }
 .form-testa > div { min-width: 0; }
 .form-testa h3 { margin: 0; font: 700 19px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
@@ -463,3 +465,79 @@ a.chip { text-decoration: none; display: inline-block; }
 @media (min-width: 720px) { .chart-wrap { max-width: 560px; } }
 .tiles.q3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 420px) { .chips.larghe .chip { padding: 7px 2px; font-size: 12.5px; letter-spacing: -.01em; } }
+
+/* pannello "Altro" al telefono: Squadre, Lega e Mercato, una sotto l'altra */
+.altro-grid.due { grid-template-columns: 1fr; }
+.altro-grid.due a { grid-template-columns: 26px minmax(0, 1fr); align-items: center; padding: 12px 14px; gap: 12px; }
+
+/* mercato: svincolati */
+.mercato .chips.ruoli { flex-wrap: nowrap; }
+.mercato .chips.ruoli .chip { flex: 1 1 0; min-width: 0; padding-inline: 4px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mercato .chips.ruoli .lungo { display: none; }
+@media (min-width: 720px) { .mercato .chips.ruoli .lungo { display: inline; } .mercato .chips.ruoli .corto { display: none; } }
+.filtri { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 8px; }
+.filtri select, .filtri input, .ordina select, .op-form select, .op-form input {
+  width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface-2); color: inherit; font: inherit; font-size: 14px;
+}
+.ordina { display: flex; align-items: center; gap: 8px; }
+.ordina label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.ordina label select { flex: 1; }
+.ordina .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); white-space: nowrap; }
+@media (min-width: 720px) { .ordina { display: none; } }
+.tbl.svinc th[data-ord] { cursor: pointer; user-select: none; white-space: nowrap; }
+.tbl.svinc th.ord { color: var(--ink); }
+.tbl.svinc td.ord { font-weight: 700; }
+.tbl.svinc td { padding-block: 8px; }
+.tbl.svinc tbody tr { cursor: pointer; }
+.tbl.svinc tbody tr:hover, .tbl.svinc tbody tr:focus-visible { background: var(--surface-2); outline: none; }
+.tbl.svinc .gioc { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tbl.svinc .gioc b { display: block; font-weight: 600; }
+.tbl.svinc .gioc .tel { display: block; color: var(--muted); font-size: 12px; }
+@media (max-width: 719px) { .tbl.svinc .x, .tbl.svinc .pc { display: none; } .tbl.svinc th, .tbl.svinc td { padding-inline: 4px; } }
+@media (min-width: 720px) { .tbl.svinc .gioc .tel { display: none; } }
+
+/* mercato: l'operazione dell'amministratore */
+.op-form { display: grid; gap: 10px; }
+.op-form > label, .due-campi label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.op-form label small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.due-campi { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.mercato > *, .op-form > *, .due-campi > * { min-width: 0; }
+.scelte { display: grid; gap: 6px; }
+.scelta {
+  display: grid; grid-template-columns: auto 20px minmax(0, 1fr); gap: 8px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
+}
+.scelta:has(input:checked) { border-color: var(--pitch-2); box-shadow: inset 0 0 0 1px var(--pitch-2); }
+.scelta .who, .op-r .who { min-width: 0; }
+.scelta .who b, .op-r .who b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scelta .who span, .op-r .who span { display: block; color: var(--muted); font-size: 12px; }
+.op-riep { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.op-riep.ko, .small.ko { color: var(--ko); }
+
+/* mercato: le operazioni */
+.ops { display: grid; gap: 10px; }
+.op { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; }
+.op.annullata { opacity: .62; }
+.op.annullata .who b { text-decoration: line-through; }
+.op-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.op-h b { font: 700 16px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.op-h span { color: var(--muted); font-size: 12.5px; text-align: right; }
+.op-r { display: grid; grid-template-columns: 40px 20px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.op-r .val { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.op-r .val b { font-weight: 700; }
+.op-r .val span { display: block; color: var(--muted); font-size: 11px; }
+.io { font: 700 11px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.io.in { color: var(--ok); }
+.op-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.op-a { display: flex; gap: 16px; flex-wrap: wrap; }
+.tag { font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn-ink); white-space: nowrap; }
+.tag.ok { background: color-mix(in srgb, var(--ok) 14%, var(--surface)); color: var(--ok); }
+.tag.no { background: var(--surface-2); color: var(--muted); }
+.riep { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
+
+/* i numeri di un giocatore nel foglio: quattro per riga anche al telefono */
+.tiles.compatti { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tiles.compatti .tile { padding: 8px 8px; border-radius: 12px; }
+.tiles.compatti .tile b { font-size: 21px; }
+.tiles.compatti .tile span { font-size: 11px; line-height: 1.2; }

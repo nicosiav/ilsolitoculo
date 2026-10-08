@@ -9,9 +9,9 @@ Serve l'account della lega: rose, voti e formazioni restano fra i partecipanti.
 
 ## Le sezioni
 
-Sei sezioni. Al telefono la barra in basso ha Home, Giornata, **Schiera** (il
+Sette sezioni. Al telefono la barra in basso ha Home, Giornata, **Schiera** (il
 pulsante verde al centro, con un pallino rosso finché la formazione della
-giornata non è salvata), Classifiche e **Altro**, che apre Squadre e Lega. Sul
+giornata non è salvata), Classifiche e **Altro**, che apre Squadre, Lega e Mercato. Sul
 computer stanno tutte nella barra in alto e Schiera è il riquadro verde con il
 conto alla rovescia in cima a ogni sezione.
 
@@ -23,6 +23,7 @@ conto alla rovescia in cima a ogni sezione.
 | Classifiche | Campionato · Corretta · Coppa di Lega · Sfigometro · Gol reali · Coppa · Playoff | tutte le classifiche del regolamento, la Coppa con gli accoppiamenti e la Supercoppa, il tabellone e le regole dei playoff |
 | Squadre | Sintesi · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |
 | Lega | Statistiche · Albo d'oro · Premi | record e curiosità, punteggi di ogni giornata, punti lasciati in panchina, cannonieri, migliori medie; la bacheca e tutte le stagioni dal 1991/92; montepremi e crediti |
+| Mercato | Svincolati · Operazioni | gli svincolati (il LISTONE del file di giornata) con le statistiche di Serie A di Fantacalcio.it: filtri per ruolo, squadra e nome, ordinamento su ogni colonna (sul computer toccando l'intestazione, al telefono con "Ordina per"); lo storico delle operazioni. All'amministratore: **prendere** uno svincolato al posto di un giocatore in rosa, l'elenco di cosa riportare nel file e l'annullamento |
 
 I vecchi indirizzi (`#/calendario`, `#/rose`, `#/statistiche`…) portano da soli
 alla sezione nuova.
@@ -56,6 +57,40 @@ Nel menu in alto a destra, oltre a **Carica la giornata** (qui sotto):
   Niente scaricamenti automatici: le condizioni d'uso di Fantacalcio.it (art. 3.3 e
   8) non li permettono, né permettono di ripubblicare i dati; in Rosa compaiono solo
   ai partecipanti, con la fonte e la data.
+
+## Mercato
+
+In **Mercato → Svincolati** l'amministratore tocca un giocatore, sceglie la
+squadra e chi esce (solo giocatori dello stesso ruolo), scrive il costo dello
+svincolo (negativo se è un rimborso) e quello dell'acquisto, e vede i crediti
+prima e dopo. Alla conferma ([`db/11_mercato.sql`](../../db/11_mercato.sql),
+`mercato_sostituisci()`):
+
+- chi esce va fra gli svincolati; resta nel database senza posto, così le
+  formazioni passate lo mostrano ancora, ed esce dalle formazioni salvate delle
+  giornate non iniziate. Il posto resta vuoto (il nuovo non entra da solo) e la
+  squadra in Schiera vede l'avviso «La tua formazione ha un posto vuoto: X è stato
+  svincolato», lo stato «da rifare» e il pallino rosso, finché non la salva di
+  nuovo; anche in Giornata → Formazioni risulta «da rifare»;
+- chi entra prende il suo posto in rosa, e quindi in Schiera, con la squadra di
+  Serie A del LISTONE;
+- i crediti scendono, e il costo dell'acquisto diventa il suo costo in rosa;
+- il sito aggiorna il modello delle formazioni (`modelli/formazioni.xls`): nel
+  foglio ROSE nome, costo e crediti della squadra, nel LISTONE chi entra lascia il
+  posto a chi esce. I fogli squadra prendono i nomi da ROSE, così il file che
+  ognuno scarica da Schiera ha già il nuovo giocatore.
+
+In **Mercato → Operazioni** ci sono tutte le operazioni (le vedono tutti) e, solo
+per l'amministratore, l'elenco di cosa riportare nel file di giornata (foglio
+ROSE, riga, nomi, costo, crediti; LISTONE), con **Copia l'elenco**. L'ultima
+operazione si annulla finché il file di giornata non l'ha recepita: chi era uscito
+torna anche nella formazione salvata, se il suo posto è ancora libero e la
+giornata non è iniziata.
+
+Quando carichi il file di giornata l'anteprima dice quali operazioni ci sono già
+e quali no; dopo il caricamento il LISTONE del file diventa la lista degli
+svincolati, le operazioni trovate nel foglio ROSE escono dall'elenco, i crediti si
+allineano e il sito segnala le rose diverse fra file e sito.
 
 ## Ogni settimana: carica la giornata
 

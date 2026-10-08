@@ -37,10 +37,13 @@ async def main():
             await pg.click('#allBtn'); await pg.wait_for_timeout(1200)
             print('  indirizzo:', pg.url.split('#')[1], '| Schiera nascosta:', not await pg.is_visible('#pitch'))
             assert pg.url.endswith('#/giornata/formazioni') and not await pg.is_visible('#pitch')
-            n = await pg.locator('.form-sq').count(); salvate = await pg.locator('details.form-sq').count()
+            # in cima il selettore delle squadre: chi ha salvato ha "✓ salvata"
+            n = await pg.locator('.sq-sel .chip').count(); salvate = await pg.locator('.sq-sel .chip span.ok').count()
             print('  squadre elencate:', n, '| con la formazione salvata:', salvate)
             assert n == 8 and salvate >= 1
-            print('  la mia:', (await pg.inner_text('details.form-sq[open]')).strip().replace('\n',' | ')[:120])
+            mia = (await pg.inner_text('.form-pan:visible')).strip()
+            print('  la mia:', mia.replace('\n',' | ')[:120])
+            assert mia.upper().startswith('VALERIO')
         await scenario(pw,'8 formazioni di giornata',{'PRELOAD':'1'},s8)
 
         # 9) ripristino dall'ultima formazione salvata (giornate precedenti)

@@ -122,13 +122,30 @@ if (FC) {
   });
 }
 
-const TAB = { teams, rounds, matches, round_teams, standings, team_season, scorers, roster_costs, players, player_votes, player_stats, albo, fc_stats, fc_stats_meta };
+// mercato (db/11_mercato.sql): il LISTONE del file e le operazioni. NOMERCATO = script non eseguito
+let listoneId = 0;
+const listone = (dati.listone || []).map(x => ({ id: ++listoneId, ruolo: x.ruolo, nome: x.nome, club: x.squadra || null, origine: 'file' }));
+const market_ops = [];
+let modello = null;                         // il modello .xls caricato dal sito (dopo un'operazione)
+const MODELLO = process.env.FORMAZIONI || '/home/claude/Formazioni.xls';
+const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const creditiDi = id => {
+  const ts = team_season.find(t => t.team_id === id);
+  if (!ts || ts.crediti == null) return null;
+  return ts.crediti - market_ops.filter(o => o.team_id === id && !o.annullata_at && !o.riportata_at)
+    .reduce((a, o) => a + o.costo_svincolo + o.costo_acquisto, 0);
+};
+const errore = (res, code, message) => json(res, 400, { code, message });
+
+const TAB = { teams, rounds, matches, round_teams, standings, team_season, scorers, roster_costs, players, player_votes, player_stats, albo, fc_stats, fc_stats_meta, listone, market_ops };
 
 // filtri PostgREST minimi: eq, lt, is, in
 function filtra(righe, q) {
   return righe.filter(r => Object.keys(q).every(k => {
     if (['select', 'order', 'limit', 'offset'].includes(k)) return true;
     const v = String(q[k]);
+    if (v === 'not.is.null') return r[k] !== null && r[k] !== undefined;
+    if (v === 'is.null') return r[k] === null || r[k] === undefined;
     const m = /^(eq|lt|gt|neq|is)\.(.*)$/.exec(v);
     if (!m) return true;
     const val = m[2] === 'true' ? true : m[2] === 'false' ? false : m[2];
@@ -153,11 +170,12 @@ const json = (res, code, obj) => {
 
 http.createServer((req, res) => {
   const u = url.parse(req.url, true);
-  let body = '';
-  req.on('data', c => body += c);
+  const pezzi = [];
+  req.on('data', c => pezzi.push(c));
   req.on('end', () => {
     const p = u.pathname, q = u.query;
-    let b = {}; try { b = body ? JSON.parse(body) : {}; } catch (e) { b = {}; }
+    const grezzo = Buffer.concat(pezzi), body = grezzo.toString('utf8');
+    let b = {}; try { b = body && !p.startsWith('/storage/') ? JSON.parse(body) : {}; } catch (e) { b = {}; }
     if (req.method === 'OPTIONS') return json(res, 200, {});
     if (p === '/auth/v1/token') {
       if (q.grant_type === 'password') {
@@ -199,8 +217,96 @@ http.createServer((req, res) => {
     if (m && process.env.NOFC && ['fc_stats', 'fc_stats_meta'].includes(m[1])) {
       return json(res, 404, { code: 'PGRST205', message: "Could not find the table 'public." + m[1] + "' in the schema cache" });
     }
+    // ---- mercato
+    if (process.env.NOMERCATO && (p.startsWith('/rest/v1/rpc/mercato_') || (m && ['listone', 'market_ops'].includes(m[1])))) {
+      return json(res, 404, m && !p.includes('/rpc/') ? { code: 'PGRST205', message: "Could not find the table 'public." + m[1] + "' in the schema cache" }
+        : { code: 'PGRST202', message: 'Could not find the function in the schema cache' });
+    }
+    if (p.startsWith('/storage/v1/object/modelli/')) {
+      if (req.method === 'POST' || req.method === 'PUT') {
+        modello = grezzo; fs.writeFileSync('/tmp/modello_mercato.xls', grezzo); fs.writeFileSync('/tmp/upload.flag', '1');
+        return json(res, 200, { Key: 'modelli/formazioni.xls' });
+      }
+      res.writeHead(200, { 'content-type': 'application/vnd.ms-excel', 'access-control-allow-origin': '*' });
+      return res.end(modello || fs.readFileSync(MODELLO));
+    }
+    if (p === '/rest/v1/rpc/mercato_crediti') {
+      return json(res, 200, teams.map(t => ({ team_id: t.id, crediti: creditiDi(t.id), dal_file: (team_season.find(x => x.team_id === t.id) || {}).crediti, round: dati.giornata,
+        in_sospeso: market_ops.filter(o => o.team_id === t.id && !o.annullata_at && !o.riportata_at).length })));
+    }
+    if (p === '/rest/v1/rpc/mercato_sostituisci') {
+      if (!process.env.ADMIN) return errore(res, 'P0005', "Solo l'amministratore può fare operazioni di mercato");
+      const pe = players.find(x => x.id === b.p_esce), li = listone.find(x => x.id === b.p_entra);
+      if (!pe || pe.slot == null) return errore(res, 'P0010', 'Il giocatore da svincolare non è più in rosa');
+      if (!li) return errore(res, 'P0011', 'Il giocatore da prendere non è più fra gli svincolati');
+      if (li.ruolo !== pe.role) return errore(res, 'P0012', `Ruoli diversi: ${pe.name} è ${pe.role}, ${li.nome} è ${li.ruolo}`);
+      if (b.p_costo_acquisto < 0) return errore(res, 'P0013', "Il costo dell'acquisto non può essere negativo");
+      const cr = creditiDi(pe.team_id), tot = (b.p_costo_svincolo || 0) + (b.p_costo_acquisto || 0);
+      if (cr != null && cr - tot < 0) return errore(res, 'P0014', `Crediti insufficienti: ne ha ${cr}, l'operazione ne costa ${tot}`);
+      const rc = roster_costs.find(x => x.team_id === pe.team_id && x.slot === pe.slot);
+      const slot = pe.slot;
+      pe.slot = null; pe.fuori_rosa_at = new Date().toISOString();
+      const nuovo = { id: 'pl-nuovo-' + (market_ops.length + 1), team_id: pe.team_id, slot, role: pe.role, name: li.nome, club: li.club };
+      players.push(nuovo);
+      listone.splice(listone.indexOf(li), 1);
+      listone.push({ id: ++listoneId, ruolo: pe.role, nome: pe.name, club: pe.club, origine: 'svincolo' });
+      if (rc) Object.assign(rc, { nome: li.nome, costo: b.p_costo_acquisto, valore: null });
+      const op = { id: market_ops.length + 1, at: new Date().toISOString(), team_id: pe.team_id, slot, ruolo: pe.role,
+        esce_id: pe.id, esce_nome: pe.name, esce_club: pe.club, esce_costo: rc && norm(rc.nome) === norm(li.nome) ? b.p_costo_acquisto : (rc ? rc.costo : null), esce_valore: null,
+        entra_id: nuovo.id, entra_nome: li.nome, entra_club: li.club, costo_svincolo: b.p_costo_svincolo || 0, costo_acquisto: b.p_costo_acquisto || 0,
+        crediti_prima: cr, crediti_dopo: cr == null ? null : cr - tot, note: b.p_note || null,
+        formazioni: process.env.PRELOAD && pe.team_id === 'team-Valerio' ? [{ team_id: pe.team_id, matchday: 7, pos: 12 }] : [],
+        modello_at: null, riportata_at: null, riportata_round: null, annullata_at: null };
+      market_ops.unshift(op);
+      fs.writeFileSync('/tmp/mercato_op.json', JSON.stringify(op));
+      return json(res, 200, { id: op.id, entra_id: nuovo.id, crediti_prima: cr, crediti_dopo: op.crediti_dopo, formazioni: op.formazioni });
+    }
+    if (p === '/rest/v1/rpc/mercato_annulla') {
+      if (!process.env.ADMIN) return errore(res, 'P0005', "Solo l'amministratore");
+      const o = market_ops.find(x => x.id === b.p_op);
+      if (!o || o.annullata_at) return errore(res, 'P0015', 'Operazione non trovata o già annullata');
+      if (market_ops.some(x => x.id > o.id && !x.annullata_at)) return errore(res, 'P0015', "Si può annullare solo l'ultima operazione");
+      if (o.riportata_at) return errore(res, 'P0015', "È già nel file di giornata: per tornare indietro fai l'operazione inversa");
+      players.splice(players.findIndex(x => x.id === o.entra_id), 1);
+      const pe = players.find(x => x.id === o.esce_id); pe.slot = o.slot; pe.fuori_rosa_at = null;
+      const li = listone.findIndex(x => norm(x.nome) === norm(o.esce_nome)); if (li >= 0) listone.splice(li, 1);
+      listone.push({ id: ++listoneId, ruolo: o.ruolo, nome: o.entra_nome, club: o.entra_club, origine: 'file' });
+      const rc = roster_costs.find(x => x.team_id === o.team_id && x.slot === o.slot); if (rc) Object.assign(rc, { nome: o.esce_nome, costo: o.esce_costo });
+      o.annullata_at = new Date().toISOString();
+      return json(res, 200, { id: o.id, formazioni: o.formazioni });
+    }
+    if (p === '/rest/v1/rpc/mercato_modello') {
+      const o = market_ops.find(x => x.id === b.p_op); if (o) o.modello_at = b.p_ok ? new Date().toISOString() : null;
+      return json(res, 200, null);
+    }
+    if (p === '/rest/v1/rpc/mercato_dal_file') {
+      if (!process.env.ADMIN) return errore(res, 'P0005', "Solo l'amministratore");
+      fs.writeFileSync('/tmp/mercato_dal_file.json', JSON.stringify({ round: b.p_round, rose: (b.p_rose || []).length, listone: (b.p_listone || []).length }));
+      if ((b.p_listone || []).length) {
+        listone.length = 0;
+        b.p_listone.forEach(x => listone.push({ id: ++listoneId, ruolo: x.ruolo, nome: x.nome, club: x.squadra || null, origine: 'file' }));
+      }
+      let riportate = 0;
+      market_ops.filter(o => !o.annullata_at && !o.riportata_at).forEach(o => {
+        if ((b.p_rose || []).some(r => idOf(r.squadra) === o.team_id && r.slot === o.slot && norm(r.nome) === norm(o.entra_nome))) {
+          o.riportata_at = new Date().toISOString(); o.riportata_round = b.p_round; riportate++;
+        } else if (!listone.some(l => norm(l.nome) === norm(o.esce_nome))) {
+          listone.push({ id: ++listoneId, ruolo: o.ruolo, nome: o.esce_nome, club: o.esce_club, origine: 'svincolo' });
+        }
+      });
+      const differenze = [];
+      (b.p_rose || []).forEach(r => {
+        const t = idOf(r.squadra), sul = players.find(x => x.team_id === t && x.slot === r.slot);
+        if (t && norm(sul && sul.name) !== norm(r.nome)) {
+          const op = market_ops.find(o => !o.annullata_at && !o.riportata_at && o.team_id === t && o.slot === r.slot);
+          differenze.push({ team_id: t, slot: r.slot, nel_file: r.nome, sul_sito: sul ? sul.name : null, operazione: op ? op.id : null });
+        }
+      });
+      return json(res, 200, { listone: listone.length, riportate, in_sospeso: market_ops.filter(o => !o.annullata_at && !o.riportata_at).length, differenze });
+    }
     if (m && TAB[m[1]]) {
       let righe = filtra(TAB[m[1]], q);
+      if (m[1] === 'market_ops' && q.order === 'id') righe = righe.slice().sort((x, y) => x.id - y.id);
       if (q.offset) righe = righe.slice(+q.offset);
       if (q.limit) righe = righe.slice(0, +q.limit);
       return json(res, 200, righe);

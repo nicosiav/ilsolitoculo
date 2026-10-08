@@ -6,7 +6,13 @@ XLS = os.environ.get('XLS', '/root/.claude/uploads/01e16dca-3147-5c65-b05b-ee868
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+# SOLO=13,14 per far girare solo alcuni scenari
+SOLO = [x for x in os.environ.get('SOLO', '').split(',') if x]
+
+
 async def apri(pw, env, passi, nome):
+    if SOLO and nome.split()[0] not in SOLO:
+        return
     subprocess.run(['fuser', '-k', '8899/tcp'], capture_output=True)
     time.sleep(0.3)
     srv = subprocess.Popen(['node', 'server.js'], cwd=HERE, env={**os.environ, 'XLS': XLS, **env},
@@ -77,7 +83,8 @@ async def main():
             for sez, atteso in [('squadre', '.prow'), ('squadre/rosa', '.prow'), ('squadre/statistiche', 'svg.chart'),
                                 ('squadre/confronto', '.tile'), ('giornata', '.match'), ('giornata/formazioni', '.form-pan'),
                                 ('classifiche', '.tbl'), ('classifiche/coppa', '.tbl'), ('classifiche/playoff', '.match'),
-                                ('lega', '.prow'), ('lega/albo', '.tbl'), ('lega/premi', '.prow')]:
+                                ('lega', '.prow'), ('lega/albo', '.tbl'), ('lega/premi', '.prow'),
+                                ('mercato', 'tr[data-svinc]'), ('mercato/operazioni', '.card')]:
                 await pg.goto(BASE + '#/' + sez)
                 await pg.wait_for_timeout(700)
                 t = (await pg.inner_text('#view')).strip().replace('\n', ' | ')
@@ -86,7 +93,8 @@ async def main():
                 assert n > 0, 'sezione vuota: ' + sez
             # i vecchi indirizzi portano dove sta ora la stessa cosa
             for vecchio, nuovo in [('calendario', 'giornata'), ('rose', 'squadre/rosa'), ('statistiche', 'lega'),
-                                   ('coppe', 'classifiche/coppa'), ('albo', 'lega/albo'), ('confronto', 'squadre/confronto')]:
+                                   ('coppe', 'classifiche/coppa'), ('albo', 'lega/albo'), ('confronto', 'squadre/confronto'),
+                                   ('svincolati', 'mercato')]:
                 await pg.goto(BASE + '#/' + vecchio); await pg.wait_for_timeout(500)
                 assert pg.url.endswith('#/' + nuovo), (vecchio, pg.url)
             print('  vecchi indirizzi: ok')
@@ -193,7 +201,7 @@ async def main():
             tessere = await pg.locator('.altro-grid a').all_inner_texts()
             print('  pannello:', ' · '.join(tessere))
             assert await pg.locator('.altro .schiera-big').count() == 0
-            assert len(tessere) == 2 and tessere[0].strip().upper().startswith('SQUADRE') and tessere[1].strip().upper().startswith('LEGA')
+            assert len(tessere) == 3 and [t.strip().upper().split()[0] for t in tessere] == ['SQUADRE', 'LEGA', 'MERCATO'], tessere
             await pg.click('.altro-grid a[href="#/squadre"]'); await pg.wait_for_timeout(700)
             assert pg.url.endswith('#/squadre') and await pg.locator('.scrim').count() == 0
             assert (await pg.get_attribute('#altroBtn', 'aria-current')) == 'page'
@@ -219,7 +227,7 @@ async def main():
             # sul computer (siamo a 1100 px): Schiera è il riquadro verde in ogni sezione, non una voce della barra
             voci_pc = [v.strip() for v in await pg.locator('#nav > a:visible, #nav > button:visible').all_inner_texts()]
             print('  computer, barra:', ' · '.join(voci_pc), '| riquadro in Classifiche:', await pg.is_visible('#schieraBig'))
-            assert voci_pc == ['Home', 'Giornata', 'Classifiche', 'Squadre', 'Lega'], voci_pc
+            assert voci_pc == ['Home', 'Giornata', 'Classifiche', 'Squadre', 'Lega', 'Mercato'], voci_pc
             assert await pg.is_visible('#schieraBig')
             await pg.click('#schieraBig'); await pg.wait_for_timeout(800)
             print('  computer, dal riquadro a:', pg.url.split('#')[1], '| riquadro dentro Schiera:', await pg.is_visible('#schieraBig'))
@@ -353,10 +361,162 @@ async def main():
             assert rec >= 6 and await pg.locator('svg.chart').count() == 1
             for w in (390, 1100):
                 await pg.set_viewport_size({'width': w, 'height': 800}); await pg.wait_for_timeout(300)
-                for h in ('#/lega', '#/squadre/statistiche', '#/giornata/formazioni', '#/squadre/rosa'):
+                for h in ('#/lega', '#/squadre/statistiche', '#/giornata/formazioni', '#/squadre/rosa', '#/mercato', '#/mercato/operazioni'):
                     await pg.evaluate(f"location.hash = '{h}'"); await pg.wait_for_timeout(700)
                     assert not await pg.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth'), (w, h)
             print('  niente scorrimento di lato a 390 e 1100 px')
         await apri(pw, {'PRELOAD': '1', 'FC': FC}, s12, '12 statistiche')
+
+        # 13) mercato: svincolati con filtri e ordinamento, l'amministratore prende un giocatore,
+        #     il modello .xls si aggiorna, l'operazione si annulla, il file di giornata la controlla
+        def modello():
+            js = ("const E=require(process.argv[1]),fs=require('fs');const wb=E.load(new Uint8Array(fs.readFileSync('/tmp/modello_mercato.xls')));"
+                  "const L=wb.grid('LISTONE'),l=[];for(let r=1;r<400;r++){const n=L.str(r,1);if(n)l.push(n)}"
+                  "console.log(JSON.stringify({posto3:wb.roster('Valerio')[2].name,crediti:wb.grid('ROSE').num(0,19),listone:l}))")
+            return json.loads(subprocess.run(['node', '-e', js, ENGINE], capture_output=True, text=True, check=True).stdout)
+
+        async def s13(pg):
+            for f in ('/tmp/modello_mercato.xls', '/tmp/mercato_op.json', '/tmp/mercato_dal_file.json'):
+                if os.path.exists(f):
+                    os.remove(f)
+            await login(pg)
+            await pg.goto(BASE + '#/mercato'); await pg.wait_for_timeout(1200)
+            righe = await pg.locator('tr[data-svinc]').count()
+            print('  svincolati:', righe, '|', await pg.inner_text('#svN'))
+            assert righe == 302 and '302' in await pg.inner_text('#svN')
+            await pg.click('[data-mf-ruolo="P"]'); await pg.wait_for_timeout(200)
+            assert await pg.locator('tr[data-svinc]').count() == 37
+            await pg.fill('[data-mf="q"]', 'ble'); await pg.wait_for_timeout(200)
+            nomi = [x.strip() for x in await pg.locator('tr[data-svinc] td:first-child b').all_inner_texts()]
+            assert nomi == ['Bleve'], nomi
+            await pg.fill('[data-mf="q"]', ''); await pg.click('[data-mf-ruolo=""]')
+            await pg.select_option('[data-mf="club"]', 'Lecce'); await pg.wait_for_timeout(200)
+            club = set(x.strip() for x in await pg.locator('tr[data-svinc] .tel').all_inner_texts())
+            assert club == {'Lecce'}, club
+            await pg.select_option('[data-mf="club"]', '')
+            # ordinamento: Gol, dal più alto e poi dal più basso; la colonna scelta si vede anche al telefono
+            await pg.select_option('[data-mf="ord"]', 'gf'); await pg.wait_for_timeout(200)
+            assert await pg.is_visible('th[data-ord="gf"]')
+            gol = [int(x) for x in await pg.locator('tr[data-svinc] td.ord').all_inner_texts() if x.strip() != '—']
+            assert gol == sorted(gol, reverse=True) and gol[0] > 0, gol[:8]
+            await pg.click('th[data-ord="gf"]'); await pg.wait_for_timeout(200)
+            gol2 = [int(x) for x in await pg.locator('tr[data-svinc] td.ord').all_inner_texts() if x.strip() != '—']
+            assert gol2 == sorted(gol2), gol2[:8]
+            print('  filtri (ruolo, nome, squadra) e ordinamento (Gol ↓ e ↑): ok')
+            assert not await pg.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth')
+            # l'operazione: Bleve (P, Lecce) a Valerio al posto di Contini, 5 crediti
+            await pg.select_option('[data-mf="ord"]', 'fm')
+            await pg.fill('[data-mf="q"]', 'Bleve'); await pg.wait_for_timeout(200)
+            await pg.click('tr[data-svinc]:has-text("Bleve")'); await pg.wait_for_timeout(700)
+            nt = await pg.locator('.sheet .tiles.compatti .tile').count()
+            assert nt == 8, (nt, (await pg.inner_text('.sheet'))[:300])
+            await pg.select_option('[data-op="team"]', 'team-Valerio'); await pg.wait_for_timeout(300)
+            scelte = [x.strip() for x in await pg.locator('.sheet label.scelta .who b').all_inner_texts()]
+            print('  chi può uscire (solo portieri):', scelte)
+            assert 'Contini' in scelte and all(await pg.locator('.sheet label.scelta .badge').all_inner_texts()) and \
+                set(await pg.locator('.sheet label.scelta .badge').all_inner_texts()) == {'P'}
+            await pg.click('.sheet label.scelta:has-text("Contini")'); await pg.fill('[data-op="acquisto"]', '5'); await pg.wait_for_timeout(200)
+            riep = await pg.inner_text('[data-op="riep"]')
+            print('  riepilogo:', riep)
+            assert '73 → 68' in riep
+            await pg.fill('[data-op="acquisto"]', '500'); await pg.wait_for_timeout(100)
+            assert await pg.is_disabled('.sheet [data-act="go"]') and 'insufficienti' in await pg.inner_text('[data-op="riep"]')
+            await pg.fill('[data-op="acquisto"]', '5'); await pg.wait_for_timeout(100)
+            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(3000)
+            avvisi = (await pg.inner_text('#notices')).replace(chr(10), ' ')
+            print('  avvisi:', avvisi[:220])
+            assert 'Bleve va a Valerio' in avvisi and 'formazione salvata' in avvisi
+            op = json.load(open('/tmp/mercato_op.json'))
+            assert op['esce_nome'] == 'Contini' and op['entra_nome'] == 'Bleve' and op['crediti_dopo'] == 68
+            mo = modello()
+            print('  modello dopo:', mo['posto3'], mo['crediti'], '| Contini nel LISTONE:', 'Contini' in mo['listone'], '| Bleve:', 'Bleve' in mo['listone'])
+            assert mo['posto3'] == 'Bleve' and mo['crediti'] == 68 and 'Contini' in mo['listone'] and 'Bleve' not in mo['listone']
+            # svincolati e rosa dopo l'operazione
+            await pg.goto(BASE + '#/mercato'); await pg.wait_for_timeout(1000)
+            await pg.fill('[data-mf="q"]', ''); await pg.wait_for_timeout(200)
+            nomi = [x.strip() for x in await pg.locator('tr[data-svinc] td:first-child b').all_inner_texts()]
+            assert 'Contini' in nomi and 'Bleve' not in nomi
+            await pg.goto(BASE + '#/squadre/rosa'); await pg.wait_for_timeout(1000)
+            rosa = await pg.inner_text('#view')
+            assert 'Bleve' in rosa and 'Contini' not in rosa and '68' in await pg.inner_text('.tiles'), rosa[:200]
+            print('  rosa di Valerio: Bleve dentro, Contini fuori, 68 crediti')
+            # operazioni: l'elenco da riportare, poi l'annullamento
+            await pg.goto(BASE + '#/mercato/operazioni'); await pg.wait_for_timeout(1000)
+            testo = await pg.inner_text('#view')
+            print('  operazioni:', testo.replace(chr(10), ' ')[:200])
+            assert 'ROSE, riga 4: Contini → Bleve' in testo and 'da riportare' in testo
+            await pg.click('[data-op-annulla]'); await pg.wait_for_timeout(400)
+            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(3000)
+            mo = modello()
+            print('  modello dopo l\'annullamento:', mo['posto3'], mo['crediti'])
+            assert mo['posto3'] == 'Contini' and mo['crediti'] == 73 and 'Bleve' in mo['listone'] and 'Contini' not in mo['listone']
+            assert 'annullata' in await pg.inner_text('#view')
+            # di nuovo l'operazione, poi il file di giornata che ancora non la contiene
+            await pg.goto(BASE + '#/mercato'); await pg.wait_for_timeout(1000)
+            await pg.fill('[data-mf="q"]', 'Bleve'); await pg.wait_for_timeout(200)
+            await pg.click('tr[data-svinc]:has-text("Bleve")'); await pg.wait_for_timeout(600)
+            await pg.select_option('[data-op="team"]', 'team-Valerio'); await pg.wait_for_timeout(300)
+            await pg.click('.sheet label.scelta:has-text("Contini")'); await pg.fill('[data-op="acquisto"]', '5')
+            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(2500)
+            await pg.click('#userBtn'); await pg.wait_for_timeout(200)
+            await pg.set_input_files('#roundFile', XLS); await pg.wait_for_timeout(2500)
+            ante = await pg.inner_text('.sheet')
+            print('  anteprima del file:', [r for r in ante.split(chr(10)) if 'Mercato' in r])
+            assert 'non ancora' in ante and 'Bleve al posto di Contini' in ante
+            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(2500)
+            dal = json.load(open('/tmp/mercato_dal_file.json'))
+            diff = await pg.inner_text('.sheet')
+            print('  dal file:', dal, '|', diff.replace(chr(10), ' ')[:160])
+            assert dal['listone'] == 302 and 'non ancora nel file' in diff and 'posto 3' in diff
+        await apri(pw, {'ADMIN': '1', 'PRELOAD': '1', 'FC': FC, 'FORMAZIONI': FORMAZIONI}, s13, '13 mercato: amministratore')
+
+        # 14) mercato per chi gioca: guarda ma non tocca; e il database senza 11_mercato.sql
+        async def s14(pg):
+            await login(pg)
+            await pg.goto(BASE + '#/mercato'); await pg.wait_for_timeout(1000)
+            await pg.click('tr[data-svinc] >> nth=0'); await pg.wait_for_timeout(500)
+            assert await pg.locator('.sheet [data-op="team"]').count() == 0 and await pg.locator('.sheet [data-act="go"]').count() == 0
+            print('  giocatore: vede il giocatore, niente operazione')
+            await pg.click('.sheet [data-act="close"]')
+            await pg.goto(BASE + '#/mercato/operazioni'); await pg.wait_for_timeout(800)
+            assert 'Ancora nessuna operazione' in await pg.inner_text('#view') and await pg.locator('[data-op-annulla]').count() == 0
+        await apri(pw, {'FC': FC}, s14, '14 mercato: chi gioca')
+
+        async def s15(pg):
+            await login(pg)
+            await pg.goto(BASE + '#/mercato'); await pg.wait_for_timeout(1000)
+            t = await pg.inner_text('#view')
+            print('  senza 11_mercato.sql:', t.replace(chr(10), ' ')[:140])
+            assert '11_mercato.sql' in t
+        await apri(pw, {'ADMIN': '1', 'NOMERCATO': '1'}, s15, '15 mercato: database da aggiornare')
+
+        # 16) un giocatore della formazione salvata è stato svincolato: avviso e stato «da rifare»
+        async def s16(pg):
+            await login(pg); await pg.wait_for_timeout(600)
+            verde = (await pg.inner_text('#schieraBig')).replace(chr(10), ' ')
+            print('  riquadro verde:', verde)
+            assert 'da rifare' in verde and await pg.locator('#nav .tb-schiera[data-da-fare]').count() == 1
+            await pg.click('#nav .tb-schiera'); await pg.wait_for_timeout(1000)
+            avviso = (await pg.inner_text('#schNotices')).replace(chr(10), ' ')
+            meta = await pg.inner_text('#fileMeta')
+            print('  Schiera:', meta, '|', avviso[:170])
+            assert 'La tua formazione ha un posto vuoto:' in avviso and 'è stato svincolato' in avviso and 'da rifare' in meta
+            assert 'Formazione salvata il' not in avviso
+            await pg.evaluate("location.hash = '#/giornata/formazioni'"); await pg.wait_for_timeout(1000)
+            chip = (await pg.inner_text('.sq-sel .chip >> nth=0')).replace(chr(10), ' ')
+            pan = (await pg.inner_text('.form-pan:visible')).replace(chr(10), ' ')
+            print('  Formazioni:', chip, '|', pan[:90])
+            assert chip.startswith('Valerio') and 'da rifare' in chip and 'svincolato' in pan
+            # salva di nuovo (anche incompleta): l'avviso e il pallino spariscono
+            await pg.evaluate("location.hash = '#/schiera'"); await pg.wait_for_timeout(800)
+            await pg.click('#saveBtn'); await pg.wait_for_timeout(500)
+            if await pg.locator('[data-act="save"]').count():
+                await pg.click('[data-act="save"]')
+            await pg.wait_for_timeout(1500)
+            meta = await pg.inner_text('#fileMeta')
+            print('  dopo il salvataggio:', meta, '| pallino:', await pg.locator('#nav .tb-schiera[data-da-fare]').count())
+            assert 'salvata' in meta and 'da rifare' not in meta
+            assert await pg.locator('#nav .tb-schiera[data-da-fare]').count() == 0
+        await apri(pw, {'PRELOAD': '1', 'VUOTO': '1', 'FORMAZIONI': FORMAZIONI}, s16, '16 formazione da rifare')
 
 asyncio.run(main())

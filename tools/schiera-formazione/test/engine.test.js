@@ -79,9 +79,43 @@ assert.ok(f1.lineup.every(x => !x.name), 'formazione "finta" nel foglio vuoto ' 
 // i fogli non toccati restano identici
 const b1 = I.openWorkbook(u8), b2 = I.openWorkbook(tutte.bytes);
 b1.sheets.filter(s => !voci.some(v => v.name === s.name)).forEach(s => {
-  const recA = b1.recs.slice(s.start, s.end + 1).map(r => Buffer.from(r.data).toString('hex')).join('|');
+  // (i record INDEX hanno posizioni assolute: cambiano se un foglio prima cambia lunghezza)
+  const recA = b1.recs.slice(s.start, s.end + 1).filter(r => r.sid !== I.SID.INDEX).map(r => Buffer.from(r.data).toString('hex')).join('|');
   const s2 = b2.sheets.find(x => x.name === s.name);
-  const recB = b2.recs.slice(s2.start, s2.end + 1).map(r => Buffer.from(r.data).toString('hex')).join('|');
+  const recB = b2.recs.slice(s2.start, s2.end + 1).filter(r => r.sid !== I.SID.INDEX).map(r => Buffer.from(r.data).toString('hex')).join('|');
   assert.strictEqual(recA, recB, 'foglio cambiato: ' + s.name);
 });
 console.log('ok  tutte le formazioni in un file:', voci.filter(v => !v.vuoto).length, 'schierate,', voci.filter(v => v.vuoto).length, 'vuote');
+
+// 5) mercato: nel modello cambia il foglio ROSE (nome, costo, crediti) e il LISTONE;
+//    il foglio squadra prende il nome nuovo (formula su ROSE) e il resto del file non cambia
+if (wb.allSheets.includes('ROSE') && wb.allSheets.includes('LISTONE')) {
+  const g = wb.grid('ROSE');
+  let col = -1;
+  for (let b = 0; b < 12 && col < 0; b++) if (E.norm(g.str(0, b * 3)) === E.norm(sheet)) col = b * 3;
+  const ro = wb.roster(sheet);
+  const chi = ro.find(p => p.name && g.str(p.row + 1, col) === p.name);
+  if (col >= 0 && chi) {
+    const L = wb.grid('LISTONE');
+    const nuovo = L.str(1, 1);
+    const bytes = wb.modifica([
+      { foglio: 'ROSE', r: chi.row + 1, c: col, v: nuovo }, { foglio: 'ROSE', r: chi.row + 1, c: col + 1, v: 7 },
+      { foglio: 'ROSE', r: chi.row + 1, c: col + 2, v: null }, { foglio: 'ROSE', r: 0, c: col + 1, v: 41 },
+      { foglio: 'LISTONE', r: 1, c: 1, v: chi.name }
+    ], [sheet]);
+    const w2 = E.load(bytes);
+    assert.strictEqual(w2.roster(sheet)[chi.row].name, nuovo, 'il foglio squadra non ha preso il nome nuovo');
+    assert.strictEqual(w2.grid('ROSE').num(0, col + 1), 41);
+    assert.strictEqual(w2.grid('LISTONE').str(1, 1), chi.name);
+    const c2 = I.openWorkbook(bytes);
+    b1.sheets.filter(s => !['ROSE', 'LISTONE', sheet].includes(s.name)).forEach(s => {
+      // (i record INDEX contengono posizioni assolute nel file: si spostano se ROSE cambia lunghezza)
+      const firma = (bk, x) => bk.recs.slice(x.start, x.end + 1).filter(r => r.sid !== I.SID.INDEX).map(r => Buffer.from(r.data).toString('hex')).join('|');
+      assert.strictEqual(firma(b1, s), firma(c2, c2.sheets.find(x => x.name === s.name)), 'foglio cambiato: ' + s.name);
+    });
+    // dal modello aggiornato si scarica ancora una formazione
+    const n = Array(31).fill(null); n[chi.row] = 1;
+    assert.strictEqual(w2.build(sheet, n).lineup[0].name, nuovo);
+    console.log('ok  mercato nel modello:', chi.name, '→', nuovo, 'nel foglio', sheet);
+  }
+}
