@@ -950,6 +950,8 @@
       build(name, numbers) { return buildFile(book, name, numbers); },
       // tutte le squadre in un file: [{ name, numbers, vuoto }]
       buildMany(voci) { return buildMany(book, voci); },
+      // modifiche libere di celle (mercato: ROSE e LISTONE del modello) → byte del file
+      modifica(modifiche, ricalcola) { return editCells(book, modifiche, ricalcola); },
       _book: book
     };
   }
@@ -1107,6 +1109,46 @@
       return { name: v.name, vuoto: !!v.vuoto, lineup, shown, modulo, recalc: p.rc };
     });
     return { bytes: outFile, fogli };
+  }
+
+  // Modifica libera di celle con valori costanti (testo, numero o vuota), in uno o più fogli.
+  // Serve al mercato: nel modello cambiano il foglio ROSE e il LISTONE. I fogli squadra
+  // prendono i nomi da ROSE con formule: per quelli in "ricalcola" si aggiornano i valori
+  // memorizzati (A1:G31), così il file è giusto anche per chi non ricalcola all'apertura.
+  // modifiche: [{ foglio, r, c, v }] (r e c da 0). Ritorna i byte del nuovo file, già verificato.
+  function editCells(book, modifiche, ricalcola) {
+    const valore = v => v === null || v === undefined || v === '' ? { t: 'blank' }
+      : typeof v === 'number' ? { t: 'n', v } : { t: 's', v: String(v) };
+    const modelli = new Map();
+    for (const x of modifiche) {
+      if (!modelli.has(x.foglio)) modelli.set(x.foglio, buildSheet(book, sheetByName(book, x.foglio)));
+      setValue(modelli.get(x.foglio), x.r, x.c, valore(x.v));
+    }
+    let bytes = modelli.size ? cfbReplaceStream(book.cfb, book.ent, serialize(book, [...modelli.values()])) : null;
+    let b2 = bytes ? openWorkbook(bytes) : book;
+    const daScrivere = [];
+    for (const n of ricalcola || []) {
+      const m = buildSheet(b2, sheetByName(b2, n));
+      let cambiato = false;
+      for (let r = 0; r < 31; r++) for (let c = 0; c < 7; c++) {
+        const cell = m.idx.get(key(r, c));
+        if (!cell || cell.sid !== SID.FORMULA) continue;
+        const f = freshValue(m, r, c);
+        if (!sameVal(f, cellValue(m, r, c))) { setFormulaCache(m, r, c, f); cambiato = true; }
+      }
+      if (cambiato) daScrivere.push(m);
+    }
+    if (daScrivere.length) { bytes = cfbReplaceStream(b2.cfb, b2.ent, serialize(b2, daScrivere)); b2 = openWorkbook(bytes); }
+    if (!bytes) throw new XlsError('Nessuna modifica da scrivere.');
+    // verifica: indici dei fogli e celle scritte
+    for (const s of b2.sheets) if (b2.recs[s.start].sid !== SID.BOF) throw new XlsError('Verifica fallita sugli indici dei fogli.');
+    for (const x of modifiche) {
+      const got = cellValue(buildSheet(b2, sheetByName(b2, x.foglio)), x.r, x.c);
+      const want = valore(x.v);
+      const ok = want.t === 'blank' ? got.t === 'blank' : got.t === want.t && got.v === want.v;
+      if (!ok) throw new XlsError('Verifica fallita sulla cella ' + colName(x.c) + (x.r + 1) + ' del foglio "' + x.foglio + '".');
+    }
+    return bytes;
   }
 
   function buildFile(book, name, numbers) {

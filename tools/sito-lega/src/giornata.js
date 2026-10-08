@@ -322,6 +322,27 @@
     return { rose, crediti };
   }
 
+  // ----------------------------------------------------------------- listone
+  // Foglio "LISTONE": Ruolo | Nome | Squadra. Sono gli svincolati: nel file non c'è
+  // nessuno che sia anche in una rosa.
+  function readListone(wb) {
+    if (!wb.has('LISTONE')) return [];
+    const g = wb.grid('LISTONE');
+    const h = g.find(/^nome$/i, 0, 6, 0, 6);
+    if (!h) return [];
+    const out = [];
+    let vuote = 0;
+    for (let r = h.r + 1; r < h.r + 3000 && vuote < 40; r++) {
+      const nome = g.str(r, h.c);
+      if (!nome) { vuote++; continue; }
+      vuote = 0;
+      const ruolo = g.str(r, h.c - 1).toUpperCase().charAt(0);
+      if (!'PDCA'.includes(ruolo) || !ruolo) continue;
+      out.push({ ruolo, nome, squadra: g.str(r, h.c + 1) });
+    }
+    return out;
+  }
+
   // ------------------------------------------------------------------- coppa
   function readCoppa(wb) {
     if (!wb.has('COPPA')) return null;
@@ -435,6 +456,7 @@
       voti,
       rose: rose.rose,
       crediti: rose.crediti,
+      listone: readListone(wb),
       classifica: classifiche.campionato,
       coppa_lega: classifiche.coppa_lega,
       sfigometro: classifiche.sfigometro,
@@ -446,7 +468,7 @@
     };
   }
 
-  const api = { parse, GiornataError, _parts: { readVoti, readCalendario, readTeamSheet, readClassifiche, readSuperclassifica, readGolReali, readRose, readCoppa, readAlbo } };
+  const api = { parse, GiornataError, _parts: { readVoti, readCalendario, readTeamSheet, readClassifiche, readSuperclassifica, readGolReali, readRose, readListone, readCoppa, readAlbo } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Giornata = api;
 })(typeof window !== 'undefined' ? window : globalThis);

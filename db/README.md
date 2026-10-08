@@ -8,7 +8,7 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 |---|---|
 | `teams` | le squadre della lega (una per partecipante) |
 | `profiles` | un record per account: nome, ruolo (`player` o `admin`), squadra |
-| `players` | le rose: 31 posti per squadra, con ruolo, nome e squadra di Serie A |
+| `players` | le rose: 31 posti per squadra, con ruolo, nome e squadra di Serie A. Chi esce dalla rosa resta senza posto (`slot` vuoto) per lo storico delle formazioni |
 | `fixtures` | il calendario della Serie A: partite, orari, giornata |
 | `club_aliases` | i nomi delle squadre secondo l'API tradotti in quelli della lega |
 | `matchdays` | le giornate ricavate dal calendario: prima partita, ultima partita, chiusura |
@@ -22,6 +22,8 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 | `standings` | le classifiche fotografate a ogni giornata (campionato, Coppa di Lega, sfigometro, gol reali, Coppa) |
 | `team_season`, `scorers`, `roster_costs`, `albo` | crediti, gol reali per giocatore, costo delle rose, albo d'oro |
 | `fc_stats`, `fc_stats_meta` | medie di Serie A di Fantacalcio.it (caricate a mano dall'amministratore), con data e file |
+| `listone` | gli svincolati: il foglio LISTONE dell'ultimo file di giornata, più chi è stato svincolato dal sito |
+| `market_ops` | le operazioni di mercato: chi entra, chi esce, costi, crediti prima e dopo, se il file di giornata le ha già recepite |
 
 ## Regole applicate dal database (non solo dall'app)
 
@@ -59,6 +61,14 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
    - `10_fantacalcio.sql` — le medie di Serie A di Fantacalcio.it mostrate in Rosa
      (`fc_stats`, `fc_stats_meta`, `import_fc_stats()`): le carica l'amministratore
      dal sito con l'Excel scaricato a mano.
+   - `11_mercato.sql` — il mercato: svincolati (`listone`), operazioni
+     (`market_ops`), crediti di adesso (`mercato_crediti()`), l'operazione
+     (`mercato_sostituisci()`) e il suo annullamento (`mercato_annulla()`), il
+     controllo al caricamento del file di giornata (`mercato_dal_file()`).
+     Cambia anche due cose delle rose: chi esce non si cancella più (resta senza
+     posto, così le formazioni passate lo mostrano ancora) e nessuno può
+     schierare chi non è più in rosa. Dopo averlo eseguito, ricarica l'ultimo file
+     di giornata: porta il LISTONE.
 3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
 4. Crea gli account dei partecipanti e collegali alle squadre: vedi
    [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.
@@ -167,7 +177,22 @@ dell'ultimo file. Il sito lo dice nell'anteprima. Per avere questa regola su un
 database già installato basta rieseguire `08_stagione.sql` (si può rieseguire:
 non tocca i dati).
 
-Dopo il mercato, dal sito come amministratore: **menu → Aggiorna le rose da
+**Mercato.** Le operazioni si fanno dal sito, in **Mercato → Svincolati**: si
+tocca uno svincolato, si sceglie la squadra e chi esce (stesso ruolo), si
+scrivono i costi. In un colpo solo chi esce va fra gli svincolati e fuori dalle
+formazioni delle giornate non ancora iniziate, chi entra prende il suo posto (con
+la squadra di Serie A del LISTONE, per il blocco partita per partita), i crediti
+scendono e il sito aggiorna il modello delle formazioni (`modelli/formazioni.xls`:
+fogli ROSE e LISTONE). Le operazioni vanno poi riportate nell'Excel della lega:
+l'elenco è in **Mercato → Operazioni**. Al caricamento del file di giornata
+`mercato_dal_file()` prende il LISTONE del file, segna come riportate le
+operazioni che trova nel foglio ROSE e segnala le rose che non coincidono.
+
+I crediti (`mercato_crediti()`) sono quelli dell'ultimo file di giornata meno le
+operazioni non ancora riportate: un'operazione conta subito e non conta due
+volte quando arriva il file.
+
+Se il mercato lo fai nell'Excel invece che sul sito: **menu → Aggiorna le rose da
 un .xls** (allinea le rose e il modello per gli export) e **menu → Aggiorna il
 calendario di Serie A** con l'abbinamento delle squadre, per far ripartire il
 blocco partita per partita sui giocatori nuovi. Quelli rimasti senza squadra si

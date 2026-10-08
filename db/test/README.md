@@ -19,6 +19,15 @@ psql -h /var/tmp/pg -p 5433 -U postgres -d lega -f db/test/01_prova_regole.sql
 `02_prova_giornata.sql` prova il caricamento del file di giornata: in testa al
 file c'è il comando che genera il payload dal `.xls`.
 
+`03_prova_mercato.sql` prova il mercato (`11_mercato.sql`) con il file di
+giornata e il modello veri: in testa al file c'è il comando che prepara i tre
+file JSON, poi `psql ... -v dir=CARTELLA -f db/test/03_prova_mercato.sql`. Ogni
+controllo è un `ASSERT`: operazione (chi esce resta nello storico ed esce dalle
+formazioni da giocare, chi entra prende il posto, crediti, costi), errori (ruolo
+diverso, crediti insufficienti, giocatore già fuori rosa, solo l'amministratore),
+annullamento, file di giornata senza e con l'operazione (crediti contati una volta
+sola), "Aggiorna le rose" che non cancella nessuno, script rieseguibile.
+
 `00_finto_supabase.sql` rifà le poche cose che su Supabase ci sono già
 (`auth.users`, `auth.uid()`, i ruoli, lo storage). `01_prova_regole.sql` crea
 due squadre, importa tre partite (una già giocata) e verifica che:

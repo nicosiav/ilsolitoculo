@@ -29,9 +29,13 @@
   const ultima = () => { const g = giocate(); return g.length ? g[g.length - 1] : null; };
 
   // ------------------------------------------------------------------ dati
+  // (il valore si ritorna direttamente: se nel frattempo la cache è stata svuotata,
+  // rileggerla darebbe undefined)
   async function carica(chiave, fn) {
-    if (S.cache[chiave] === undefined) S.cache[chiave] = await fn();
-    return S.cache[chiave];
+    if (S.cache[chiave] !== undefined) return S.cache[chiave];
+    const v = await fn();
+    S.cache[chiave] = v;
+    return v;
   }
 
   // Se il database della stagione non è ancora stato creato, il sito non deve
@@ -69,8 +73,9 @@
     forse('standings', 'select=round,team_id,pos,valore,dati&tipo=eq.' + tipo + '&order=round,pos'));
   const tabellini = round => carica('rt:' + round, () =>
     forse('round_teams', 'select=*&round=eq.' + round));
+  // chi è uscito dalla rosa resta nel database senza posto (per lo storico delle formazioni)
   const rose = () => carica('players', () =>
-    forse('players', 'select=id,team_id,slot,role,name,club&order=team_id,slot'));
+    forse('players', 'select=id,team_id,slot,role,name,club&slot=not.is.null&order=team_id,slot'));
   const costi = () => carica('costi', () => forse('roster_costs', 'select=team_id,slot,nome,costo,valore'));
   const statGiocatori = () => carica('pstats', () => forse('player_stats', 'select=*'));
   const marcatori = () => carica('scorers', async () => {
@@ -107,7 +112,7 @@
   const fc = () => carica('fc', async () => {
     try {
       const meta = (await SB.select('fc_stats_meta', 'select=aggiornate_at,file,stagione,righe'))[0] || null;
-      const righe = meta ? await tutte('fc_stats', 'select=nome,squadra,ruolo,pv,mv,fm,gf,ass&order=id', true) : [];
+      const righe = meta ? await tutte('fc_stats', 'select=nome,squadra,ruolo,pv,mv,fm,gf,gs,rp,rc,r_piu,r_meno,ass,amm,esp,au&order=id', true) : [];
       return { meta, righe };
     } catch (e) {
       return { meta: null, righe: [], manca: NON_CE(e) };
@@ -677,12 +682,16 @@
 
   // --------------------------------------------------------------------- rose
   async function vistaRosa(scelta) {
-    const [pl, cs, ps, se, f] = await Promise.all([rose(), costi(), statGiocatori(), stagione(), fc()]);
+    const [pl, cs, ps, se, f, cr] = await Promise.all([rose(), costi(), statGiocatori(), stagione(), fc(), creditiOra()]);
     const t = teamById(scelta);
     const miei = pl.filter(x => x.team_id === scelta);
-    const costoDi = new Map(cs.filter(x => x.team_id === scelta).map(x => [x.slot, x]));
+    // il costo del posto vale solo se è di quel giocatore (dopo il mercato il file può essere indietro)
+    const costi_ = new Map(cs.filter(x => x.team_id === scelta).map(x => [x.slot, x]));
+    const costoDi = { get: slot => { const c = costi_.get(slot); const p = miei.find(y => y.slot === slot); return c && p && NORM(c.nome) === NORM(p.name) ? c : undefined; } };
     const statDi = new Map(ps.filter(x => x.team_id === scelta).map(x => [x.nome, x]));
-    const sea = se.find(x => x.team_id === scelta) || {};
+    const sea = Object.assign({}, se.find(x => x.team_id === scelta) || {});
+    const ora = (cr || []).find(x => x.team_id === scelta);
+    if (ora && ora.crediti != null) sea.crediti = ora.crediti;
     const spesa = miei.reduce((s, p) => s + nz((costoDi.get(p.slot) || {}).costo), 0);
     // le medie di Serie A (Fantacalcio.it), abbinate per nome
     const serieA = f.righe.length ? window.Fantacalcio.abbina(miei, f.righe).trovati : null;
@@ -1094,6 +1103,7 @@
     // una giornata passata, caricata dopo una più recente (per recuperare quelle mancanti)
     const ultimaCaricata = S.rounds.filter(r => r.caricata_at && r.id !== dati.giornata).reduce((m, r) => Math.max(m, r.id), 0);
     const passata = ultimaCaricata > dati.giornata;
+    const mercato = passata ? '' : await mercatoNelFile(dati);
     const el = sheet(`<div class="sheet-h"><div><h4>Caricare la giornata ${dati.giornata}?</h4><p>${esc(file.name)}</p></div></div>
       <div class="sheet-b">
         <div class="tiles" style="margin-top:12px">
@@ -1108,7 +1118,8 @@
             <span class="val"><b>${n1(t.punteggio)}</b><span>punteggio</span></span></div>`).join('')}
         </div>
         ${passata ? `<p class="small" style="margin:12px 0 0"><b>È una giornata passata</b>: è già caricata la ${ultimaCaricata}ª. Aggiorno solo i dati della ${dati.giornata}ª (voti, tabellini, classifiche di quella giornata) e i risultati fino a lì; i risultati delle giornate dopo e i costi delle rose restano quelli dell'ultimo file.</p>` : ''}
-        <p class="small muted" style="margin:12px 0 0">Vengono aggiornati risultati, classifiche, voti, marcatori, rose e crediti.
+        ${mercato}
+        <p class="small muted" style="margin:12px 0 0">Vengono aggiornati risultati, classifiche, voti, marcatori, rose, crediti e svincolati.
         Le formazioni salvate in Schiera restano dove sono: se non coincidono con il file te lo dico.</p>
       </div>
       <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Annulla</button><button type="button" class="btn btn-primary" data-act="go">Carica</button></div>`);
@@ -1125,8 +1136,18 @@
         S.giornataScelta = res.giornata;
         render();
         const diff = res.differenze || [];
+        // mercato: il LISTONE del file e il controllo delle rose (non per una giornata passata)
+        let roseDiverse = [];
+        if (!res.passata) {
+          try {
+            const m = await SB.rpc('mercato_dal_file', { p_round: res.giornata, p_rose: dati.rose, p_listone: dati.listone || [] });
+            roseDiverse = m.differenze || [];
+            S.cache = {};
+            if (m.riportate) notice(m.riportate + (m.riportate === 1 ? ' operazione di mercato risulta' : ' operazioni di mercato risultano') + ' nel file: crediti allineati.');
+          } catch (e) { if (!NON_CE(e)) console.error(e); }
+        }
         notice('Giornata ' + res.giornata + (res.passata ? ' (passata)' : '') + ' caricata: ' + res.partite + ' partite, ' + res.voti + ' voti, ' + res.classifiche + ' righe di classifica.');
-        if (diff.length) mostraDifferenze(diff);
+        if (diff.length || roseDiverse.length) mostraDifferenze(diff, roseDiverse);
       } catch (e) {
         console.error(e);
         closeSheet();
@@ -1137,12 +1158,25 @@
     });
   }
 
-  function mostraDifferenze(diff) {
-    sheet(`<div class="sheet-h"><div><h4>Formazioni diverse</h4><p>${diff.length} squadr${diff.length === 1 ? 'a' : 'e'}: nel file risulta una formazione diversa da quella salvata nell’app</p></div></div>
-      <div class="sheet-b">${diff.map(d => `<div class="group-h">${esc(d.squadra)}</div>
+  function mostraDifferenze(diff, rose) {
+    rose = rose || [];
+    const daMercato = rose.filter(r => r.operazione), altre = rose.filter(r => !r.operazione);
+    const formazioni = diff.length ? `${rose.length ? '<div class="group-h" style="font-size:13px">Formazioni</div>' : ''}
+        <p class="small muted" style="margin:0 0 6px">${diff.length} squadr${diff.length === 1 ? 'a' : 'e'}: nel file risulta una formazione diversa da quella salvata nell’app.</p>
+        ${diff.map(d => `<div class="group-h">${esc(d.squadra)}</div>
         <p class="small" style="margin:0"><b>Nell’app:</b> ${esc((d.nell_app || []).join(', '))}</p>
         <p class="small" style="margin:4px 0 10px"><b>Nel file:</b> ${esc((d.nel_file || []).join(', '))}</p>`).join('')}
-        <p class="small muted">Vale il file: è quello con cui sono stati calcolati i punteggi. La formazione salvata resta nello storico di Schiera.</p></div>
+        <p class="small muted">Vale il file: è quello con cui sono stati calcolati i punteggi. La formazione salvata resta nello storico di Schiera.</p>` : '';
+    const riga = r => `<div class="prow" style="grid-template-columns:1fr auto"><span class="who"><b>${esc(teamName(r.team_id))} · posto ${r.slot}</b>
+        <span>nel file ${esc(r.nel_file || 'nessuno')}, sul sito ${esc(r.sul_sito || 'nessuno')}</span></span><span class="val"></span></div>`;
+    const roseHtml = rose.length ? `<div class="group-h" style="font-size:13px">Rose</div>
+        ${daMercato.length ? `<p class="small" style="margin:0 0 4px"><b>Operazioni di mercato non ancora nel file</b> (${daMercato.length}): riportale nell’Excel, l’elenco è in Mercato → Operazioni.</p>
+          <div class="plist">${daMercato.map(riga).join('')}</div>` : ''}
+        ${altre.length ? `<p class="small" style="margin:10px 0 4px"><b>Rose diverse fra file e sito</b> (${altre.length}): se è giusto il file, allinea il sito con "Aggiorna le rose da un .xls".</p>
+          <div class="plist">${altre.map(riga).join('')}</div>` : ''}` : '';
+    const titolo = diff.length && rose.length ? 'Da controllare' : diff.length ? 'Formazioni diverse' : 'Rose diverse';
+    sheet(`<div class="sheet-h"><div><h4>${titolo}</h4><p>Il file di giornata e il sito non dicono la stessa cosa</p></div></div>
+      <div class="sheet-b">${formazioni}${roseHtml}</div>
       <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Ho capito</button></div>`);
   }
 
@@ -1390,6 +1424,393 @@
     </div>`;
   }
 
+  // ------------------------------------------------------------------ mercato
+  // Svincolati: il LISTONE del file di giornata con le statistiche di Fantacalcio.it.
+  // Per l'amministratore: uno svincolato prende il posto di un giocatore in rosa dello
+  // stesso ruolo, con i costi che decide lui (db/11_mercato.sql). Dopo l'operazione il
+  // sito aggiorna il modello delle formazioni (ROSE e LISTONE) e tiene l'elenco di
+  // quello che va riportato nel file di giornata.
+  const NORM = s => window.XlsFormazione ? XlsFormazione.norm(s) : String(s || '').toLowerCase().trim();
+  const NOSP = s => NORM(s).replace(/ /g, '');
+  const RUOLO1 = { P: 'Portiere', D: 'Difensore', C: 'Centrocampista', A: 'Attaccante' };
+  const listone = () => carica('listone', () => tutte('listone', 'select=id,ruolo,nome,club,origine&order=id'));
+  const operazioni = () => carica('ops', () => forse('market_ops', 'select=*&order=id.desc'));
+  // i crediti di adesso: quelli del file meno le operazioni non ancora riportate
+  const creditiOra = () => carica('crediti', async () => {
+    try { return await SB.rpc('mercato_crediti', {}); } catch (e) { return null; }
+  });
+  const squadraDelFile = nome => S.teams.find(t => [t.name, t.sheet_name].some(n => n && NOSP(n) === NOSP(nome))) || null;
+
+  // le colonne delle statistiche (Fantacalcio.it); al telefono si vedono Pv, Mv, Fm e quella scelta
+  const COLONNE = [
+    { k: 'pv', et: 'Pv', tit: 'Partite a voto', sempre: true },
+    { k: 'mv', et: 'Mv', tit: 'Media voto', sempre: true, media: true },
+    { k: 'fm', et: 'Fm', tit: 'Fantamedia', sempre: true, media: true },
+    { k: 'gf', et: 'Gol', tit: 'Gol fatti', noP: true },
+    { k: 'gs', et: 'Gs', tit: 'Gol subiti', soloP: true },
+    { k: 'ass', et: 'Ass', tit: 'Assist', noP: true },
+    { k: 'rp', et: 'Rp', tit: 'Rigori parati', soloP: true },
+    { k: 'amm', et: 'Amm', tit: 'Ammonizioni' },
+    { k: 'esp', et: 'Esp', tit: 'Espulsioni' }
+  ];
+  S.mf = { ruolo: '', club: '', q: '', ord: 'fm', verso: -1 };
+  // media voto e fantamedia di chi non ha mai preso un voto non contano
+  const statDi = (x, k) => {
+    const st = x.st;
+    if (!st || st[k] == null || st[k] === '') return null;
+    if ((k === 'mv' || k === 'fm') && !nz(st.pv)) return null;
+    return +st[k];
+  };
+
+  async function sezioneMercato() {
+    const tab = S.sotto === 'operazioni' ? 'operazioni' : '';
+    const corpo = tab ? await vistaOperazioni() : await vistaSvincolati();
+    return `<div class="stack">
+      ${schede('mercato', [{ id: '', et: 'Svincolati' }, { id: 'operazioni', et: 'Operazioni' }], tab, 'larghe')}
+      ${corpo}
+    </div>`;
+  }
+
+  const mercatoAssente = () => `<div class="card"><p class="empty">${isAdmin()
+    ? 'Il mercato non è ancora attivo: esegui db/11_mercato.sql nel SQL Editor di Supabase, poi ricarica l’ultimo file di giornata (porta il LISTONE).'
+    : 'Il mercato non è ancora attivo.'}</p></div>`;
+
+  async function datiSvincolati() {
+    const [ls, pl, f] = await Promise.all([listone(), rose(), fc()]);
+    // chi è in una rosa non è svincolato, anche se il LISTONE del file non lo sa ancora
+    const inRosa = new Set(pl.map(p => p.role + '|' + NORM(p.name)));
+    const liberi = ls.filter(x => !inRosa.has(x.ruolo + '|' + NORM(x.nome)));
+    const trovati = f.righe.length
+      ? window.Fantacalcio.abbina(liberi.map(x => ({ id: x.id, name: x.nome, role: x.ruolo, club: x.club })), f.righe).trovati
+      : new Map();
+    return { righe: liberi.map(x => Object.assign({}, x, { st: trovati.get(x.id) || null })), f };
+  }
+
+  async function vistaSvincolati() {
+    const { righe, f } = await datiSvincolati();
+    if (S.mancanti.includes('listone')) return mercatoAssente();
+    S.svinc = righe;
+    if (!righe.length) {
+      return `<div class="card"><div class="sec-h"><h2>Svincolati</h2></div><p class="empty">${isAdmin()
+        ? 'Ancora nessuno: gli svincolati arrivano dal foglio LISTONE quando carichi il file di giornata. Ricarica l’ultimo file per vederli.'
+        : 'Ancora nessuno: arrivano dal file di giornata, quando l’amministratore lo carica.'}</p></div>`;
+    }
+    const mf = S.mf;
+    const clubs = [...new Set(righe.map(x => x.club).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    if (mf.club && !clubs.includes(mf.club)) mf.club = '';
+    const ordini = [{ k: 'nome', et: 'Nome' }, { k: 'club', et: 'Squadra' }].concat(COLONNE.map(c => ({ k: c.k, et: c.tit })));
+    const data = f.meta && f.meta.aggiornate_at ? new Date(f.meta.aggiornate_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }) : '';
+    const tabella = tabellaSvincolati();
+    const fonte = f.righe.length
+      ? `Statistiche di tutta la Serie A${data ? ', aggiornate al ' + esc(data) : ''}. Fonte: <a href="https://www.fantacalcio.it/statistiche-serie-a" target="_blank" rel="noopener">Fantacalcio.it</a>.`
+      : (isAdmin() ? 'Le statistiche arrivano dall’Excel di Fantacalcio.it: caricalo dal menu, "Carica le medie di Fantacalcio.it".' : 'Le statistiche arrivano quando l’amministratore carica le medie di Fantacalcio.it.');
+    return `<div class="card mercato">
+      <div class="sec-h"><h2>Svincolati</h2><span id="svN">${esc(S.svConta || '')}</span></div>
+      <div class="chips ruoli" role="group" aria-label="Ruolo">${['', 'P', 'D', 'C', 'A'].map(r =>
+        `<button type="button" class="chip" data-mf-ruolo="${r}" aria-pressed="${mf.ruolo === r}"${r ? ` aria-label="${esc(ROLE[r])}"` : ''}>${r ? `<span class="corto">${r}</span><span class="lungo">${esc(ROLE[r])}</span>` : 'Tutti'}</button>`).join('')}</div>
+      <div class="filtri">
+        <select data-mf="club" aria-label="Squadra di Serie A"><option value="">Tutte le squadre</option>${clubs.map(c =>
+          `<option${c === mf.club ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
+        <input type="search" data-mf="q" placeholder="Cerca un nome" value="${esc(mf.q)}" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div class="ordina">
+        <label>Ordina per <select data-mf="ord">${ordini.map(o => `<option value="${o.k}"${o.k === mf.ord ? ' selected' : ''}>${esc(o.et)}</option>`).join('')}</select></label>
+        <button type="button" class="chip" data-mf-verso>${mf.verso < 0 ? '↓ dal più alto' : '↑ dal più basso'}</button>
+      </div>
+      <div id="svTab">${tabella}</div>
+      <p class="small muted" style="margin:0">${fonte}${isAdmin() ? ' Tocca un giocatore per prenderlo.' : ' Tocca un giocatore per tutti i suoi numeri.'}</p>
+    </div>`;
+  }
+
+  function tabellaSvincolati() {
+    const mf = S.mf, q = NORM(mf.q);
+    const vis = (S.svinc || []).filter(x => (!mf.ruolo || x.ruolo === mf.ruolo) && (!mf.club || x.club === mf.club) && (!q || NORM(x.nome).includes(q)));
+    const cols = COLONNE.filter(c => mf.ruolo === 'P' ? !c.noP : !c.soloP);
+    const val = (x, k) => k === 'nome' ? NORM(x.nome) : k === 'club' ? NORM(x.club || '') : statDi(x, k);
+    vis.sort((a, b) => {
+      const va = val(a, mf.ord), vb = val(b, mf.ord);
+      if (va == null || vb == null) {
+        if (va != null) return -1;
+        if (vb != null) return 1;
+      } else if (va !== vb) return (va < vb ? -1 : 1) * mf.verso;
+      return NORM(a.nome) < NORM(b.nome) ? -1 : 1;
+    });
+    const freccia = k => k === mf.ord ? (mf.verso < 0 ? ' ↓' : ' ↑') : '';
+    const cls = c => (c.sempre || c.k === mf.ord ? '' : 'x') + (c.k === mf.ord ? ' ord' : '');
+    const fmt = (x, c) => { const v = statDi(x, c.k); return v == null ? '—' : c.media ? n1(v) : String(v); };
+    const n = vis.length, tot = (S.svinc || []).length;
+    S.svConta = n === tot ? tot + ' giocatori' : n + ' di ' + tot;
+    const conta = document.getElementById('svN');
+    if (conta) conta.textContent = S.svConta;
+    if (!n) return '<p class="empty">Nessuno svincolato con questi filtri.</p>';
+    return `<table class="tbl svinc">
+      <thead><tr>
+        <th class="l" data-ord="nome" aria-sort="${mf.ord === 'nome' ? (mf.verso < 0 ? 'descending' : 'ascending') : 'none'}">Giocatore${freccia('nome')}</th>
+        <th class="l pc" data-ord="club">Squadra${freccia('club')}</th>
+        ${cols.map(c => `<th class="${cls(c)}" data-ord="${c.k}" title="${esc(c.tit)}" aria-sort="${c.k === mf.ord ? (mf.verso < 0 ? 'descending' : 'ascending') : 'none'}">${esc(c.et)}${freccia(c.k)}</th>`).join('')}
+      </tr></thead>
+      <tbody>${vis.map(x => `<tr class="clickable" data-svinc="${x.id}" tabindex="0">
+        <td class="l"><span class="gioc"><span class="badge" data-r="${esc(x.ruolo)}">${esc(x.ruolo)}</span><span><b>${esc(x.nome)}</b><span class="tel">${esc(x.club || '')}</span></span></span></td>
+        <td class="l pc">${esc(x.club || '—')}</td>
+        ${cols.map(c => `<td class="${cls(c)}">${fmt(x, c)}</td>`).join('')}
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+  const ridisegnaSvincolati = () => { const t = document.getElementById('svTab'); if (t) t.innerHTML = tabellaSvincolati(); };
+
+  // un giocatore svincolato: i suoi numeri e, per l'amministratore, l'operazione
+  async function apriSvincolato(id) {
+    const x = (S.svinc || []).find(y => y.id === id);
+    if (!x) return;
+    const P = x.ruolo === 'P';
+    const voci = P ? [['pv', 'partite a voto'], ['mv', 'media voto'], ['fm', 'fantamedia'], ['gs', 'gol subiti'], ['rp', 'rigori parati'], ['amm', 'ammonizioni'], ['esp', 'espulsioni'], ['au', 'autogol']]
+      : [['pv', 'partite a voto'], ['mv', 'media voto'], ['fm', 'fantamedia'], ['gf', 'gol'], ['ass', 'assist'], ['r_piu', 'rigori segnati'], ['amm', 'ammonizioni'], ['esp', 'espulsioni']];
+    const numeri = x.st
+      ? `<div class="tiles q4 compatti" style="margin-top:12px">${voci.map(([k, et]) => { const v = statDi(x, k); return tile(v == null ? '—' : (k === 'mv' || k === 'fm') ? n1(v) : v, et); }).join('')}</div>`
+      : '<p class="small muted" style="margin:12px 0 0">Nell’Excel di Fantacalcio.it non lo trovo: niente statistiche.</p>';
+    const admin = isAdmin() ? await formOperazione(x) : '';
+    const el = sheet(`<div class="sheet-h"><div><h4>${esc(x.nome)}</h4><p>${esc(RUOLO1[x.ruolo] || x.ruolo)}${x.club ? ' · ' + esc(x.club) : ''} · svincolato${x.origine === 'svincolo' ? ' da poco' : ''}</p></div></div>
+      <div class="sheet-b">${numeri}${admin}</div>
+      <div class="sheet-f">${isAdmin()
+        ? '<button type="button" class="btn btn-ghost" data-act="close">Chiudi</button><button type="button" class="btn btn-primary" data-act="go" disabled>Conferma</button>'
+        : '<button type="button" class="btn btn-primary" data-act="close">Chiudi</button>'}</div>`);
+    if (isAdmin()) collegaOperazione(el, x);
+  }
+
+  async function formOperazione(x) {
+    const cr = await creditiOra();
+    if (!cr) return '<p class="small" style="margin:14px 0 0">Per le operazioni di mercato esegui db/11_mercato.sql nel SQL Editor di Supabase.</p>';
+    return `<div class="group-h" style="margin-top:8px">Prendilo per</div>
+      <div class="op-form">
+        <select data-op="team" aria-label="Squadra"><option value="">Scegli la squadra…</option>${S.teams.map(t =>
+          `<option value="${t.id}">${esc(bel(t.name))}${(cr.find(c => c.team_id === t.id) || {}).crediti != null ? ' · ' + cr.find(c => c.team_id === t.id).crediti + ' crediti' : ''}</option>`).join('')}</select>
+        <div data-op="chi"></div>
+        <div class="due-campi">
+          <label>Costo dello svincolo<input type="number" step="1" data-op="svincolo" value="0"><small>negativo se è un rimborso</small></label>
+          <label>Costo dell’acquisto<input type="number" step="1" min="0" data-op="acquisto" value="0"><small>diventa il costo in rosa</small></label>
+        </div>
+        <label><span>Nota <span class="muted" style="font-weight:400">(facoltativa)</span></span><input type="text" data-op="note" maxlength="200" autocomplete="off"></label>
+        <p class="small op-riep" data-op="riep">Scegli la squadra e chi esce.</p>
+      </div>`;
+  }
+
+  function collegaOperazione(el, x) {
+    const q = s => el.querySelector('[data-op="' + s + '"]');
+    const go = el.querySelector('[data-act="go"]');
+    let pl = [], cs = [], cr = [];
+    Promise.all([rose(), costi(), creditiOra()]).then(r => { [pl, cs, cr] = r; aggiorna(); });
+    const intero = v => { const n = parseInt(v, 10); return isFinite(n) ? n : 0; };
+    function stato() {
+      const team = q('team') && q('team').value;
+      const esce = el.querySelector('input[name="esce"]:checked');
+      const p = esce ? pl.find(y => y.id === esce.value) : null;
+      const c = (cr || []).find(y => y.team_id === team) || {};
+      const sv = intero(q('svincolo').value), ac = intero(q('acquisto').value);
+      return { team, p, cred: c.crediti, sv, ac, dopo: c.crediti != null ? c.crediti - sv - ac : null };
+    }
+    function aggiorna() {
+      const s = stato();
+      const r = q('riep');
+      if (!s.team) { r.textContent = 'Scegli la squadra e chi esce.'; go.disabled = true; return; }
+      if (!s.p) { r.textContent = 'Scegli chi esce.'; go.disabled = true; return; }
+      const poco = s.dopo != null && s.dopo < 0;
+      r.classList.toggle('ko', poco || s.ac < 0);
+      r.innerHTML = `Entra <b>${esc(x.nome)}</b> al posto di <b>${esc(s.p.name)}</b> (posto ${s.p.slot}).` +
+        (s.cred != null ? ` Crediti di ${esc(teamName(s.team))}: ${s.cred} → <b>${s.dopo}</b>.` : '') +
+        (poco ? ' Crediti insufficienti.' : '') + (s.ac < 0 ? ' L’acquisto non può costare meno di zero.' : '');
+      go.disabled = poco || s.ac < 0;
+      go.textContent = 'Conferma';
+    }
+    function scegliTeam() {
+      const team = q('team').value;
+      const box = q('chi');
+      const costoDi = new Map(cs.filter(c => c.team_id === team).map(c => [c.slot, c]));
+      const stessi = pl.filter(p => p.team_id === team && p.role === x.ruolo && p.slot != null).sort((a, b) => a.slot - b.slot);
+      box.innerHTML = !team ? '' : stessi.length
+        ? `<div class="small muted" style="margin:2px 0 6px">Chi esce (${esc(ROLE[x.ruolo].toLowerCase())} di ${esc(teamName(team))})</div>
+           <div class="scelte">${stessi.map(p => { const c = costoDi.get(p.slot); const costo = c && NORM(c.nome) === NORM(p.name) && c.costo != null ? n1(c.costo) + ' cr' : '';
+             return `<label class="scelta"><input type="radio" name="esce" value="${p.id}"><span class="badge" data-r="${esc(p.role)}">${esc(p.role)}</span>
+               <span class="who"><b>${esc(p.name)}</b><span>${esc([p.club, costo].filter(Boolean).join(' · ') || 'posto ' + p.slot)}</span></span></label>`; }).join('')}</div>`
+        : `<p class="small ko" style="margin:0">${esc(teamName(team))} non ha ${esc(ROLE[x.ruolo].toLowerCase())} in rosa.</p>`;
+      aggiorna();
+    }
+    el.addEventListener('change', ev => { if (ev.target.matches('[data-op="team"]')) scegliTeam(); else aggiorna(); });
+    el.addEventListener('input', aggiorna);
+    go.addEventListener('click', async () => {
+      const s = stato();
+      if (!s.p) return;
+      go.disabled = true; go.innerHTML = '<span class="spin"></span> Registro…';
+      try {
+        const res = await SB.rpc('mercato_sostituisci', { p_esce: s.p.id, p_entra: x.id, p_costo_svincolo: s.sv, p_costo_acquisto: s.ac, p_note: q('note').value || null });
+        closeSheet();
+        S.cache = {};
+        notice(`Fatto: ${x.nome} va a ${teamName(s.team)} al posto di ${s.p.name}` +
+          (res.crediti_dopo != null ? `, che ora ha ${res.crediti_dopo} crediti` : '') + '. Riportalo nel file di giornata: l’elenco è in Mercato → Operazioni.');
+        (res.formazioni || []).forEach(f => notice(`${s.p.name} era nella formazione salvata di ${teamName(f.team_id)} per la ${f.matchday}ª di Serie A (posto ${f.pos}): l’ho tolto, avvisa chi deve rifarla.`));
+        render();
+        await modelloDopo(res.id, false);
+      } catch (e) {
+        console.error(e);
+        go.disabled = false; go.textContent = 'Riprova';
+        const r = q('riep'); r.classList.add('ko'); r.textContent = NON_CE(e) ? 'Esegui db/11_mercato.sql nel SQL Editor di Supabase.' : (e && e.message ? e.message : 'Operazione non riuscita.');
+      }
+    });
+  }
+
+  // dopo un'operazione (o il suo annullamento): il modello delle formazioni
+  async function modelloDopo(id, inverso) {
+    try {
+      const op = (await SB.select('market_ops', 'select=*&id=eq.' + id))[0];
+      if (!op) return;
+      const avvisi = await aggiornaModello(op, inverso);
+      if (avvisi.length) notice('Il modello delle formazioni non è stato aggiornato del tutto: ' + avvisi.join('; ') + '. Aggiornalo con "Aggiorna le rose da un .xls" dopo aver sistemato l’Excel.', 'error');
+      else toast('Modello delle formazioni aggiornato');
+    } catch (e) {
+      console.error(e);
+      notice('Il modello delle formazioni non è stato aggiornato (' + (e && e.message ? e.message : 'errore') + '). Riprova da Mercato → Operazioni.', 'error');
+    }
+    S.cache.ops = undefined;
+    if (S.sezione === 'mercato') render();
+  }
+
+  // Il modello .xls delle formazioni (quello degli export di Schiera): nel foglio ROSE
+  // il nome, il costo e i crediti della squadra; nel LISTONE chi entra lascia il posto a
+  // chi esce. I fogli squadra prendono i nomi da ROSE con formule.
+  async function aggiornaModello(op, inverso) {
+    const X = window.XlsFormazione;
+    const wb = X.load(await SB.download('modelli', 'formazioni.xls'));
+    const t = teamById(op.team_id) || {};
+    const avvisi = [], mod = [];
+    const [da, a] = inverso ? [op.entra_nome, op.esce_nome] : [op.esce_nome, op.entra_nome];
+    if (wb.has('ROSE')) {
+      const g = wb.grid('ROSE');
+      let col = -1;
+      for (let b = 0; b < 12 && col < 0; b++) {
+        const s = g.str(0, b * 3);
+        if (!s) break;
+        if ([t.name, t.sheet_name].some(n => n && NOSP(n) === NOSP(s))) col = b * 3;
+      }
+      if (col < 0) avvisi.push('nel foglio ROSE non trovo ' + bel(t.name));
+      else {
+        const ora = g.str(op.slot, col);
+        if (NORM(ora) === NORM(a)) { /* già fatto */ } else if (NORM(ora) !== NORM(da)) {
+          avvisi.push(`nel foglio ROSE, riga ${op.slot + 1}, c’è «${ora || 'niente'}» invece di «${da}»`);
+        } else {
+          const num = v => v == null || v === '' ? null : +v;
+          mod.push({ foglio: 'ROSE', r: op.slot, c: col, v: a },
+            { foglio: 'ROSE', r: op.slot, c: col + 1, v: inverso ? num(op.esce_costo) : op.costo_acquisto },
+            { foglio: 'ROSE', r: op.slot, c: col + 2, v: inverso ? num(op.esce_valore) : null });
+          const cr = inverso ? op.crediti_prima : op.crediti_dopo;
+          if (cr != null && g.num(0, col + 1) != null) mod.push({ foglio: 'ROSE', r: 0, c: col + 1, v: cr });
+        }
+      }
+    } else avvisi.push('nel modello non c’è il foglio ROSE');
+    if (wb.has('LISTONE')) {
+      const L = wb.grid('LISTONE');
+      const h = L.find(/^nome$/i, 0, 6, 0, 6);
+      if (h) {
+        const via = inverso ? op.esce_nome : op.entra_nome;
+        const dentro = inverso ? [op.ruolo, op.entra_nome, op.entra_club || ''] : [op.ruolo, op.esce_nome, op.esce_club || ''];
+        let riga = -1, gia = false, vuote = 0;
+        for (let r = h.r + 1; r < h.r + 3000 && vuote < 40; r++) {
+          const nm = L.str(r, h.c);
+          if (!nm) { vuote++; continue; }
+          vuote = 0;
+          if (riga < 0 && NORM(nm) === NORM(via)) riga = r;
+          if (NORM(nm) === NORM(dentro[1])) gia = true;
+        }
+        if (riga >= 0) dentro.forEach((v, i) => mod.push({ foglio: 'LISTONE', r: riga, c: h.c - 1 + i, v: gia ? null : v }));
+        else if (!gia) avvisi.push('nel LISTONE del modello non trovo ' + via);
+      }
+    }
+    if (mod.length) {
+      const bytes = wb.modifica(mod, [t.sheet_name, t.name].filter(n => n && wb.sheetNames.includes(n)).slice(0, 1));
+      await SB.upload('modelli', 'formazioni.xls', new Blob([bytes], { type: 'application/vnd.ms-excel' }), 'application/vnd.ms-excel');
+    }
+    if (!avvisi.length) await SB.rpc('mercato_modello', { p_op: op.id, p_ok: !inverso });
+    return avvisi;
+  }
+
+  // cosa riportare nel file di giornata, in una riga
+  const riepilogoOp = o => `${bel(teamName(o.team_id)).toUpperCase()} · ROSE, riga ${o.slot + 1}: ${o.esce_nome} → ${o.entra_nome}, costo ${o.costo_acquisto}` +
+    (o.costo_svincolo ? ` (svincolo ${o.costo_svincolo > 0 ? o.costo_svincolo : 'rimborso ' + (-o.costo_svincolo)})` : '') +
+    (o.crediti_dopo != null ? `; crediti ${o.crediti_prima} → ${o.crediti_dopo}` : '') +
+    ` · LISTONE: togli ${o.entra_nome}, aggiungi ${o.esce_nome} (${o.ruolo}${o.esce_club ? ', ' + o.esce_club : ''})`;
+
+  async function vistaOperazioni() {
+    const ops = await operazioni();
+    if (S.mancanti.includes('market_ops')) return mercatoAssente();
+    const sospese = ops.filter(o => !o.annullata_at && !o.riportata_at).reverse();
+    const ultimaViva = ops.find(o => !o.annullata_at);
+    const annullabile = isAdmin() && ultimaViva && !ultimaViva.riportata_at ? ultimaViva.id : null;
+    const stato = o => o.annullata_at ? `<span class="tag no">annullata ${esc(quandoBreve(o.annullata_at))}</span>`
+      : !isAdmin() ? '' : o.riportata_at ? `<span class="tag ok">nel file${o.riportata_round ? ' (' + o.riportata_round + 'ª)' : ''}</span>` : '<span class="tag">da riportare</span>';
+    const riga = o => `<div class="op${o.annullata_at ? ' annullata' : ''}">
+      <div class="op-h"><b>${esc(teamName(o.team_id))}</b><span>${esc(quando(o.at))}</span></div>
+      <div class="op-r"><span class="io in">entra</span><span class="badge" data-r="${esc(o.ruolo)}">${esc(o.ruolo)}</span>
+        <span class="who"><b>${esc(o.entra_nome)}</b>${o.entra_club ? `<span>${esc(o.entra_club)}</span>` : ''}</span><span class="val"><b>${o.costo_acquisto}</b><span>crediti</span></span></div>
+      <div class="op-r"><span class="io out">esce</span><span class="badge" data-r="${esc(o.ruolo)}">${esc(o.ruolo)}</span>
+        <span class="who"><b>${esc(o.esce_nome)}</b>${o.esce_club ? `<span>${esc(o.esce_club)}</span>` : ''}</span><span class="val"><b>${o.costo_svincolo}</b><span>${o.costo_svincolo < 0 ? 'rimborso' : 'svincolo'}</span></span></div>
+      <div class="op-f"><span class="small muted">${o.crediti_dopo != null ? `crediti ${o.crediti_prima} → ${o.crediti_dopo}` : ''}${o.note ? (o.crediti_dopo != null ? ' · ' : '') + esc(o.note) : ''}</span>${stato(o)}</div>
+      ${isAdmin() && !o.annullata_at && (o.id === annullabile || !o.modello_at) ? `<div class="op-a">
+        ${!o.modello_at ? `<button type="button" class="linkish" data-op-modello="${o.id}">Aggiorna il modello delle formazioni</button>` : ''}
+        ${o.id === annullabile ? `<button type="button" class="linkish" data-op-annulla="${o.id}">Annulla l’operazione</button>` : ''}</div>` : ''}
+    </div>`;
+    const daRiportare = isAdmin() && sospese.length ? `<div class="card">
+        <div class="sec-h"><h3>Da riportare nel file</h3><span>${sospese.length === 1 ? '1 operazione' : sospese.length + ' operazioni'}</span></div>
+        <ol class="riep">${sospese.map(o => `<li>${esc(riepilogoOp(o))}</li>`).join('')}</ol>
+        <button type="button" class="btn" data-copia-riep>Copia l’elenco</button>
+        <p class="small muted" style="margin:0">Quando carichi il file di giornata il sito controlla le rose: le operazioni che trova escono da qui, i crediti si allineano da soli.</p>
+      </div>` : '';
+    return `${daRiportare}<div class="card">
+        <div class="sec-h"><h2>Operazioni</h2><span>${ops.filter(o => !o.annullata_at).length}</span></div>
+        ${ops.length ? `<div class="ops">${ops.map(riga).join('')}</div>` : '<p class="empty">Ancora nessuna operazione di mercato.</p>'}
+      </div>`;
+  }
+
+  function annullaOp(id) {
+    const o = (S.cache.ops || []).find(x => x.id === id);
+    if (!o) return;
+    const el = sheet(`<div class="sheet-h"><div><h4>Annullare l’operazione?</h4><p>${esc(teamName(o.team_id))} · ${esc(quando(o.at))}</p></div></div>
+      <div class="sheet-b"><p>Torna <b>${esc(o.esce_nome)}</b> al suo posto ed esce <b>${esc(o.entra_nome)}</b>, che torna fra gli svincolati.${o.crediti_prima != null ? ` I crediti tornano ${o.crediti_prima}.` : ''}</p>
+        ${(o.formazioni || []).length ? `<p class="small muted">${esc(o.esce_nome)} era stato tolto da una formazione salvata: non ce lo rimetto, va rifatta.</p>` : ''}</div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">No</button><button type="button" class="btn btn-primary" data-act="go">Annulla l’operazione</button></div>`);
+    el.querySelector('[data-act="go"]').addEventListener('click', async ev => {
+      const b = ev.currentTarget;
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> Annullo…';
+      try {
+        await SB.rpc('mercato_annulla', { p_op: id });
+        closeSheet();
+        S.cache = {};
+        notice(`Operazione annullata: ${o.esce_nome} è di nuovo in rosa a ${teamName(o.team_id)}.`);
+        render();
+        await modelloDopo(id, true);
+      } catch (e) {
+        closeSheet();
+        notice(e && e.message ? e.message : 'Non sono riuscito ad annullarla.', 'error');
+      }
+    });
+  }
+
+  async function copiaRiepilogo() {
+    const ops = (S.cache.ops || []).filter(o => !o.annullata_at && !o.riportata_at).reverse();
+    const testo = ops.map((o, i) => (i + 1) + '. ' + riepilogoOp(o)).join('\n');
+    try { await navigator.clipboard.writeText(testo); toast('Elenco copiato'); }
+    catch (e) { notice(testo); }
+  }
+
+  // Al caricamento del file di giornata: le operazioni di mercato ci sono già?
+  async function mercatoNelFile(dati) {
+    let ops = [];
+    try { ops = (await SB.select('market_ops', 'select=*&annullata_at=is.null&riportata_at=is.null&order=id')) || []; } catch (e) { return ''; }
+    if (!ops.length) return '';
+    const nelFile = o => dati.rose.some(r => { const t = squadraDelFile(r.squadra); return t && t.id === o.team_id && r.slot === o.slot && NORM(r.nome) === NORM(o.entra_nome); });
+    const si = ops.filter(nelFile), no = ops.filter(o => !nelFile(o));
+    return `<p class="small" style="margin:12px 0 0"><b>Mercato</b>: ${si.length ? si.length + ' operazion' + (si.length === 1 ? 'e è' : 'i sono') + ' nel file' : ''}${si.length && no.length ? ', ' : ''}${no.length
+      ? no.length + ' non ancora (' + esc(no.map(o => teamName(o.team_id) + ': ' + o.entra_nome + ' al posto di ' + o.esce_nome).join('; ')) + '): restano in Mercato → Operazioni e i crediti tengono conto di loro'
+      : ''}.</p>`;
+  }
+
   // ------------------------------------------------------------------ sezioni
   // icone a tratto, 24x24
   const ICONE = {
@@ -1406,11 +1827,12 @@
     tabellone: '<path d="M3 5h5v4h4M3 13h5V9M12 9v7h4M3 19h9v-3M16 12.5h5"/>',
     albo: '<circle cx="12" cy="9" r="5"/><path d="m9 13.5-1.5 6.5L12 18l4.5 2L15 13.5"/>',
     premi: '<circle cx="12" cy="12" r="8"/><path d="M15 9a3.5 3.5 0 1 0 0 6M8 11h5M8 13.5h5"/>',
-    via: '<path d="M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4"/>'
+    via: '<path d="M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4"/>',
+    mercato: '<path d="M3.5 12.2V5a1.5 1.5 0 0 1 1.5-1.5h7.2l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-6.4 6.4a1.5 1.5 0 0 1-2.1 0z"/><circle cx="8" cy="8" r="1.5"/>'
   };
   const icona = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE[k]}</svg>`;
 
-  // Sei sezioni. Al telefono quelle con "barra" stanno nella barra in basso (Schiera al
+  // Sette sezioni. Al telefono quelle con "barra" stanno nella barra in basso (Schiera al
   // centro) e le altre nel pannello "Altro"; sul computer stanno tutte nella barra in alto.
   const SEZIONI = [
     { id: '', et: 'Home', ico: 'home', barra: true, vista: home },
@@ -1418,13 +1840,15 @@
     { id: 'schiera', et: 'Schiera', ico: 'schiera', barra: true, vista: null },
     { id: 'classifiche', et: 'Classifiche', ico: 'podio', barra: true, vista: sezioneClassifiche },
     { id: 'squadre', et: 'Squadre', ico: 'maglia', vista: sezioneSquadre, desc: 'Rosa, statistiche e testa a testa di ogni squadra' },
-    { id: 'lega', et: 'Lega', ico: 'stat', vista: sezioneLega, desc: 'Statistiche di lega, record, albo d’oro e premi' }
+    { id: 'lega', et: 'Lega', ico: 'stat', vista: sezioneLega, desc: 'Statistiche di lega, record, albo d’oro e premi' },
+    { id: 'mercato', et: 'Mercato', ico: 'mercato', vista: sezioneMercato, desc: 'Svincolati con le statistiche e operazioni di mercato' }
   ];
 
   // i vecchi indirizzi (prima del riordino) portano dove sta ora la stessa cosa
   const VECCHIE = {
     calendario: 'giornata', statistiche: 'lega', squadra: 'squadre', rose: 'squadre/rosa', confronto: 'squadre/confronto',
-    coppe: 'classifiche/coppa', playoff: 'classifiche/playoff', albo: 'lega/albo', premi: 'lega/premi'
+    coppe: 'classifiche/coppa', playoff: 'classifiche/playoff', albo: 'lega/albo', premi: 'lega/premi',
+    svincolati: 'mercato', listone: 'mercato', operazioni: 'mercato/operazioni'
   };
   function leggiIndirizzo() {
     let [a, b] = (location.hash || '').replace(/^#\/?/, '').split('/');
@@ -1740,6 +2164,34 @@
 
   // tocchi dentro le sezioni
   $('#view').addEventListener('click', ev => {
+    // mercato
+    const sv = ev.target.closest('[data-svinc]');
+    if (sv) { apriSvincolato(+sv.dataset.svinc); return; }
+    const mr = ev.target.closest('[data-mf-ruolo]');
+    if (mr) {
+      S.mf.ruolo = mr.dataset.mfRuolo;
+      if (S.mf.ruolo !== 'P' && ['gs', 'rp'].includes(S.mf.ord)) S.mf.ord = 'fm';
+      if (S.mf.ruolo === 'P' && ['gf', 'ass'].includes(S.mf.ord)) S.mf.ord = 'fm';
+      document.querySelectorAll('[data-mf-ruolo]').forEach(b => b.setAttribute('aria-pressed', String(b === mr)));
+      const so = document.querySelector('[data-mf="ord"]'); if (so) so.value = S.mf.ord;
+      ridisegnaSvincolati(); return;
+    }
+    const th = ev.target.closest('th[data-ord]');
+    if (th) {
+      const k = th.dataset.ord;
+      S.mf.verso = S.mf.ord === k ? -S.mf.verso : (k === 'nome' || k === 'club' ? 1 : -1);
+      S.mf.ord = k;
+      const so = document.querySelector('[data-mf="ord"]'); if (so) so.value = k;
+      const vb = document.querySelector('[data-mf-verso]'); if (vb) vb.textContent = S.mf.verso < 0 ? '↓ dal più alto' : '↑ dal più basso';
+      ridisegnaSvincolati(); return;
+    }
+    const mv = ev.target.closest('[data-mf-verso]');
+    if (mv) { S.mf.verso = -S.mf.verso; mv.textContent = S.mf.verso < 0 ? '↓ dal più alto' : '↑ dal più basso'; ridisegnaSvincolati(); return; }
+    const oa = ev.target.closest('[data-op-annulla]');
+    if (oa) { annullaOp(+oa.dataset.opAnnulla); return; }
+    const om = ev.target.closest('[data-op-modello]');
+    if (om) { om.disabled = true; modelloDopo(+om.dataset.opModello, false); return; }
+    if (ev.target.closest('[data-copia-riep]')) { copiaRiepilogo(); return; }
     const fsq = ev.target.closest('[data-form-sq]');
     if (fsq) { mostraFormazione(fsq.dataset.formSq); return; }
     const m = ev.target.closest('[data-match]');
@@ -1758,7 +2210,28 @@
     if (se) { const p = prefs(); p.graficoSquadra = se.dataset.serie; setPrefs(p); render(); return; }
   });
 
+  // filtri degli svincolati: si ridisegna solo la tabella
+  const filtroMercato = ev => {
+    const f = ev.target.closest('[data-mf]');
+    if (!f) return false;
+    S.mf[f.dataset.mf] = f.value;
+    if (f.dataset.mf === 'ord') {
+      S.mf.verso = f.value === 'nome' || f.value === 'club' ? 1 : -1;
+      const vb = document.querySelector('[data-mf-verso]'); if (vb) vb.textContent = S.mf.verso < 0 ? '↓ dal più alto' : '↑ dal più basso';
+    }
+    ridisegnaSvincolati();
+    return true;
+  };
+  $('#view').addEventListener('input', ev => { if (ev.target.matches('[data-mf="q"]')) filtroMercato(ev); });
+  $('#view').addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' && ev.target.matches('tr[data-svinc]')) apriSvincolato(+ev.target.dataset.svinc);
+  });
+
   $('#view').addEventListener('change', ev => {
+    // la ricerca si aggiorna mentre si scrive: il "change" all'uscita dal campo ridisegnerebbe
+    // la tabella proprio mentre si tocca un giocatore, e il tocco andrebbe perso
+    if (ev.target.matches('[data-mf="q"]')) return;
+    if (filtroMercato(ev)) return;
     const cf = ev.target.closest('[data-conf]');
     if (!cf) return;
     S.confrontoB = cf.value;

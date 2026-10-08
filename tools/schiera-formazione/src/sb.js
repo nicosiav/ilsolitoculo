@@ -144,8 +144,10 @@
     async download(bucket, path) {
       if (!session) throw new SbError('Devi entrare con il tuo account.', 'no_session', 401);
       if (session.expires_at && session.expires_at - 60 < Math.floor(Date.now() / 1000)) await refresh();
+      // niente copie in cache: il modello cambia (rose aggiornate, mercato) e serve sempre l'ultimo
       const res = await fetch(base() + '/storage/v1/object/' + bucket + '/' + path, {
-        headers: { apikey: anon(), Authorization: 'Bearer ' + session.access_token }
+        headers: { apikey: anon(), Authorization: 'Bearer ' + session.access_token },
+        cache: 'no-store'
       });
       if (!res.ok) throw fail(res.status, await res.json().catch(() => null));
       return new Uint8Array(await res.arrayBuffer());
@@ -160,6 +162,7 @@
           apikey: anon(),
           Authorization: 'Bearer ' + session.access_token,
           'Content-Type': contentType || 'application/octet-stream',
+          'cache-control': 'max-age=0',
           'x-upsert': 'true'
         },
         body: blob

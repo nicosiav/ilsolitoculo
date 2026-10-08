@@ -23,13 +23,21 @@ le partite che si toccano con le due formazioni affiancate e allineate riga per
 riga, a 360, 390 e 1100 px), il file unico con tutte le formazioni (riletto con il motore: foglio
 pieno per chi ha salvato, vuoto per gli altri), le medie di Fantacalcio.it
 caricate dall'amministratore e mostrate in Rosa, le statistiche (grafici, tabelle
-dei numeri, tocco sulle colonne, niente scorrimento di lato).
+dei numeri, tocco sulle colonne, niente scorrimento di lato), il mercato
+(svincolati con filtri e ordinamento; l'amministratore prende Bleve al posto di
+Contini: crediti, rosa, formazione salvata ripulita, modello .xls riletto con il
+motore; elenco da riportare, annullamento con il modello che torna com'era; file
+di giornata che non contiene ancora l'operazione), il mercato visto da chi gioca e
+il database senza `11_mercato.sql`. `SOLO=13,14` fa girare solo quegli scenari.
 
 Prima di lanciarle serve l'Excel finto di Fantacalcio.it:
 
 ```bash
-python3 fantacalcio_finto.py /tmp/fc_stats.xlsx
+python3 fantacalcio_finto.py /tmp/fc_stats.xlsx /tmp/rose.json --listone /tmp/listone.json
 ```
+
+(`/tmp/listone.json` è il LISTONE del file di giornata, `[{ruolo, nome, squadra}]`:
+`node -e "const G=require('../../src/giornata.js'),fs=require('fs');fs.writeFileSync('/tmp/listone.json',JSON.stringify(G.parse(new Uint8Array(fs.readFileSync(process.argv[1])),'x').listone))" giornata.xls`)
 
 Per tutto quello che riguarda Schiera (profilo con la squadra, rosa, giornata di
 Serie A, partite, formazioni, salvataggio) `server.js` passa la mano al finto
@@ -46,6 +54,8 @@ le rose da `/tmp/rose.json` e il modello per l'export da `FORMAZIONI`.
 | `PRELOAD`, `LOCKED`, `CLOSED`… | le situazioni di Schiera (vedi le sue prove) |
 | `FC` | un Excel di Fantacalcio.it già caricato (es. `/tmp/fc_stats.xlsx`) |
 | `NOFC` | il database senza le tabelle di `db/10_fantacalcio.sql` |
+| `NOMERCATO` | il database senza `db/11_mercato.sql` (svincolati e operazioni) |
+| `FORMAZIONI` | il modello .xls delle formazioni; dopo un'operazione di mercato il sito lo ricarica aggiornato (copia in `/tmp/modello_mercato.xls`) |
 | `NOSTORICO` | solo la giornata del file (di solito le giornate prima hanno voti e formazioni inventati, sempre uguali, per le statistiche) |
 
 ## Schermate per la guida

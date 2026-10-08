@@ -467,7 +467,7 @@
       : [];
     // se il database della stagione c'è, da lì arriva la numerazione della lega
     try { S.rounds = await SB.select('rounds', 'select=id,serie_a&order=id'); } catch (e) { S.rounds = []; }
-    const players = await SB.select('players', 'select=id,slot,role,name,club&team_id=eq.' + S.team.id + '&order=slot');
+    const players = await SB.select('players', 'select=id,slot,role,name,club&team_id=eq.' + S.team.id + '&slot=not.is.null&order=slot');
     S.roster = rosterFromDb(players);
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
     S.savedAt = null;
@@ -762,7 +762,7 @@
   async function clubsSheet() {
     let players, clubs;
     try {
-      players = await SB.select('players', 'select=id,name,role,club,team_id,teams(name)&order=name');
+      players = await SB.select('players', 'select=id,name,role,club,team_id,teams(name)&slot=not.is.null&order=name');
       clubs = clubList();
       if (!clubs.length) {
         const f = await SB.select('fixtures', 'select=home,away&order=matchday.desc&limit=20');
