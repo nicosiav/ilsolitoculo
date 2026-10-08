@@ -28,7 +28,9 @@ dei numeri, tocco sulle colonne, niente scorrimento di lato), il mercato
 Contini: crediti, rosa, formazione salvata ripulita, modello .xls riletto con il
 motore; elenco da riportare, annullamento con il modello che torna com'era; file
 di giornata che non contiene ancora l'operazione), il mercato visto da chi gioca e
-il database senza `11_mercato.sql`. `SOLO=13,14` fa girare solo quegli scenari.
+il database senza `11_mercato.sql`, la formazione «da rifare» (giocatore
+svincolato: avviso e stato in Schiera, pallino, riquadro verde, Formazioni; dopo
+un nuovo salvataggio torna «salvata»). `SOLO=13,14` fa girare solo quegli scenari.
 
 Prima di lanciarle serve l'Excel finto di Fantacalcio.it:
 
@@ -55,6 +57,7 @@ le rose da `/tmp/rose.json` e il modello per l'export da `FORMAZIONI`.
 | `FC` | un Excel di Fantacalcio.it già caricato (es. `/tmp/fc_stats.xlsx`) |
 | `NOFC` | il database senza le tabelle di `db/10_fantacalcio.sql` |
 | `NOMERCATO` | il database senza `db/11_mercato.sql` (svincolati e operazioni) |
+| `VUOTO` | con `PRELOAD`: il giocatore al posto 5 della formazione di Valerio è stato svincolato (posto vuoto, formazione «da rifare») |
 | `FORMAZIONI` | il modello .xls delle formazioni; dopo un'operazione di mercato il sito lo ricarica aggiornato (copia in `/tmp/modello_mercato.xls`) |
 | `NOSTORICO` | solo la giornata del file (di solito le giornate prima hanno voti e formazioni inventati, sempre uguali, per le statistiche) |
 

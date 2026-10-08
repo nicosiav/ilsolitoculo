@@ -490,4 +490,33 @@ async def main():
             assert '11_mercato.sql' in t
         await apri(pw, {'ADMIN': '1', 'NOMERCATO': '1'}, s15, '15 mercato: database da aggiornare')
 
+        # 16) un giocatore della formazione salvata è stato svincolato: avviso e stato «da rifare»
+        async def s16(pg):
+            await login(pg); await pg.wait_for_timeout(600)
+            verde = (await pg.inner_text('#schieraBig')).replace(chr(10), ' ')
+            print('  riquadro verde:', verde)
+            assert 'da rifare' in verde and await pg.locator('#nav .tb-schiera[data-da-fare]').count() == 1
+            await pg.click('#nav .tb-schiera'); await pg.wait_for_timeout(1000)
+            avviso = (await pg.inner_text('#schNotices')).replace(chr(10), ' ')
+            meta = await pg.inner_text('#fileMeta')
+            print('  Schiera:', meta, '|', avviso[:170])
+            assert 'La tua formazione ha un posto vuoto:' in avviso and 'è stato svincolato' in avviso and 'da rifare' in meta
+            assert 'Formazione salvata il' not in avviso
+            await pg.evaluate("location.hash = '#/giornata/formazioni'"); await pg.wait_for_timeout(1000)
+            chip = (await pg.inner_text('.sq-sel .chip >> nth=0')).replace(chr(10), ' ')
+            pan = (await pg.inner_text('.form-pan:visible')).replace(chr(10), ' ')
+            print('  Formazioni:', chip, '|', pan[:90])
+            assert chip.startswith('Valerio') and 'da rifare' in chip and 'svincolato' in pan
+            # salva di nuovo (anche incompleta): l'avviso e il pallino spariscono
+            await pg.evaluate("location.hash = '#/schiera'"); await pg.wait_for_timeout(800)
+            await pg.click('#saveBtn'); await pg.wait_for_timeout(500)
+            if await pg.locator('[data-act="save"]').count():
+                await pg.click('[data-act="save"]')
+            await pg.wait_for_timeout(1500)
+            meta = await pg.inner_text('#fileMeta')
+            print('  dopo il salvataggio:', meta, '| pallino:', await pg.locator('#nav .tb-schiera[data-da-fare]').count())
+            assert 'salvata' in meta and 'da rifare' not in meta
+            assert await pg.locator('#nav .tb-schiera[data-da-fare]').count() == 0
+        await apri(pw, {'PRELOAD': '1', 'VUOTO': '1', 'FORMAZIONI': FORMAZIONI}, s16, '16 formazione da rifare')
+
 asyncio.run(main())

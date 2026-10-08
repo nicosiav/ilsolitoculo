@@ -179,6 +179,8 @@ button { cursor: pointer; }
   font-size: 14px;
 }
 .notice button { flex: none; border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; padding: 4px; }
+/* l'avviso che chiede di fare qualcosa (formazione da rifare): più in vista */
+.notice.forte { font-weight: 600; box-shadow: inset 4px 0 0 var(--warn-ink); }
 .error { background: #FDE8E6; color: #8A1F16; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .error { background: #3B1512; color: #F7C1BA; } }
 :root[data-theme="dark"] .error { background: #3B1512; color: #F7C1BA; }

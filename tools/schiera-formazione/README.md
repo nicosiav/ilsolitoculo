@@ -33,6 +33,15 @@ partita. È il database ad applicare la regola, non solo la pagina.
 Finché la formazione della giornata non è salvata, sul pulsante Schiera della
 barra c'è un pallino rosso.
 
+Se l'amministratore svincola dal mercato un giocatore che era nella formazione
+già salvata (giornata non ancora iniziata), quel giocatore viene tolto e il posto
+resta vuoto: il nuovo acquisto non entra da solo. Schiera lo dice con l'avviso
+«La tua formazione ha un posto vuoto: X è stato svincolato» e lo stato «⚠
+Formazione da rifare», il pallino rosso torna sul pulsante e anche in Giornata →
+Formazioni la squadra risulta «da rifare». Il modulo salvato resta quello e il
+buco cade sul ruolo di chi manca. Basta salvare di nuovo (poi scaricare e mandare
+il file .xls) e torna «salvata».
+
 ### I comandi
 
 Nella pagina: **Ripristina l'ultima salvata** (pesca la più recente, anche da

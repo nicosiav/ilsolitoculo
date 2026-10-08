@@ -102,12 +102,24 @@
   const votiTutti = () => carica('voti', () => tutte('player_votes', 'select=round,team_id,nome,ruolo,voto,fantavoto&order=round,team_id,nome'));
   const tabelliniTutti = () => carica('rt', () => tutte('round_teams', 'select=round,team_id,punteggio,formazione&order=round,team_id'));
   // le formazioni salvate in Schiera per una giornata di Serie A: sempre fresche
+  // (con i posti rimasti vuoti perché il giocatore è stato svincolato: quella è "da rifare")
   async function salvate(serieA) {
     if (!serieA) return [];
+    let ln;
     try {
-      return await SB.select('lineups', 'select=team_id,module,updated_at,lineup_slots(pos,players(name,role,club,slot))&matchday=eq.' + serieA);
+      ln = await SB.select('lineups', 'select=id,team_id,module,updated_at,lineup_slots(pos,players(name,role,club,slot))&matchday=eq.' + serieA);
     } catch (e) { console.error(e); return []; }
+    const ids = ln.map(l => l.id).filter(Boolean);
+    let vuoti = [];
+    if (ids.length) {
+      try { vuoti = await SB.select('lineup_vuoti', 'select=lineup_id,pos,nome,motivo&lineup_id=in.(' + ids.join(',') + ')'); }
+      catch (e) { vuoti = []; }
+    }
+    ln.forEach(l => { l.vuoti = vuoti.filter(v => v.lineup_id === l.id); });
+    return ln;
   }
+  // "da rifare: Contini svincolato"
+  const daRifare = l => 'da rifare: ' + l.vuoti.map(v => v.nome + (v.motivo === 'svincolato' ? ' svincolato' : ' fuori rosa')).join(', ');
   // medie di Serie A di Fantacalcio.it (db/10_fantacalcio.sql); se le tabelle non ci sono, niente
   const fc = () => carica('fc', async () => {
     try {
@@ -495,7 +507,8 @@
     const di = id => ({ t: rt.find(x => x.team_id === id), l: ln.find(x => x.team_id === id) });
     const chip = id => {
       const { t, l } = di(id);
-      const [stato, cls] = t ? [n1(t.punteggio) + ' pt', ''] : l ? ['salvata', 'ok'] : [r.giocata ? '—' : 'non ancora', 'no'];
+      const [stato, cls] = t ? [n1(t.punteggio) + ' pt', ''] : l && l.vuoti && l.vuoti.length ? ['da rifare', 'warn']
+        : l ? ['salvata', 'ok'] : [r.giocata ? '—' : 'non ancora', 'no'];
       return `<button type="button" class="chip" data-form-sq="${esc(id)}" aria-pressed="${id === scelta}" title="${esc(teamName(id))}"><b>${esc(teamName(id))}</b><span class="${cls}">${esc(stato)}</span></button>`;
     };
     const pannello = id => {
@@ -503,7 +516,9 @@
       const m = S.matches.find(x => x.round === r.id && (x.casa === id || x.fuori === id));
       const avv = m && (m.casa === id ? m.fuori : m.casa);
       const tocco = avv ? (m.gol_casa != null ? `data-match="${m.round}:${m.slot}"` : `data-formazioni="${m.round}:${m.slot}"`) : '';
-      const sotto = t ? `${t.modulo || ''} · ${n1(t.punteggio)} punti` : l ? `${l.module || ''} · salvata ${quandoBreve(l.updated_at)}`
+      const sotto = t ? `${t.modulo || ''} · ${n1(t.punteggio)} punti`
+        : l && l.vuoti && l.vuoti.length ? `${l.module || ''} · ${daRifare(l)}`
+        : l ? `${l.module || ''} · salvata ${quandoBreve(l.updated_at)}`
         : r.giocata ? 'nessuna formazione' : 'non ancora schierata';
       const corpo = t ? elencoGiocata(t) : l ? elencoSalvata(l)
         : `<p class="empty">${r.giocata ? 'Per questa giornata non c’è la formazione.' : 'Non ha ancora salvato la formazione.'}</p>`;
@@ -568,7 +583,7 @@
     if (!m || !r) return;
     const ln = await salvate(r.serie_a);
     const la = ln.find(x => x.team_id === m.casa), lb = ln.find(x => x.team_id === m.fuori);
-    const sotto = l => l ? [l.module, 'salvata ' + quandoBreve(l.updated_at)] : ['non ancora schierata'];
+    const sotto = l => !l ? ['non ancora schierata'] : l.vuoti && l.vuoti.length ? [l.module, daRifare(l)] : [l.module, 'salvata ' + quandoBreve(l.updated_at)];
     const celle = (l, a, b) => {
       if (!l) return a === 1 ? ['<p class="empty">Ancora nessuna formazione salvata.</p>'] : [];
       return (l.lineup_slots || []).filter(x => x.pos >= a && x.pos <= b).sort((x, y) => x.pos - y.pos)
@@ -593,7 +608,7 @@
       <div class="sheet-b"><div class="plist">${ids.map(id => {
         const l = ln.find(x => x.team_id === id);
         return `<div class="prow" style="grid-template-columns:20px 1fr auto"><span class="esito ${l ? 'v' : 'p'}" aria-hidden="true">${l ? '✓' : '✕'}</span>
-          <span class="who"><b>${esc(teamName(id))}</b><span>${l ? esc((l.module || '') + ' · salvata ' + quando(l.updated_at)) : 'non ha salvato la formazione'}</span></span>
+          <span class="who"><b>${esc(teamName(id))}</b><span>${l ? esc((l.module || '') + ' · ' + (l.vuoti && l.vuoti.length ? daRifare(l) : 'salvata ' + quando(l.updated_at))) : 'non ha salvato la formazione'}</span></span>
           <span class="val"></span></div>`;
       }).join('')}</div>
       <p class="small ${mancano.length ? '' : 'muted'}" style="margin:10px 0 0">${mancano.length
@@ -1646,7 +1661,7 @@
         S.cache = {};
         notice(`Fatto: ${x.nome} va a ${teamName(s.team)} al posto di ${s.p.name}` +
           (res.crediti_dopo != null ? `, che ora ha ${res.crediti_dopo} crediti` : '') + '. Riportalo nel file di giornata: l’elenco è in Mercato → Operazioni.');
-        (res.formazioni || []).forEach(f => notice(`${s.p.name} era nella formazione salvata di ${teamName(f.team_id)} per la ${f.matchday}ª di Serie A (posto ${f.pos}): l’ho tolto, avvisa chi deve rifarla.`));
+        (res.formazioni || []).forEach(f => notice(`${s.p.name} era nella formazione salvata di ${teamName(f.team_id)} per la ${f.matchday}ª di Serie A (posto ${f.pos}): l’ho tolto. In Schiera ${teamName(f.team_id)} vede l’avviso e la formazione «da rifare».`));
         render();
         await modelloDopo(res.id, false);
       } catch (e) {
@@ -1773,16 +1788,17 @@
     if (!o) return;
     const el = sheet(`<div class="sheet-h"><div><h4>Annullare l’operazione?</h4><p>${esc(teamName(o.team_id))} · ${esc(quando(o.at))}</p></div></div>
       <div class="sheet-b"><p>Torna <b>${esc(o.esce_nome)}</b> al suo posto ed esce <b>${esc(o.entra_nome)}</b>, che torna fra gli svincolati.${o.crediti_prima != null ? ` I crediti tornano ${o.crediti_prima}.` : ''}</p>
-        ${(o.formazioni || []).length ? `<p class="small muted">${esc(o.esce_nome)} era stato tolto da una formazione salvata: non ce lo rimetto, va rifatta.</p>` : ''}</div>
+        ${(o.formazioni || []).length ? `<p class="small muted">${esc(o.esce_nome)} era stato tolto da una formazione salvata: ce lo rimetto se il suo posto è ancora libero e la giornata non è iniziata.</p>` : ''}</div>
       <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">No</button><button type="button" class="btn btn-primary" data-act="go">Annulla l’operazione</button></div>`);
     el.querySelector('[data-act="go"]').addEventListener('click', async ev => {
       const b = ev.currentTarget;
       b.disabled = true; b.innerHTML = '<span class="spin"></span> Annullo…';
       try {
-        await SB.rpc('mercato_annulla', { p_op: id });
+        const res = await SB.rpc('mercato_annulla', { p_op: id });
         closeSheet();
         S.cache = {};
-        notice(`Operazione annullata: ${o.esce_nome} è di nuovo in rosa a ${teamName(o.team_id)}.`);
+        notice(`Operazione annullata: ${o.esce_nome} è di nuovo in rosa a ${teamName(o.team_id)}` +
+          (res && res.rimessi ? ' e di nuovo nella sua formazione salvata.' : '.'));
         render();
         await modelloDopo(id, true);
       } catch (e) {
@@ -1864,7 +1880,8 @@
   // da fare: giornata aperta e formazione non ancora salvata
   const daSchierare = () => {
     const sc = window.Schiera ? Schiera.scadenza() : { fase: 'nessuna' };
-    return !!(window.Schiera && Schiera.pronta() && !Schiera.salvata() && !['nessuna', 'chiusa'].includes(sc.fase));
+    const daRifare = !!(window.Schiera && Schiera.daRifare && Schiera.daRifare());
+    return !!(window.Schiera && Schiera.pronta() && (!Schiera.salvata() || daRifare) && !['nessuna', 'chiusa'].includes(sc.fase));
   };
 
   function navHtml() {
@@ -1893,6 +1910,7 @@
       quando = r ? `Giornata ${r.id} (${r.serie_a || r.id + 2}ª di Serie A)` : 'per la prossima giornata';
     }
     const stato = !pronta ? '' : sc.fase === 'chiusa' ? 'giornata chiusa'
+      : Schiera.daRifare && Schiera.daRifare() ? '⚠ formazione da rifare'
       : Schiera.salvata() ? '✓ formazione salvata' : 'formazione non ancora salvata';
     const conto = contoBreve();
     return `${icona('schiera')}<span class="t"><b>Schiera la formazione</b><span>${esc(quando)}${stato ? ' · ' + esc(stato) : ''}</span></span>`

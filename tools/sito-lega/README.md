@@ -68,7 +68,10 @@ prima e dopo. Alla conferma ([`db/11_mercato.sql`](../../db/11_mercato.sql),
 
 - chi esce va fra gli svincolati; resta nel database senza posto, così le
   formazioni passate lo mostrano ancora, ed esce dalle formazioni salvate delle
-  giornate non iniziate (il sito lo dice, perché va avvisato chi deve rifarla);
+  giornate non iniziate. Il posto resta vuoto (il nuovo non entra da solo) e la
+  squadra in Schiera vede l'avviso «La tua formazione ha un posto vuoto: X è stato
+  svincolato», lo stato «da rifare» e il pallino rosso, finché non la salva di
+  nuovo; anche in Giornata → Formazioni risulta «da rifare»;
 - chi entra prende il suo posto in rosa, e quindi in Schiera, con la squadra di
   Serie A del LISTONE;
 - i crediti scendono, e il costo dell'acquisto diventa il suo costo in rosa;
@@ -80,7 +83,9 @@ prima e dopo. Alla conferma ([`db/11_mercato.sql`](../../db/11_mercato.sql),
 In **Mercato → Operazioni** ci sono tutte le operazioni (le vedono tutti) e, solo
 per l'amministratore, l'elenco di cosa riportare nel file di giornata (foglio
 ROSE, riga, nomi, costo, crediti; LISTONE), con **Copia l'elenco**. L'ultima
-operazione si annulla finché il file di giornata non l'ha recepita.
+operazione si annulla finché il file di giornata non l'ha recepita: chi era uscito
+torna anche nella formazione salvata, se il suo posto è ancora libero e la
+giornata non è iniziata.
 
 Quando carichi il file di giornata l'anteprima dice quali operazioni ci sono già
 e quali no; dopo il caricamento il LISTONE del file diventa la lista degli

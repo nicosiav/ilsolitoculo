@@ -37,9 +37,40 @@ language sql immutable as $$
     'aaaaaaeeeeiiiiooooouuuucnccszrygisnlAAAAAAEEEEIIIIOOOOOUUUUCNCCSZRYGISNL'), '[^a-zA-Z0-9]', '', 'g'))
 $$;
 
--- toglie un giocatore dalle formazioni delle giornate non ancora iniziate
--- (le altre restano com'erano: sono storia)
-create or replace function public.togli_dalle_formazioni(p_player uuid) returns jsonb
+-- Le formazioni con un posto rimasto vuoto perché il giocatore non è più in rosa
+-- (svincolato dal mercato, uscito con "Aggiorna le rose", operazione annullata).
+-- Schiera le mostra "da rifare" alla squadra finché non la salva di nuovo.
+create table if not exists public.lineup_vuoti (
+  lineup_id uuid not null references public.lineups on delete cascade,
+  pos       smallint not null,
+  player_id uuid references public.players on delete set null,
+  nome      text not null,
+  ruolo     char(1),
+  motivo    text not null default 'svincolato',   -- svincolato | fuori rosa | annullata
+  at        timestamptz not null default now(),
+  primary key (lineup_id, pos)
+);
+alter table public.lineup_vuoti enable row level security;
+drop policy if exists lineup_vuoti_read on public.lineup_vuoti;
+create policy lineup_vuoti_read on public.lineup_vuoti for select to authenticated using (true);
+grant select on public.lineup_vuoti to authenticated;
+
+-- la squadra salva di nuovo la formazione (save_lineup aggiorna la riga di lineups):
+-- l'avviso ha fatto il suo lavoro
+create or replace function public.lineup_vuoti_visti() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from public.lineup_vuoti where lineup_id = new.id;
+  return new;
+end $$;
+drop trigger if exists lineups_vuoti_visti on public.lineups;
+create trigger lineups_vuoti_visti after update on public.lineups
+  for each row execute function public.lineup_vuoti_visti();
+
+-- toglie un giocatore dalle formazioni delle giornate non ancora iniziate (le altre
+-- restano com'erano: sono storia) e segna il posto vuoto, con il motivo
+drop function if exists public.togli_dalle_formazioni(uuid);
+create or replace function public.togli_dalle_formazioni(p_player uuid, p_motivo text default 'svincolato') returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare v jsonb;
 begin
@@ -49,13 +80,20 @@ begin
     where s.lineup_id = l.id and s.player_id = p_player
       and not exists (select 1 from public.fixtures f where f.matchday = l.matchday and f.kickoff <= now())
       and exists (select 1 from public.matchdays md where md.id = l.matchday and md.deadline > now())
-    returning l.team_id, l.matchday, s.pos
+    returning l.id lineup_id, l.team_id, l.matchday, s.pos
+  ), segnati as (
+    insert into public.lineup_vuoti (lineup_id, pos, player_id, nome, ruolo, motivo)
+    select t.lineup_id, t.pos, p.id, p.name, p.role, p_motivo
+    from tolti t join public.players p on p.id = p_player
+    on conflict (lineup_id, pos) do update
+      set player_id = excluded.player_id, nome = excluded.nome, ruolo = excluded.ruolo, motivo = excluded.motivo, at = now()
+    returning 1
   )
-  select coalesce(jsonb_agg(jsonb_build_object('team_id', team_id, 'matchday', matchday, 'pos', pos)), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('lineup_id', lineup_id, 'team_id', team_id, 'matchday', matchday, 'pos', pos)), '[]'::jsonb)
     into v from tolti;
   return v;
 end $$;
-revoke all on function public.togli_dalle_formazioni(uuid) from public;
+revoke all on function public.togli_dalle_formazioni(uuid, text) from public;
 
 -- 2) Gli svincolati -----------------------------------------------------------
 create table if not exists public.listone (
@@ -210,6 +248,10 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_o public.market_ops;
   v_l integer;
+  f jsonb;
+  v_lin uuid;
+  v_pos smallint;
+  v_rimessi int := 0;
 begin
   if not public.is_admin() then
     raise exception 'Solo l''amministratore può annullare le operazioni' using errcode = 'P0005';
@@ -231,7 +273,7 @@ begin
   end if;
 
   -- chi era entrato: se è già stato schierato resta nello storico, altrimenti sparisce
-  perform public.togli_dalle_formazioni(v_o.entra_id);
+  perform public.togli_dalle_formazioni(v_o.entra_id, 'annullata');
   if exists (select 1 from public.lineup_slots where player_id = v_o.entra_id) then
     update public.players set slot = null, fuori_rosa_at = now() where id = v_o.entra_id;
   else
@@ -247,8 +289,24 @@ begin
   update public.roster_costs set nome = v_o.esce_nome, costo = v_o.esce_costo, valore = v_o.esce_valore
   where team_id = v_o.team_id and slot = v_o.slot;
 
+  -- chi era uscito torna nelle formazioni da cui era stato tolto, se la giornata non è
+  -- iniziata e il suo posto è ancora libero: allora quel posto non è più da rifare
+  for f in select * from jsonb_array_elements(coalesce(v_o.formazioni, '[]'::jsonb)) loop
+    select l.id into v_lin from public.lineups l
+    where l.team_id = (f ->> 'team_id')::uuid and l.matchday = (f ->> 'matchday')::smallint;
+    v_pos := (f ->> 'pos')::smallint;
+    if v_lin is not null
+       and not exists (select 1 from public.lineup_slots where lineup_id = v_lin and (pos = v_pos or player_id = v_o.esce_id))
+       and not exists (select 1 from public.fixtures fx where fx.matchday = (f ->> 'matchday')::smallint and fx.kickoff <= now())
+       and exists (select 1 from public.matchdays md where md.id = (f ->> 'matchday')::smallint and md.deadline > now()) then
+      insert into public.lineup_slots (lineup_id, pos, player_id) values (v_lin, v_pos, v_o.esce_id);
+      delete from public.lineup_vuoti where lineup_id = v_lin and pos = v_pos;
+      v_rimessi := v_rimessi + 1;
+    end if;
+  end loop;
+
   update public.market_ops set annullata_at = now(), annullata_da = auth.uid() where id = p_op;
-  return jsonb_build_object('id', p_op, 'formazioni', v_o.formazioni);
+  return jsonb_build_object('id', p_op, 'formazioni', v_o.formazioni, 'rimessi', v_rimessi);
 end $$;
 revoke all on function public.mercato_annulla(bigint) from public;
 grant execute on function public.mercato_annulla(bigint) to authenticated;
@@ -367,7 +425,7 @@ begin
                       where (x ->> 'slot')::smallint = p.slot and public.nome_norm(x ->> 'name') = public.nome_norm(p.name))
   loop
     update public.players set slot = null, fuori_rosa_at = now() where id = r.id;
-    perform public.togli_dalle_formazioni(r.id);
+    perform public.togli_dalle_formazioni(r.id, 'fuori rosa');
     v_del := v_del + 1;
   end loop;
 

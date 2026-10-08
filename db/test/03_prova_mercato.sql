@@ -89,6 +89,19 @@ begin
   raise notice 'ok  operazione: Contini fuori rosa (storico intatto), Bleve al posto 3, crediti 68, formazione da giocare ripulita';
 end $$;
 
+-- il posto vuoto resta segnato ("da rifare") finché Valerio non salva di nuovo
+do $$
+declare v_lin uuid := (select l.id from public.lineups l join public.teams t on t.id = l.team_id where t.name = 'Valerio' and l.matchday = 7);
+begin
+  assert (select nome || '/' || motivo || '/' || pos from public.lineup_vuoti where lineup_id = v_lin) = 'Contini/svincolato/12',
+    'posto 12 da rifare: Contini svincolato';
+  assert not exists (select 1 from public.lineup_vuoti v join public.lineups l on l.id = v.lineup_id where l.matchday = 5),
+    'nessun avviso sulle giornate passate';
+  update public.lineups set module = module where id = v_lin;      -- come fa save_lineup
+  assert not exists (select 1 from public.lineup_vuoti where lineup_id = v_lin), 'salvata di nuovo: niente più da rifare';
+  raise notice 'ok  posto vuoto segnato (Contini, posto 12) e tolto quando la squadra salva di nuovo';
+end $$;
+
 -- 2) gli errori
 do $$
 declare v_ok boolean;
@@ -145,7 +158,12 @@ begin
 end $$;
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
 
--- 3) una seconda operazione (Sebi, un D con rimborso) e l'annullamento
+-- 3) una seconda operazione (Sebi, un D con rimborso) e l'annullamento; il difensore
+--    che esce è nella formazione salvata di Sebi (posto 2): l'annullamento ce lo rimette
+insert into public.lineups (team_id, matchday, module) select id, 7, '3-4-3' from public.teams where name = 'Sebi';
+insert into public.lineup_slots (lineup_id, pos, player_id)
+select l.id, 2, (select p.id from public.players p where p.team_id = t.id and p.role = 'D' and p.slot is not null order by p.slot limit 1)
+from public.lineups l join public.teams t on t.id = l.team_id where t.name = 'Sebi' and l.matchday = 7;
 select public.mercato_sostituisci(
   (select p.id from public.players p join public.teams t on t.id = p.team_id where t.name = 'Sebi' and p.role = 'D' and p.slot is not null order by p.slot limit 1),
   (select id from public.listone where ruolo = 'D' and origine = 'file' order by id limit 1), -2, 3) ->> 'id' as op2 \gset
@@ -162,14 +180,20 @@ begin
     v_ok := false;
   exception when sqlstate 'P0015' then v_ok := true; end;
   assert v_ok, 'si annulla solo l''ultima';
-  perform public.mercato_annulla(v_op2);
+  assert exists (select 1 from public.lineup_vuoti v join public.lineups l on l.id = v.lineup_id
+                 where l.team_id = v_sebi and v.pos = 2 and v.nome = v_o.esce_nome), 'posto 2 di Sebi da rifare';
+  assert (public.mercato_annulla(v_op2) ->> 'rimessi')::int = 1, 'rimesso nella formazione';
+  assert exists (select 1 from public.lineup_slots s join public.lineups l on l.id = s.lineup_id
+                 where l.team_id = v_sebi and s.pos = 2 and s.player_id = v_o.esce_id), 'di nuovo al posto 2 della formazione';
+  assert not exists (select 1 from public.lineup_vuoti v join public.lineups l on l.id = v.lineup_id where l.team_id = v_sebi),
+    'niente più da rifare per Sebi';
   assert exists (select 1 from public.players where id = v_o.esce_id and slot = v_o.slot), 'chi era uscito torna al suo posto';
   assert not exists (select 1 from public.players where id = v_o.entra_id), 'chi era entrato (mai schierato) sparisce';
   assert exists (select 1 from public.listone where nome = v_o.entra_nome), 'torna fra gli svincolati';
   assert not exists (select 1 from public.listone where nome = v_o.esce_nome), 'chi era uscito non è più svincolato';
   assert (select crediti from public.mercato_crediti() where team_id = v_sebi) = v_o.crediti_prima, 'crediti come prima';
   assert (select nome from public.roster_costs where team_id = v_sebi and slot = v_o.slot) = v_o.esce_nome, 'costo in rosa come prima';
-  raise notice 'ok  annullamento: solo l''ultima, rosa, svincolati, crediti e costi come prima';
+  raise notice 'ok  annullamento: solo l''ultima, rosa, svincolati, crediti, costi e formazione come prima';
 end $$;
 
 -- 4) il file della settimana dopo NON ha ancora l'operazione: segnalata, crediti giusti, Contini resta svincolato

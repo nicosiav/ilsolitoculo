@@ -32,9 +32,16 @@ if(process.env.CLOSED){ md.closes_at=new Date(now-H).toISOString(); md.deadline=
 const clubKick=c=>{const k=fixtures.filter(f=>f.home===c||f.away===c).map(f=>+new Date(f.kickoff));return k.length?Math.min(...k):null;};
 const locked=id=>{const p=byId.get(id); if(!p) return false; const t=p.club?clubKick(p.club):Math.min(...kicks); return t!=null&&t<=Date.now();}; // come player_locked()
 
-const state={lineup:null, prev:null, logs:[], clubs:{}};
+const state={lineup:null, prev:null, logs:[], clubs:{}, vuoti:[]};
 if(process.env.PRELOAD) state.lineup={id:'ln1',team_id:TEAM.id,module:'4-3-3',bench_free:false,updated_at:new Date(now-72e5).toISOString(),
   lineup_slots:[1,2,3,4,5,6,7,8,9,10,11].map((pos,i)=>({pos,player_id:'pl-'+[1,5,6,8,11,15,16,19,25,27,26][i]}))};
+// VUOTO: il giocatore al posto 5 (pl-11) è stato svincolato dal mercato: fuori rosa, posto vuoto da rifare
+const fuoriRosa=new Set();
+if(process.env.PRELOAD && process.env.VUOTO){
+  const via=byId.get('pl-11'); fuoriRosa.add('pl-11');
+  state.lineup.lineup_slots=state.lineup.lineup_slots.filter(x=>x.pos!==5);
+  state.vuoti.push({lineup_id:'ln1',pos:5,nome:via.name,ruolo:via.role,motivo:'svincolato'});
+}
 // formazione di una giornata precedente, per il ripristino
 if(process.env.PREV) state.prev={matchday:5,module:'3-5-2',bench_free:true,updated_at:new Date(now-20*24*H).toISOString(),
   lineup_slots:[1,5,6,8,11,15,16,19,25,27,26,2,7,9,12,17,20,28].map((n,i)=>({pos:i+1,player_id:'pl-'+n,
@@ -65,7 +72,7 @@ function gestisci(req,res,p,q,b){
     if(p==='/rest/v1/players'){
       if(String(q.select||'').includes('teams('))
         return json(res,200,players.map(x=>({id:x.id,name:x.name,role:x.role,club:state.clubs[x.id]!==undefined?state.clubs[x.id]:x.club,team_id:TEAM.id,teams:{name:TEAM.name}})));
-      return json(res,200,players.map(x=>Object.assign({},x,state.clubs[x.id]!==undefined?{club:state.clubs[x.id]}:{})));
+      return json(res,200,players.filter(x=>!fuoriRosa.has(x.id)).map(x=>Object.assign({},x,state.clubs[x.id]!==undefined?{club:state.clubs[x.id]}:{})));
     }
     if(p==='/rest/v1/lineups'){
       const sel=String(q.select||'');
@@ -76,9 +83,9 @@ function gestisci(req,res,p,q,b){
         const altra=(nome,mod,ore)=>{ const r=(rose[nome]||[]).map((x,i)=>({slot:x.slot,name:x.name,role:x.role,club:CLUBS[i%CLUBS.length]}));
           const per=k=>r.filter(x=>x.role===k);
           const ord=[...per('P').slice(0,1),...per('D').slice(0,4),...per('C').slice(0,3),...per('A').slice(0,3),...per('P').slice(1,2),...per('D').slice(4,6),...per('C').slice(3,5),...per('A').slice(3,5)];
-          return {team_id:'team-'+nome,module:mod,updated_at:new Date(now-ore*H).toISOString(),lineup_slots:ord.map((x,i)=>({pos:i+1,players:pl(x)}))}; };
+          return {id:'ln-'+nome,team_id:'team-'+nome,module:mod,updated_at:new Date(now-ore*H).toISOString(),lineup_slots:ord.map((x,i)=>({pos:i+1,players:pl(x)}))}; };
         const out=[];
-        if(state.lineup) out.push({team_id:TEAM.id,module:state.lineup.module,updated_at:state.lineup.updated_at,
+        if(state.lineup) out.push({id:'ln1',team_id:TEAM.id,module:state.lineup.module,updated_at:state.lineup.updated_at,
           lineup_slots:state.lineup.lineup_slots.map(s=>({pos:s.pos,players:pl(byId.get(s.player_id)||{})}))});
         if(!process.env.SOLO_MIA){ out.push(altra('Sebi','4-3-3',1)); out.push(altra('Massimo','4-3-3',5)); }
         return json(res,200,out);
@@ -96,6 +103,10 @@ function gestisci(req,res,p,q,b){
     }
     if(p==='/rest/v1/teams') return json(res,200,Object.keys(rose).map(n=>({id:'team-'+n,name:n,sheet_name:n})));
     if(p==='/rest/v1/lineup_log') return json(res,200,state.logs);
+    if(p==='/rest/v1/lineup_vuoti'){
+      const f=String(q.lineup_id||''); const ids=f.startsWith('eq.')?[f.slice(3)]:f.startsWith('in.(')?f.slice(4,-1).split(','):null;
+      return json(res,200,state.vuoti.filter(v=>!ids||ids.includes(v.lineup_id)));
+    }
     if(p==='/rest/v1/rpc/save_lineup'){
       // il vero database rifiuta le modifiche che toccano chi è già sceso in campo
       const vecchi=new Map((state.lineup?state.lineup.lineup_slots:[]).map(s=>[s.pos,s.player_id]));
@@ -108,6 +119,7 @@ function gestisci(req,res,p,q,b){
       if(tocchi.size) return json(res,400,{code:'P0007',message:'Partita già iniziata per: '+[...tocchi].join(', ')});
       const snap=b.p_slots.map(s=>({pos:s.pos,nome:(byId.get(s.player_id)||{}).name,ruolo:(byId.get(s.player_id)||{}).role}));
       const out={lineup_id:'ln1',action:state.lineup?'modificata':'creata',changes:{entrati:snap.slice(0,2).map(x=>({pos:x.pos,nome:x.nome})),usciti:[],spostati:[],modulo:{da:null,a:b.p_module}},snapshot:snap};
+      state.vuoti=[];            // salvata di nuovo: niente più da rifare (trigger su lineups)
       state.lineup={id:'ln1',team_id:TEAM.id,module:b.p_module,bench_free:b.p_bench_free,updated_at:new Date().toISOString(),lineup_slots:b.p_slots};
       state.logs.unshift({at:new Date().toISOString(),action:out.action,changes:out.changes});
       fs.writeFileSync('/tmp/last_save.json',JSON.stringify(b));

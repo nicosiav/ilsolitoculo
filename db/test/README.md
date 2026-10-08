@@ -25,7 +25,7 @@ file JSON, poi `psql ... -v dir=CARTELLA -f db/test/03_prova_mercato.sql`. Ogni
 controllo è un `ASSERT`: operazione (chi esce resta nello storico ed esce dalle
 formazioni da giocare, chi entra prende il posto, crediti, costi), errori (ruolo
 diverso, crediti insufficienti, giocatore già fuori rosa, solo l'amministratore),
-annullamento, file di giornata senza e con l'operazione (crediti contati una volta
+posto vuoto segnato e tolto al nuovo salvataggio, annullamento (con il giocatore rimesso nella formazione), file di giornata senza e con l'operazione (crediti contati una volta
 sola), "Aggiorna le rose" che non cancella nessuno, script rieseguibile.
 
 `00_finto_supabase.sql` rifà le poche cose che su Supabase ci sono già

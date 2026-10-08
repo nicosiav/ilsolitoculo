@@ -22,7 +22,7 @@
     bytes: null, fileName: '', wb: null, sheet: null, roster: [],
     module: '3-4-3', free: false,
     starters: Array(11).fill(null), bench: Array(7).fill(null), extra: Array(4).fill(null),
-    profile: null, team: null, matchday: null, closed: false, savedAt: null,
+    profile: null, team: null, matchday: null, closed: false, savedAt: null, vuoti: [],
     fixtures: [],            // partite della giornata: da qui i blocchi partita per partita
     rounds: []               // giornate della lega: servono a scrivere "Giornata 4 (6ª di Serie A)"
   };
@@ -183,7 +183,10 @@
     const c = { D: 0, C: 0, A: 0 };
     st.slice(1).forEach(r => { if (r != null && c[P(r).role] !== undefined) c[P(r).role]++; });
     const exact = c.D + '-' + c.C + '-' + c.A;
-    let mod = MODULES.includes(exact) ? exact : MODULES.find(m => { const k = counts(m); return k.D >= c.D && k.C >= c.C && k.A >= c.A; }) || S.module;
+    // con un posto vuoto (giocatore svincolato) i conti non tornano: se il modulo salvato
+    // li contiene ancora, resta quello e il buco cade sul ruolo di chi manca
+    const entra = m => { const k = counts(m); return k.D >= c.D && k.C >= c.C && k.A >= c.A; };
+    let mod = MODULES.includes(exact) ? exact : (MODULES.includes(S.module) && entra(S.module)) ? S.module : MODULES.find(entra) || S.module;
     S.module = mod;
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
     const roles = starterRoles();
@@ -415,6 +418,7 @@
     show('#teamField', false);
     el.style.color = '';
     if (!md) { el.textContent = 'nessuna giornata aperta'; el.style.color = 'var(--role-a)'; }
+    else if (S.vuoti.length) { el.textContent = '⚠ Formazione da rifare: ' + (S.vuoti.length === 1 ? 'un posto vuoto' : S.vuoti.length + ' posti vuoti'); el.style.color = 'var(--warn-ink)'; }
     else el.textContent = S.savedAt ? '✓ Formazione salvata ' + fmtDate(S.savedAt) : 'Formazione non ancora salvata';
     renderConto();
   }
@@ -470,7 +474,7 @@
     const players = await SB.select('players', 'select=id,slot,role,name,club&team_id=eq.' + S.team.id + '&slot=not.is.null&order=slot');
     S.roster = rosterFromDb(players);
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
-    S.savedAt = null;
+    S.savedAt = null; S.vuoti = [];
     if (S.matchday) {
       const l = (await SB.select('lineups', 'select=id,module,bench_free,updated_at,lineup_slots(pos,player_id)&team_id=eq.' + S.team.id + '&matchday=eq.' + S.matchday.id))[0];
       if (l) {
@@ -481,6 +485,9 @@
         S.free = !!l.bench_free;
         applyPositions(pos);
         S.savedAt = l.updated_at;
+        // posti rimasti vuoti perché il giocatore non è più in rosa (mercato): da rifare
+        try { S.vuoti = await SB.select('lineup_vuoti', 'select=pos,nome,ruolo,motivo&lineup_id=eq.' + l.id + '&order=pos'); }
+        catch (e) { S.vuoti = []; }
       }
     }
     show('#uploadCard', false);
@@ -491,7 +498,8 @@
     if (!S.matchday) notice('Nessuna giornata aperta: l\u2019amministratore deve aggiornare il calendario.');
     else if (S.closed) notice('Giornata finita il ' + fmtDate(closeTime(S.matchday)) + ': la formazione non si può più cambiare.');
     else {
-      if (S.savedAt) notice('Formazione salvata il ' + fmtDate(S.savedAt) + '. Puoi cambiarla finché la tua squadra non scende in campo.');
+      if (S.vuoti.length) notice(testoVuoti(), 'warn');
+      else if (S.savedAt) notice('Formazione salvata il ' + fmtDate(S.savedAt) + '. Puoi cambiarla finché la tua squadra non scende in campo.');
       const bloccati = lockedRows().filter(r => placeOf(r));
       if (bloccati.length) notice(bloccati.length === 1
         ? P(bloccati[0]).name + ' è già sceso in campo: resta dov\u2019è.'
@@ -503,6 +511,15 @@
     startTicker();
     render();
     avvisaSito();
+  }
+
+  // "La tua formazione ha un posto vuoto: Contini è stato svincolato."
+  const PERCHE = { svincolato: 'è stato svincolato', 'fuori rosa': 'non è più in rosa', annullata: 'non è più in rosa (operazione di mercato annullata)' };
+  function testoVuoti() {
+    const n = S.vuoti.length;
+    const chi = S.vuoti.map(v => v.nome + ' ' + (PERCHE[v.motivo] || PERCHE['fuori rosa'])).join('; ');
+    return (n === 1 ? 'La tua formazione ha un posto vuoto: ' : 'La tua formazione ha ' + n + ' posti vuoti: ') + chi +
+      '. Completala e salvala di nuovo, poi scarica il file .xls e mandalo all\u2019amministratore.';
   }
 
   async function saveOnline() {
@@ -935,7 +952,7 @@
   function clearNotices() { $('#schNotices').innerHTML = ''; }
   function notice(text, kind, actLabel, act) {
     const d = document.createElement('div');
-    d.className = 'notice' + (kind === 'error' ? ' error' : '');
+    d.className = 'notice' + (kind === 'error' ? ' error' : kind === 'warn' ? ' forte' : '');
     d.innerHTML = `<span>${esc(text)}</span>`;
     if (actLabel) {
       const b = document.createElement('button');
@@ -992,6 +1009,7 @@
       try {
         const res = await saveOnline();
         S.savedAt = new Date().toISOString();
+        S.vuoti = [];          // salvata di nuovo: il database toglie l'avviso
         clearNotices();
         showSaved(res);
         avvisaSito();
@@ -1173,7 +1191,7 @@
   // quando cambia qualcosa (giornata, formazione salvata) con onCambio.
   function reset() {
     clearInterval(tick);
-    S.team = null; S.profile = null; S.matchday = null; S.fixtures = []; S.roster = []; S.savedAt = null; S.closed = false;
+    S.team = null; S.profile = null; S.matchday = null; S.fixtures = []; S.roster = []; S.savedAt = null; S.vuoti = []; S.closed = false;
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
     closeSheet(); clearNotices();
     show('#fileBar', false); show('#onlineTools', false); show('#restoreBtn', false);
@@ -1206,6 +1224,8 @@
     scadenza,
     pezzi,
     salvata: () => !!S.savedAt,
+    // formazione salvata con posti rimasti vuoti (giocatore svincolato): da rifare
+    daRifare: () => !!S.vuoti.length,
     // per il sito: scaricare un file con lo stesso meccanismo dell'export (anche nel visore)
     scarica: (bytes, nome) => deliver(bytes, nome),
     giornata: () => S.matchday ? nomeGiornata(S.matchday) : '',

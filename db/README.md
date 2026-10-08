@@ -24,6 +24,7 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 | `fc_stats`, `fc_stats_meta` | medie di Serie A di Fantacalcio.it (caricate a mano dall'amministratore), con data e file |
 | `listone` | gli svincolati: il foglio LISTONE dell'ultimo file di giornata, più chi è stato svincolato dal sito |
 | `market_ops` | le operazioni di mercato: chi entra, chi esce, costi, crediti prima e dopo, se il file di giornata le ha già recepite |
+| `lineup_vuoti` | i posti rimasti vuoti nelle formazioni salvate perché il giocatore non è più in rosa: Schiera mostra la formazione «da rifare» finché la squadra non la salva di nuovo |
 
 ## Regole applicate dal database (non solo dall'app)
 
@@ -67,8 +68,11 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
      controllo al caricamento del file di giornata (`mercato_dal_file()`).
      Cambia anche due cose delle rose: chi esce non si cancella più (resta senza
      posto, così le formazioni passate lo mostrano ancora) e nessuno può
-     schierare chi non è più in rosa. Dopo averlo eseguito, ricarica l'ultimo file
-     di giornata: porta il LISTONE.
+     schierare chi non è più in rosa. Chi esce viene tolto dalle formazioni delle
+     giornate non iniziate e il posto resta segnato in `lineup_vuoti` (formazione
+     «da rifare»), finché la squadra non salva di nuovo. Dopo averlo eseguito,
+     ricarica l'ultimo file di giornata: porta il LISTONE. Si può rieseguire: chi
+     l'ha già eseguito lo riesegue per avere le novità.
 3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
 4. Crea gli account dei partecipanti e collegali alle squadre: vedi
    [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.

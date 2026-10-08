@@ -358,6 +358,8 @@ a.chip { text-decoration: none; display: inline-block; }
 .sq-sel .chip span { font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .sq-sel .chip span.ok { color: var(--ok); }
 .sq-sel .chip span.ok::before { content: '✓ '; }
+.sq-sel .chip span.warn { color: var(--warn-ink); font-weight: 700; }
+.sq-sel .chip span.warn::before { content: '⚠ '; }
 .form-testa { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 4px; }
 .form-testa > div { min-width: 0; }
 .form-testa h3 { margin: 0; font: 700 19px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
