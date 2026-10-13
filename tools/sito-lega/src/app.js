@@ -115,8 +115,29 @@
       try { vuoti = await SB.select('lineup_vuoti', 'select=lineup_id,pos,nome,motivo&lineup_id=in.(' + ids.join(',') + ')'); }
       catch (e) { vuoti = []; }
     }
-    ln.forEach(l => { l.vuoti = vuoti.filter(v => v.lineup_id === l.id); });
+    // le modifiche dell'amministratore (db/12_scadenze.sql): si vedono sulla pagina della squadra
+    let adm = [];
+    try { adm = await SB.select('lineup_log', 'select=team_id,at,changes,nota,autore&matchday=eq.' + serieA + '&da_admin=is.true&order=at.desc'); }
+    catch (e) { adm = []; }
+    ln.forEach(l => { l.vuoti = vuoti.filter(v => v.lineup_id === l.id); l.admin = adm.filter(a => a.team_id === l.team_id); });
     return ln;
+  }
+  // "Modificata dall'amministratore (Sebi) il mar 14 ott, 11:52: ↑ Rossi (posto 3) · ↓ Bianchi. Nota: «…»"
+  const cambiTesto = ch => {
+    if (!ch) return [];
+    const out = [];
+    (ch.entrati || []).forEach(x => out.push('↑ ' + x.nome + ' (posto ' + x.pos + ')'));
+    (ch.usciti || []).forEach(x => out.push('↓ ' + x.nome));
+    (ch.spostati || []).forEach(x => out.push('⇄ ' + x.nome + ' ' + x.da + '→' + x.a));
+    if (ch.modulo) out.push('modulo ' + (ch.modulo.da || '—') + ' → ' + ch.modulo.a);
+    return out;
+  };
+  function avvisoAdmin(l) {
+    if (!l || !l.admin || !l.admin.length) return '';
+    return `<div class="avv-admin" role="note">${l.admin.map(a => {
+      const c = cambiTesto(a.changes);
+      return `<p><b>✎ Modificata dall’amministratore${a.autore ? ' (' + esc(a.autore) + ')' : ''}</b> ${esc(quando(a.at))}${c.length ? ': ' + esc(c.join(' · ')) : ''}${a.nota ? `<span class="nota">«${esc(a.nota)}»</span>` : ''}</p>`;
+    }).join('')}</div>`;
   }
   // "da rifare: Contini svincolato"
   const daRifare = l => 'da rifare: ' + l.vuoti.map(v => v.nome + (v.motivo === 'svincolato' ? ' svincolato' : ' fuori rosa')).join(', ');
@@ -508,6 +529,7 @@
     const chip = id => {
       const { t, l } = di(id);
       const [stato, cls] = t ? [n1(t.punteggio) + ' pt', ''] : l && l.vuoti && l.vuoti.length ? ['da rifare', 'warn']
+        : l && l.admin && l.admin.length ? ['admin', 'adm']
         : l ? ['salvata', 'ok'] : [r.giocata ? '—' : 'non ancora', 'no'];
       return `<button type="button" class="chip" data-form-sq="${esc(id)}" aria-pressed="${id === scelta}" title="${esc(teamName(id))}"><b>${esc(teamName(id))}</b><span class="${cls}">${esc(stato)}</span></button>`;
     };
@@ -522,15 +544,18 @@
         : r.giocata ? 'nessuna formazione' : 'non ancora schierata';
       const corpo = t ? elencoGiocata(t) : l ? elencoSalvata(l)
         : `<p class="empty">${r.giocata ? 'Per questa giornata non c’è la formazione.' : 'Non ha ancora salvato la formazione.'}</p>`;
+      // l'amministratore può modificare la formazione delle altre squadre (giornata in corso)
+      const modifica = isAdmin() && !t && S.md && r.serie_a === S.md.id && !(S.team && S.team.id === id)
+        ? `<button type="button" class="btn btn-ghost adm-mod" data-adm-form="${esc(id)}">✎ Modifica come amministratore</button>` : '';
       return `<div class="form-pan" data-pan="${esc(id)}"${id === scelta ? '' : ' hidden'}>
         <div class="form-testa"><div><h3>${esc(teamName(id))}</h3><span>${esc(sotto)}</span></div>
           ${tocco ? `<button type="button" class="contro" ${tocco}>contro <b>${esc(teamName(avv))}</b> ›</button>` : ''}</div>
-        ${corpo}</div>`;
+        ${avvisoAdmin(l)}${corpo}${modifica}</div>`;
     };
     const salvateN = ln.length;
     const nota = rt.length ? 'Le formazioni come risultano dal file di giornata: fantavoto, chi è entrato e chi no.'
       : r.giocata ? 'Per questa giornata il file non è stato caricato: qui ci sono le formazioni salvate in Schiera.'
-      : `Le formazioni salvate in Schiera: ${salvateN} su ${S.teams.length}. Si vedono tutte, sempre, e cambiano finché i giocatori non scendono in campo.`;
+      : `Le formazioni salvate in Schiera: ${salvateN} su ${S.teams.length}. Si vedono tutte, sempre. Ogni giocatore si blocca 30 minuti prima della sua partita; alla scadenza (domenica 12.00, mercoledì 20.00) si blocca tutto. Le modifiche dell’amministratore sono segnate con ✎.`;
     const admin = isAdmin() && r.serie_a
       ? `<button type="button" class="btn" data-tutte="${r.serie_a}">Scarica tutte in un file .xls</button>` : '';
     return `<div class="chips sq-sel" role="group" aria-label="Squadra" style="--col:${Math.min(ids.length, 8)}">${ids.map(chip).join('')}</div>
@@ -583,7 +608,8 @@
     if (!m || !r) return;
     const ln = await salvate(r.serie_a);
     const la = ln.find(x => x.team_id === m.casa), lb = ln.find(x => x.team_id === m.fuori);
-    const sotto = l => !l ? ['non ancora schierata'] : l.vuoti && l.vuoti.length ? [l.module, daRifare(l)] : [l.module, 'salvata ' + quandoBreve(l.updated_at)];
+    const sotto = l => !l ? ['non ancora schierata'] : l.vuoti && l.vuoti.length ? [l.module, daRifare(l)]
+      : [l.module, 'salvata ' + quandoBreve(l.updated_at), l.admin && l.admin.length ? '✎ modificata dall’amministratore ' + quandoBreve(l.admin[0].at) : ''];
     const celle = (l, a, b) => {
       if (!l) return a === 1 ? ['<p class="empty">Ancora nessuna formazione salvata.</p>'] : [];
       return (l.lineup_slots || []).filter(x => x.pos >= a && x.pos <= b).sort((x, y) => x.pos - y.pos)
@@ -1881,7 +1907,7 @@
   const daSchierare = () => {
     const sc = window.Schiera ? Schiera.scadenza() : { fase: 'nessuna' };
     const daRifare = !!(window.Schiera && Schiera.daRifare && Schiera.daRifare());
-    return !!(window.Schiera && Schiera.pronta() && (!Schiera.salvata() || daRifare) && !['nessuna', 'chiusa'].includes(sc.fase));
+    return !!(window.Schiera && Schiera.pronta() && (!Schiera.salvata() || daRifare) && !['nessuna', 'chiusa', 'scaduta'].includes(sc.fase));
   };
 
   function navHtml() {
@@ -1897,7 +1923,7 @@
   function contoBreve() {
     if (!window.Schiera || !Schiera.pronta()) return '';
     const sc = Schiera.scadenza();
-    if (!sc.t || sc.fase === 'chiusa' || sc.fase === 'nessuna') return '';
+    if (!sc.t || ['chiusa', 'scaduta', 'nessuna'].includes(sc.fase)) return '';
     const p = Schiera.pezzi(sc.t);
     return (p.g ? p.g + 'g ' : '') + due(p.h) + ':' + due(p.m) + ':' + due(p.s);
   }
@@ -1910,11 +1936,12 @@
       quando = r ? `Giornata ${r.id} (${r.serie_a || r.id + 2}ª di Serie A)` : 'per la prossima giornata';
     }
     const stato = !pronta ? '' : sc.fase === 'chiusa' ? 'giornata chiusa'
+      : sc.fase === 'scaduta' ? (Schiera.salvata() ? '✓ formazione salvata · scadenza passata' : 'scadenza passata: scrivi all’amministratore')
       : Schiera.daRifare && Schiera.daRifare() ? '⚠ formazione da rifare'
       : Schiera.salvata() ? '✓ formazione salvata' : 'formazione non ancora salvata';
     const conto = contoBreve();
     return `${icona('schiera')}<span class="t"><b>Schiera la formazione</b><span>${esc(quando)}${stato ? ' · ' + esc(stato) : ''}</span></span>`
-      + (conto ? `<span class="conto-mini"><i>${esc(sc.fase === 'prima' ? 'primo fischio' : 'prossimo blocco')}</i><b data-conto>${esc(conto)}</b></span>` : '');
+      + (conto ? `<span class="conto-mini"><i>${esc(sc.breve || 'prossimo blocco')}</i><b data-conto>${esc(conto)}</b></span>` : '');
   }
   function aggiornaSchieraSito() {
     if (!S.pronta) return;
@@ -2153,7 +2180,8 @@
   $('#fcBtn').addEventListener('click', () => { apriMenu(false); $('#fcFile').click(); });
   $('#fcFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; caricaFc(f); });
   // le funzioni da amministratore di Schiera: si aprono nella sezione Schiera
-  [['#rosterBtn', 'rose'], ['#calBtn', 'calendario'], ['#clubBtn', 'squadre'], ['#matchdayBtn', 'giornata']].forEach(([id, f]) => {
+  [['#rosterBtn', 'rose'], ['#calBtn', 'calendario'], ['#clubBtn', 'squadre'], ['#matchdayBtn', 'giornata'],
+   ['#scadBtn', 'scadenza'], ['#admFormBtn', 'formazione']].forEach(([id, f]) => {
     $(id).addEventListener('click', () => {
       apriMenu(false);
       if (S.sezione !== 'schiera') location.hash = '#/schiera';
@@ -2212,6 +2240,8 @@
     if (ev.target.closest('[data-copia-riep]')) { copiaRiepilogo(); return; }
     const fsq = ev.target.closest('[data-form-sq]');
     if (fsq) { mostraFormazione(fsq.dataset.formSq); return; }
+    const af = ev.target.closest('[data-adm-form]');
+    if (af && window.Schiera) { location.hash = '#/schiera'; Schiera.admin.modifica(af.dataset.admForm); return; }
     const m = ev.target.closest('[data-match]');
     if (m) { const [r, s] = m.dataset.match.split(':').map(Number); apriPartita(r, s); return; }
     const fm = ev.target.closest('[data-formazioni]');

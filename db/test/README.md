@@ -28,13 +28,27 @@ diverso, crediti insufficienti, giocatore già fuori rosa, solo l'amministratore
 posto vuoto segnato e tolto al nuovo salvataggio, annullamento (con il giocatore rimesso nella formazione), file di giornata senza e con l'operazione (crediti contati una volta
 sola), "Aggiorna le rose" che non cancella nessuno, script rieseguibile.
 
+`04_prova_scadenze.sql` prova `12_scadenze.sql` (database con 00 e db/01, 02,
+04, 05, 06, 08, 10, 11, 12): scadenza ricavata dal calendario (domenica 12.00 nel
+weekend, mercoledì 20.00 nei turni infrasettimanali, anche a cavallo del cambio
+d'ora), giornata che non si allunga per una rinviata o un recupero lontano,
+blocco 30 minuti prima (squadra ignota con la prima partita, rinviata e recupero
+liberi), il caso del primo panchinaro bloccato (secondo panchinaro o extra
+titolari: no; titolari scambiati fra loro: sì; dopo di lui: libero), il reparto
+davanti a un panchinaro bloccato in difesa e in panchina extra, il modulo che non
+può cambiare il numero dei titolari del reparto, il titolare bloccato, la
+scadenza passata (`P0008`), le funzioni riservate all'amministratore, la modifica
+dell'amministratore (senza blocchi, nel log con autore e nota) e i permessi delle
+funzioni interne. Ogni controllo è un `ASSERT` o un rifiuto atteso con il suo
+codice: se qualcosa non torna lo script si ferma.
+
 `00_finto_supabase.sql` rifà le poche cose che su Supabase ci sono già
 (`auth.users`, `auth.uid()`, i ruoli, lo storage). `01_prova_regole.sql` crea
 due squadre, importa tre partite (una già giocata) e verifica che:
 
 - le giornate nascano dalle partite, con la corrente scelta da sola;
 - chi ha già giocato non si possa schierare né spostare (errore `P0007`);
-- uno scambio fra giocatori non ancora scesi in campo passi;
+- uno scambio fra giocatori non ancora bloccati passi;
 - il log registri entrati, usciti, spostati e cambio modulo;
 - a partite finite la giornata corrente passi alla successiva.
 

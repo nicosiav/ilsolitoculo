@@ -4,8 +4,9 @@
 
 Scarica il calendario della Serie A da [football-data.org](https://www.football-data.org/)
 e lo scrive nella tabella `fixtures`. Da lì il database ricava le giornate
-(prima partita, ultima partita, chiusura) e il blocco partita per partita:
-ogni giocatore si blocca quando la sua squadra scende in campo.
+(prima partita, ultima partita, chiusura, scadenza della formazione completa) e
+il blocco partita per partita: ogni giocatore si blocca 30 minuti prima della
+partita della sua squadra.
 
 ### Una volta sola
 

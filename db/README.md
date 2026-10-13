@@ -11,10 +11,10 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 | `players` | le rose: 31 posti per squadra, con ruolo, nome e squadra di Serie A. Chi esce dalla rosa resta senza posto (`slot` vuoto) per lo storico delle formazioni |
 | `fixtures` | il calendario della Serie A: partite, orari, giornata |
 | `club_aliases` | i nomi delle squadre secondo l'API tradotti in quelli della lega |
-| `matchdays` | le giornate ricavate dal calendario: prima partita, ultima partita, chiusura |
+| `matchdays` | le giornate ricavate dal calendario: prima partita, ultima partita, chiusura, scadenza della formazione completa (dal calendario, o scelta dall'amministratore) |
 | `lineups` | una formazione per squadra e giornata (si sovrascrive) |
 | `lineup_slots` | i 22 posti: 1–11 titolari, 12–18 riserve, 19–22 panchina extra |
-| `lineup_log` | ogni salvataggio: quando, chi, cosa è cambiato, formazione completa |
+| `lineup_log` | ogni salvataggio: quando, chi, cosa è cambiato, formazione completa; le modifiche dell'amministratore sono segnate (`da_admin`, con autore e nota) e pubbliche |
 | `rounds` | le giornate della lega (1–20) e la giornata di Serie A corrispondente |
 | `matches` | le partite di campionato con risultato e punteggi |
 | `round_teams` | il tabellino di ogni squadra per giornata: formazione, subentri, marcatori |
@@ -30,16 +30,34 @@ Postgres gestito, con account e permessi. È la base su cui crescerà la piattaf
 
 - Ognuno legge tutto, ma **modifica solo la formazione della propria squadra**.
 - **Le formazioni sono pubbliche**: ogni partecipante vede quelle di tutti, sempre.
-- **Blocco partita per partita**: un giocatore si blocca quando la sua squadra di
-  Serie A scende in campo. Da quel momento non lo si può più togliere, spostare o
-  inserire; chi non ha ancora giocato si cambia a piacere.
+- **Blocco partita per partita** (`12_scadenze.sql`): un giocatore si blocca **30
+  minuti prima** della partita della sua squadra di Serie A. Da quel momento non
+  lo si può più togliere, spostare o inserire; chi non è bloccato si cambia a
+  piacere. Chi non ha una squadra di Serie A assegnata si blocca 30 minuti prima
+  della **prima partita** della giornata; chi gioca in una squadra che riposa, una
+  partita rinviata o un recupero lontano resta libero fino alla scadenza.
+- **Il reparto davanti a un panchinaro bloccato resta fermo**: se un giocatore
+  bloccato è in panchina (12–18) o in panchina extra (19–22), i giocatori del suo
+  ruolo messi prima di lui (titolari compresi) restano gli stessi, si possono solo
+  scambiare fra loro, e i titolari di quel ruolo restano tanti quanti erano, nel
+  modulo e in campo (regolamento 7.2).
+- **Scadenza della formazione completa**: domenica alle 12.00 nei turni del
+  weekend, mercoledì alle 20.00 in quelli infrasettimanali (regolamento 7.1),
+  ricavata dal calendario (`scadenza_auto`, dal giorno della partita «di mezzo»
+  della giornata); l'amministratore la può spostare (`set_scadenza()`, colonna
+  `scadenza_admin`). Dopo la scadenza `save_lineup()` rifiuta tutto (errore `P0008`).
 - La giornata resta aperta **fino alla fine dell'ultima partita** (`closes_at`,
-  cioè ultimo calcio d'inizio più due ore).
-- Chi non ha una squadra di Serie A assegnata si blocca alla **prima partita**
-  della giornata; chi gioca in una squadra che riposa resta libero.
+  cioè ultimo calcio d'inizio più due ore). Prima partita, ultima partita e
+  chiusura si contano senza le partite rinviate e senza i recuperi giocati
+  settimane dopo, così una giornata con un recupero non resta «corrente» fino al
+  recupero.
 - Si scrive **solo tramite `save_lineup()`**: è la funzione a controllare squadra,
-  giornata e blocchi, e a calcolare il log. Sulle tabelle restano lettura e
+  giornata, scadenza e blocchi, e a calcolare il log. Sulle tabelle restano lettura e
   poteri dell'amministratore.
+- **L'amministratore modifica qualsiasi formazione** con `admin_save_lineup()`,
+  senza blocchi né scadenze: la modifica va nel log con `da_admin = true`, il suo
+  nome e una nota, e il sito la mostra a tutti sulla pagina della formazione di
+  quella squadra.
 - Il log si scrive da solo a ogni salvataggio: non si modifica e non si cancella.
 - L'amministratore (`profiles.role = 'admin'`) vede e modifica tutto, rose comprese.
 
@@ -73,12 +91,21 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
      «da rifare»), finché la squadra non salva di nuovo. Dopo averlo eseguito,
      ricarica l'ultimo file di giornata: porta il LISTONE. Si può rieseguire: chi
      l'ha già eseguito lo riesegue per avere le novità.
+   - `12_scadenze.sql` — le scadenze del regolamento: blocco 30 minuti prima
+     della partita, reparto fermo davanti a un panchinaro bloccato, scadenza della
+     formazione completa (domenica 12.00 / mercoledì 20.00, dal calendario e
+     modificabile), modifiche dell'amministratore pubbliche
+     (`admin_save_lineup()`, `set_scadenza()`). Ricalcola subito le giornate già
+     nel database. Si può rieseguire; se si riesegue `06_calendario.sql`, poi va
+     rieseguito anche questo. Toglie anche all'app la possibilità di chiamare
+     direttamente `togli_dalle_formazioni()` (la usano solo le funzioni
+     dell'amministratore).
 3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
 4. Crea gli account dei partecipanti e collegali alle squadre: vedi
    [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.
-5. Esegui `05_admin.sql` e poi di nuovo `06_calendario.sql` (l'ordine conta: il
-   secondo aggiorna le funzioni del primo): ruolo `admin` agli amministratori e
-   funzioni di amministrazione.
+5. Esegui `05_admin.sql` e poi di nuovo `06_calendario.sql`, `11_mercato.sql` e
+   `12_scadenze.sql` (l'ordine conta: ognuno aggiorna le funzioni dei precedenti):
+   ruolo `admin` agli amministratori e funzioni di amministrazione.
    Poi pubblica la funzione `sync-calendario` seguendo
    [`supabase/functions/README.md`](../supabase/functions/README.md) ed esegui
    `07_cron.sql` per l'aggiornamento automatico.
@@ -224,14 +251,22 @@ select at, action, changes from public.lineup_log
 where team_id = (select id from public.teams where name = 'Valerio')
 order by at desc limit 20;
 
--- chi è già sceso in campo nella giornata corrente
+-- giornate: chiusura e scadenza (quella che vale, dal calendario, scelta dall'amministratore)
+select id, first_kickoff, closes_at, scadenza, scadenza_auto, scadenza_admin, is_current
+from public.matchdays order by id;
+
+-- le modifiche dell'amministratore alle formazioni
+select at, (select name from public.teams where id = team_id) squadra, autore, nota, changes
+from public.lineup_log where da_admin order by at desc;
+
+-- chi è già bloccato nella giornata corrente (kickoff = partita; si blocca 30 minuti prima)
 select p.name, rl.club, rl.kickoff, rl.locked
 from public.roster_locks((select id from public.matchdays where is_current),
                          (select id from public.teams where name = 'Valerio')) rl
 join public.players p on p.id = rl.player_id
 order by rl.kickoff nulls last;
 
--- giocatori senza squadra di Serie A (si bloccano alla prima partita)
+-- giocatori senza squadra di Serie A (si bloccano 30 minuti prima della prima partita)
 select t.name, count(*) from public.players p
 join public.teams t on t.id = p.team_id
 where p.club is null group by t.name order by 2 desc;

@@ -12,7 +12,13 @@ FORMAZIONI = os.environ.get('FORMAZIONI', '/home/claude/Formazioni.xls')
 MOCK_SITO = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'sito-lega', 'test', 'mock')
 
 
+# SOLO=12,15 per far girare solo alcuni scenari
+SOLO = [x for x in os.environ.get('SOLO', '').split(',') if x]
+
+
 async def scenario(pw, name, env, steps):
+    if SOLO and name.split()[0] not in SOLO:
+        return
     subprocess.run(['fuser', '-k', '8899/tcp'], capture_output=True)
     time.sleep(0.3)
     srv = subprocess.Popen(['node', 'server.js'], cwd=MOCK_SITO, env={**os.environ, 'FORMAZIONI': FORMAZIONI, **env},

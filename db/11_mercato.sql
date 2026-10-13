@@ -93,7 +93,7 @@ begin
     into v from tolti;
   return v;
 end $$;
-revoke all on function public.togli_dalle_formazioni(uuid, text) from public;
+revoke all on function public.togli_dalle_formazioni(uuid, text) from public, anon, authenticated;
 
 -- 2) Gli svincolati -----------------------------------------------------------
 create table if not exists public.listone (

@@ -18,7 +18,7 @@ conto alla rovescia in cima a ogni sezione.
 | Sezione | Schede | Cosa c'è |
 |---|---|---|
 | Home | | il riquadro verde per schierare, con il conto alla rovescia; la tua squadra, l'ultima giornata, la prossima partita, l'andamento, la classifica |
-| Giornata | Partite · Formazioni | le partite di ogni giornata: toccandone una si aprono le due squadre affiancate, casa a sinistra e fuori a destra (tabellino con i fantavoti se è giocata, formazioni salvate in Schiera se è da giocare); in Formazioni si sceglie la squadra in cima (si vede subito chi ha salvato) e sotto c'è la sua formazione, salvata in Schiera o, per le giornate giocate, come risulta dal file con i fantavoti, con **contro …** per la partita. All'amministratore: **Scarica tutte in un file .xls** |
+| Giornata | Partite · Formazioni | le partite di ogni giornata: toccandone una si aprono le due squadre affiancate, casa a sinistra e fuori a destra (tabellino con i fantavoti se è giocata, formazioni salvate in Schiera se è da giocare); in Formazioni si sceglie la squadra in cima (si vede subito chi ha salvato, e con ✎ chi ha avuto una modifica dell'amministratore) e sotto c'è la sua formazione, salvata in Schiera o, per le giornate giocate, come risulta dal file con i fantavoti, con **contro …** per la partita. All'amministratore: **Scarica tutte in un file .xls** |
 | Schiera | | la formazione della giornata ([dettagli](../schiera-formazione/README.md)) |
 | Classifiche | Campionato · Corretta · Coppa di Lega · Sfigometro · Gol reali · Coppa · Playoff | tutte le classifiche del regolamento, la Coppa con gli accoppiamenti e la Supercoppa, il tabellone e le regole dei playoff |
 | Squadre | Sintesi · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |
@@ -49,6 +49,16 @@ Nel menu in alto a destra, oltre a **Carica la giornata** (qui sotto):
   la formazione salvata, come se ognuno avesse scaricato il suo; chi non ha salvato
   resta con il foglio vuoto (colonna D e H31:K52) e il sito lo dice prima. Lo stesso
   pulsante sta in fondo a Giornata → Formazioni, per qualsiasi giornata.
+- **Modifica una formazione**: sceglie una squadra e ne modifica la formazione in
+  Schiera, senza blocchi né scadenze (lo stesso dal pulsante «✎ Modifica come
+  amministratore» sulla pagina della squadra in Giornata → Formazioni, o dal menu
+  «Formazione di» in Schiera). Salva con una nota facoltativa; la modifica è
+  pubblica: compare con ✎ nel selettore e con un avviso (autore, ora, cambi, nota)
+  sulla pagina della formazione di quella squadra e nella partita, e la squadra la
+  vede in Schiera ([`db/12_scadenze.sql`](../../db/12_scadenze.sql)).
+- **Scadenza delle formazioni**: la scadenza della formazione completa della
+  giornata in corso, ricavata dal calendario (domenica 12.00 nel weekend, mercoledì
+  20.00 nei turni infrasettimanali); si può spostare o rimettere com'era.
 - **Carica le medie di Fantacalcio.it**: l'Excel scaricato a mano dalla pagina
   [Statistiche Serie A](https://www.fantacalcio.it/statistiche-serie-a) (`.xlsx`, o
   `.xls`). Il sito lo legge nel browser (`src/fantacalcio.js`), abbina i giocatori
