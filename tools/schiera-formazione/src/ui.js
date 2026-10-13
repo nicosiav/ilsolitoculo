@@ -24,12 +24,22 @@
     starters: Array(11).fill(null), bench: Array(7).fill(null), extra: Array(4).fill(null),
     profile: null, team: null, matchday: null, closed: false, savedAt: null, vuoti: [],
     fixtures: [],            // partite della giornata: da qui i blocchi partita per partita
-    rounds: []               // giornate della lega: servono a scrivere "Giornata 4 (6ª di Serie A)"
+    rounds: [],              // giornate della lega: servono a scrivere "Giornata 4 (6ª di Serie A)"
+    base: new Map(),         // la formazione salvata (riga -> numero): le regole sui bloccati si contano da qui
+    baseMod: null,           // e il suo modulo
+    mioTeam: null,           // la squadra dell'account
+    adm: false,              // l'amministratore sta modificando la formazione di un'altra squadra
+    mia: null,               // intanto, lo stato della propria (serve al sito: salvata, conto alla rovescia)
+    teams: [],               // tutte le squadre (per l'amministratore)
+    modifiche: [],           // modifiche dell'amministratore a questa formazione (pubbliche)
+    muto: false              // durante le prove (posto valido o no?) niente avvisi
   };
   const online = () => S.mode === 'online';
   const loaded = () => online() ? !!S.team : !!S.wb;
-  const canEdit = () => loaded() && !(online() && S.closed);
   const isAdmin = () => !!(S.profile && S.profile.role === 'admin');
+  // formazione ferma per chi gioca: giornata finita o scadenza passata (l'amministratore no)
+  const ferma = () => online() && !S.adm && (S.closed || scaduta());
+  const canEdit = () => loaded() && !ferma();
   const SBok = () => !!(window.SB && window.SB.configured());
 
   // ------------------------------------------------------------ storage
@@ -53,59 +63,110 @@
   const zoneName = z => z === 's' ? 'Titolare' : z === 'b' ? 'Riserva' : 'Panchina extra';
 
   // -------------------------------------------- blocco partita per partita
-  // Ogni giocatore si blocca quando la sua squadra di Serie A scende in campo.
-  // Chi non ha una squadra nota si blocca alla prima partita della giornata.
-  // È il database ad applicare la regola: qui serve solo a non far fare buchi nell'acqua.
+  // Ogni giocatore si blocca 30 minuti prima della partita della sua squadra di Serie A.
+  // Chi non ha una squadra nota si blocca 30 minuti prima della prima partita della
+  // giornata; chi gioca una partita rinviata o un recupero lontano resta libero fino
+  // alla scadenza della formazione completa (domenica 12.00, mercoledì 20.00).
+  // È il database ad applicare le regole: qui servono a non far fare buchi nell'acqua.
+  const LOCK_MS = 30 * 60000;
   const ms = d => +new Date(d);
+  const valida = f => !/^(POSTPONED|CANCELLED)$/.test(f.status || '');
   function firstKickoff() {
-    return S.fixtures.length ? Math.min.apply(null, S.fixtures.map(f => ms(f.kickoff))) : null;
-  }
-  function clubKickoff(club) {
-    const k = S.fixtures.filter(f => f.home === club || f.away === club).map(f => ms(f.kickoff));
+    if (S.matchday && S.matchday.first_kickoff) return ms(S.matchday.first_kickoff);
+    const k = S.fixtures.filter(valida).map(f => ms(f.kickoff));
     return k.length ? Math.min.apply(null, k) : null;
   }
-  function lockAt(row) {
-    if (!online() || !S.fixtures.length) return null;
-    const p = P(row);
-    if (!p || !p.id) return null;
+  function clubKickoff(club) {
+    const k = S.fixtures.filter(f => valida(f) && (f.home === club || f.away === club)).map(f => ms(f.kickoff));
+    return k.length ? Math.min.apply(null, k) : null;
+  }
+  // quando si blocca un giocatore della rosa (oggetto di S.roster)
+  function lockOf(p) {
+    if (!online() || !S.fixtures.length || !p || !p.id) return null;
     // squadra ignota: prudenza, si blocca con la prima partita della giornata.
     // squadra che questa giornata riposa: nessun blocco.
-    return p.club ? clubKickoff(p.club) : firstKickoff();
+    const k = p.club ? clubKickoff(p.club) : firstKickoff();
+    return k == null ? null : k - LOCK_MS;
   }
-  const isLocked = row => { const t = lockAt(row); return t != null && t <= Date.now(); };
+  const lockAt = row => lockOf(P(row));
+  // "giocato": la sua partita è iniziata o inizia fra meno di mezz'ora
+  const giocatoP = p => { const t = lockOf(p); return t != null && t <= Date.now(); };
+  const giocato = row => giocatoP(P(row));
+  // bloccato davvero: per l'amministratore che modifica un'altra squadra non vale
+  const isLocked = row => !S.adm && giocato(row);
   const lockedRows = () => S.roster.filter(p => p.name && isLocked(p.row)).map(p => p.row);
-  function nextLock() {
-    const t = S.roster.filter(p => p.name).map(p => lockAt(p.row)).filter(x => x != null && x > Date.now());
+  function nextLock(roster) {
+    const t = (roster || S.roster).filter(p => p.name).map(lockOf).filter(x => x != null && x > Date.now());
     return t.length ? Math.min.apply(null, t) : null;
   }
+  // scadenza della formazione completa (dal calendario, o scelta dall'amministratore)
+  const scadOf = md => md && md.scadenza ? ms(md.scadenza) : null;
+  function scaduta() { const t = scadOf(S.matchday); return online() && t != null && t <= Date.now(); }
 
-  // Dove si trova ogni giocatore bloccato: deve restare lì (anche fuori formazione)
-  function lockMap() {
+  // ----------------------------------------- le regole sui giocatori bloccati
+  // Le stesse del database (db/12_scadenze.sql), contate sulla formazione salvata:
+  //  - chi è bloccato resta dov'è (anche fuori formazione);
+  //  - un panchinaro bloccato (12–22) tiene fermi i giocatori del suo reparto messi prima
+  //    di lui: restano gli stessi (si possono scambiare fra loro) e i titolari di quel
+  //    reparto restano tanti quanti erano.
+  function numMap() {
     const m = new Map();
-    if (!online()) return m;
-    S.roster.forEach(p => {
-      if (!p.name || !isLocked(p.row)) return;
-      const pl = placeOf(p.row);
-      m.set(p.row, pl ? pl.z + pl.i : '-');
-    });
+    S.starters.forEach((r, i) => { if (r != null) m.set(r, i + 1); });
+    S.bench.forEach((r, i) => { if (r != null) m.set(r, 12 + i); });
+    S.extra.forEach((r, i) => { if (r != null) m.set(r, 19 + i); });
     return m;
   }
+  function problema(base, ora) {
+    if (!online() || S.adm || !S.fixtures.length) return null;
+    for (const p of S.roster) {
+      if (p.name && isLocked(p.row) && base.get(p.row) !== ora.get(p.row)) return { tipo: 'blocco', row: p.row };
+    }
+    const panca = [...base.entries()].filter(([r, n]) => n >= 12 && isLocked(r)).sort((a, b) => a[1] - b[1]);
+    // nel modulo: quanti titolari ha il reparto (il portiere è sempre uno)
+    const nelModulo = (mod, ro) => ro === 'P' || !mod || !MODULES.includes(mod) ? null : counts(mod)[ro];
+    for (const [r, n] of panca) {
+      const ro = P(r).role;
+      const davanti = m => [...m.entries()].filter(([x, k]) => k < n && P(x).role === ro).map(([x]) => x).sort((a, b) => a - b).join(',');
+      const titolari = m => [...m.entries()].filter(([x, k]) => k <= 11 && P(x).role === ro).length;
+      const mb = nelModulo(S.baseMod, ro), mo = nelModulo(S.module, ro);
+      if (davanti(base) !== davanti(ora) || titolari(base) !== titolari(ora) || (mb != null && mb !== mo))
+        return { tipo: 'reparto', row: r, num: n, ruolo: ro, titolari: mb != null ? mb : titolari(base) };
+    }
+    return null;
+  }
+  const elenco = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' e ' + a[a.length - 1] : a.join('');
+  const REPARTO = { P: 'in porta', D: 'in difesa', C: 'a centrocampo', A: 'in attacco' };
+  const QUELLI = { P: 'i portieri', D: 'i difensori', C: 'i centrocampisti', A: 'gli attaccanti' };
+  function testoProblema(x) {
+    if (x.tipo === 'blocco') return P(x.row).name + ' è già bloccato (partita al via fra meno di 30 minuti o iniziata): resta dov’è';
+    return P(x.row).name + ' (posto ' + x.num + ') è già bloccato: ' + QUELLI[x.ruolo] +
+      ' messi prima di lui restano gli stessi, solo scambiati fra loro, e i titolari ' + REPARTO[x.ruolo] + ' restano ' + x.titolari;
+  }
+
   const snapshot = () => ({ s: S.starters.slice(), b: S.bench.slice(), e: S.extra.slice(), module: S.module, free: S.free });
   function restoreSnap(x) {
     S.starters = x.s; S.bench = x.b; S.extra = x.e; S.module = x.module; S.free = x.free;
     $('#freeToggle').checked = S.free;
   }
-  // Esegue la modifica e la annulla se ha spostato qualcuno già sceso in campo
+  // Prova una modifica senza tenerla: ritorna il problema che creerebbe (o null)
+  function prova(fn) {
+    if (!online() || S.adm || !S.fixtures.length) return null;
+    const snap = snapshot(), prima = problema(S.base, numMap());
+    S.muto = true;
+    try { fn(); } finally { S.muto = false; }
+    const dopo = problema(S.base, numMap());
+    restoreSnap(snap);
+    return prima ? null : dopo;
+  }
+  // Esegue la modifica e la annulla se rompe le regole sui bloccati
   function guarded(fn) {
-    if (!online() || !S.fixtures.length) { fn(); return true; }
-    const before = lockMap(), snap = snapshot();
+    if (!online() || S.adm || !S.fixtures.length) { fn(); return true; }
+    const snap = snapshot(), prima = problema(S.base, numMap());
     fn();
-    const after = lockMap();
-    const bad = [];
-    before.forEach((v, r) => { if (after.get(r) !== v) bad.push(P(r).name); });
-    if (bad.length) {
+    const dopo = problema(S.base, numMap());
+    if (dopo && !prima) {
       restoreSnap(snap);
-      toast(bad.join(', ') + ': partita già iniziata, non si può spostare');
+      toast(testoProblema(dopo));
       return false;
     }
     return true;
@@ -126,6 +187,22 @@
     for (let i = 0; i < 4; i++) if (S.extra[i] == null) { S.extra[i] = row; return { z: 'e', i }; }
     return null;
   }
+  // come autoPlace, ma salta i posti che romperebbero le regole sui bloccati
+  function autoPlaceOk(row) {
+    const role = P(row).role, roles = starterRoles();
+    const posti = [];
+    for (let i = 0; i < 11; i++) if (S.starters[i] == null && roles[i] === role) posti.push({ z: 's', i });
+    for (let i = 0; i < 7; i++) if (S.bench[i] == null && (!benchRole(i) || benchRole(i) === role)) posti.push({ z: 'b', i });
+    for (let i = 0; i < 4; i++) if (S.extra[i] == null) posti.push({ z: 'e', i });
+    if (!posti.length) return { pl: null };
+    let primo = null;
+    for (const x of posti) {
+      const no = prova(() => { arr(x.z)[x.i] = row; });
+      if (!no) { arr(x.z)[x.i] = row; return { pl: x }; }
+      if (!primo) primo = no;
+    }
+    return { pl: null, no: primo };
+  }
   function placeSecondary(row) {
     const role = P(row).role;
     for (let i = 0; i < 7; i++) if (S.bench[i] == null && (!benchRole(i) || benchRole(i) === role)) { S.bench[i] = row; return true; }
@@ -144,6 +221,7 @@
     const left = [].concat(pools.P, pools.D, pools.C, pools.A);
     const moved = [], out = [];
     left.forEach(r => (placeSecondary(r) ? moved : out).push(P(r).name));
+    if (S.muto) return;
     if (moved.length) toast(moved.join(', ') + ' in panchina');
     else if (out.length) toast(out.join(', ') + ' tolto dai titolari');
   }
@@ -163,8 +241,9 @@
           if (e >= 0) S.extra[e] = r; else out.push(P(r).name);
         }
       });
-      if (out.length) toast(out.join(', ') + ' tolto dalle riserve');
+      if (out.length && !S.muto) toast(out.join(', ') + ' tolto dalle riserve');
     }
+    if (S.muto) return;
     const p = prefs(); p.free = free; setPrefs(p);
   }
 
@@ -293,9 +372,13 @@
   // ------------------------------------------------------------ render
   function render() {
     const ready = loaded();
-    const locked = online() && S.closed;
-    // moduli
-    $('#modules').innerHTML = MODULES.map(m => `<button type="button" class="chip" data-mod="${m}" aria-pressed="${m === S.module}" ${ready && !locked ? '' : 'disabled'}>${m}</button>`).join('');
+    const locked = ferma();
+    // moduli: quelli che sposterebbero un bloccato (o il numero dei titolari di un
+    // reparto con un panchinaro bloccato) non si possono scegliere
+    $('#modules').innerHTML = MODULES.map(m => {
+      const no = ready && !locked && m !== S.module ? prova(() => setModule(m)) : null;
+      return `<button type="button" class="chip${no ? ' no' : ''}" data-mod="${m}" aria-pressed="${m === S.module}" ${ready && !locked && !no ? '' : 'disabled'}${no ? ` title="${esc(testoProblema(no))}"` : ''}>${m}</button>`;
+    }).join('');
     // campo
     const roles = starterRoles();
     const lines = ['A', 'C', 'D', 'P'].map(ro => {
@@ -314,8 +397,8 @@
       const l = free.filter(p => p.role === ro);
       if (!l.length) return '';
       return `<div class="pool-group">${l.map(p => {
-        const lk = isLocked(p.row);
-        return `<button type="button" class="pchip${lk ? ' locked' : ''}" data-add="${p.row}" data-r="${p.role}" ${lk ? 'disabled title="Partita già iniziata"' : ''}><span class="badge">${p.role}</span>${esc(p.name)}${lk ? '<span class="lk" aria-label="bloccato">●</span>' : ''}</button>`;
+        const lk = isLocked(p.row), gi = !lk && S.adm && giocato(p.row);
+        return `<button type="button" class="pchip${lk ? ' locked' : ''}${gi ? ' giocato' : ''}" data-add="${p.row}" data-r="${p.role}" ${lk ? 'disabled title="Bloccato: la sua partita è iniziata o inizia fra meno di 30 minuti"' : ''}><span class="badge">${p.role}</span>${esc(p.name)}${lk || gi ? '<span class="lk" aria-label="bloccato">●</span>' : ''}</button>`;
       }).join('')}</div>`;
     }).join('');
     // barra
@@ -363,22 +446,30 @@
   const closeTime = md => (md && (md.closes_at || md.deadline)) || null;
 
   // ------------------------------------------------ conto alla rovescia
-  // Fino al primo fischio della giornata la formazione è tutta libera; poi ogni
-  // giocatore si blocca quando scende in campo la sua squadra.
+  // Ogni giocatore si blocca 30 minuti prima della sua partita; alla scadenza della
+  // formazione completa (domenica 12.00, mercoledì 20.00) si blocca tutto. Il conto
+  // segue l'evento più vicino. È sempre quello della propria squadra, anche mentre
+  // l'amministratore modifica la formazione di un'altra.
+  const mioRoster = () => (S.adm && S.mia ? S.mia.roster : S.roster);
   function scadenza() {
     const md = S.matchday;
     if (!online() || !md) return { fase: 'nessuna' };
     const chiude = closeTime(md) ? ms(closeTime(md)) : null;
     const ora = Date.now();
-    if (S.closed || (chiude && chiude <= ora)) return { fase: 'chiusa', t: chiude, testo: 'Giornata chiusa' };
-    const primo = firstKickoff();
-    if (primo && primo > ora) return { fase: 'prima', t: primo, testo: 'Primo fischio fra' };
-    if (primo) {
-      const nx = nextLock();
-      if (nx) return { fase: 'blocchi', t: nx, testo: 'Il prossimo dei tuoi scende in campo fra' };
-      return { fase: 'incampo', t: chiude, testo: 'Tutti i tuoi sono in campo · si chiude fra' };
+    if (S.closed || (chiude && chiude <= ora)) return { fase: 'chiusa', t: chiude, testo: 'Giornata chiusa', breve: '' };
+    const scad = scadOf(md);
+    if (scad != null && scad <= ora) return { fase: 'scaduta', t: scad, testo: 'Formazioni chiuse', breve: '' };
+    const roster = mioRoster().filter(p => p.name);
+    const nx = nextLock(roster);
+    const gia = roster.filter(giocatoP).length;
+    if (nx && (scad == null || nx < scad)) {
+      return { fase: gia ? 'blocchi' : 'prima', t: nx, scad, gia,
+        chi: roster.filter(p => lockOf(p) === nx).map(p => p.name),
+        testo: gia ? 'Il prossimo dei tuoi si blocca fra' : 'Il primo dei tuoi si blocca fra',
+        breve: gia ? 'prossimo blocco' : 'primo blocco' };
     }
-    return { fase: 'scadenza', t: chiude, testo: 'Si chiude fra' };
+    if (scad != null) return { fase: 'scadenza', t: scad, scad, gia, testo: 'Formazione completa entro', breve: 'scadenza' };
+    return { fase: 'incampo', t: chiude, gia, testo: 'Tutti i tuoi sono bloccati · si chiude fra', breve: 'chiusura' };
   }
   // millisecondi -> giorni, ore, minuti, secondi
   function pezzi(t) {
@@ -391,57 +482,69 @@
     const box = $('#conto');
     if (!box) return;
     const sc = scadenza();
-    if (!online() || sc.fase === 'nessuna') { box.hidden = true; return; }
+    // mentre l'amministratore modifica un'altra squadra il conto non c'entra
+    if (!online() || sc.fase === 'nessuna' || S.adm) { box.hidden = true; return; }
     box.hidden = false;
     box.dataset.fase = sc.fase;
     $('#contoLbl').textContent = sc.testo;
-    if (sc.fase === 'chiusa' || !sc.t) {
+    if (sc.fase === 'chiusa' || sc.fase === 'scaduta' || !sc.t) {
       $('#contoNum').innerHTML = '';
-      $('#contoSub').textContent = sc.t ? 'finita ' + fmtDate(sc.t) + ': la formazione non si può più cambiare' : '';
+      $('#contoSub').textContent = !sc.t ? ''
+        : sc.fase === 'scaduta' ? 'scadenza ' + fmtDate(sc.t) + ': la formazione non si cambia più. Per una modifica scrivi all’amministratore.'
+        : 'finita ' + fmtDate(sc.t) + ': la formazione non si può più cambiare';
       return;
     }
     const p = pezzi(sc.t);
     const cella = (n, et) => `<span><b>${n}</b><i>${et}</i></span>`;
     $('#contoNum').innerHTML = (p.g ? cella(p.g, p.g === 1 ? 'giorno' : 'giorni') : '')
       + cella(due(p.h), 'ore') + cella(due(p.m), 'min') + cella(due(p.s), 'sec');
-    const ultima = S.fixtures.length ? Math.max.apply(null, S.fixtures.map(f => ms(f.kickoff))) : null;
-    const n = lockedRows().length;
-    $('#contoSub').textContent = sc.fase === 'prima'
-      ? fmtDate(sc.t) + ' · poi ogni giocatore si blocca quando scende in campo la sua squadra'
-      : (n ? n + ' dei tuoi già in campo · ' : '') + (ultima ? 'ultima partita ' + fmtHour(ultima) : 'si chiude ' + fmtDate(closeTime(S.matchday)));
+    const gia = sc.gia ? sc.gia + ' dei tuoi già bloccati · ' : '';
+    const entro = sc.scad ? 'formazione completa entro ' + fmtDate(sc.scad) : '';
+    $('#contoSub').textContent = sc.fase === 'prima' || sc.fase === 'blocchi'
+      ? fmtHour(sc.t) + ' · ' + (sc.chi.length > 2 ? sc.chi.slice(0, 2).join(', ') + ' e altri' : sc.chi.join(', ')) +
+        ' (30 minuti prima della partita)' + (entro ? ' · ' + entro : '')
+      : sc.fase === 'scadenza' ? gia + 'poi la formazione non si cambia più'
+      : gia + 'si chiude ' + fmtDate(closeTime(S.matchday));
   }
 
   function renderOnlineBar() {
     const md = S.matchday;
     const el = $('#fileMeta');
     $('#fileName').textContent = (S.team ? S.team.name : '') + (md ? ' · ' + nomeGiornata(md) : '');
-    show('#teamField', false);
+    // l'amministratore sceglie qui di quale squadra modificare la formazione
+    show('#teamField', isAdmin() && S.teams.length > 1);
     el.style.color = '';
     if (!md) { el.textContent = 'nessuna giornata aperta'; el.style.color = 'var(--role-a)'; }
+    else if (S.adm) { el.textContent = '✎ Modifica dell’amministratore: blocchi e scadenze non valgono'; el.style.color = 'var(--warn-ink)'; }
     else if (S.vuoti.length) { el.textContent = '⚠ Formazione da rifare: ' + (S.vuoti.length === 1 ? 'un posto vuoto' : S.vuoti.length + ' posti vuoti'); el.style.color = 'var(--warn-ink)'; }
-    else el.textContent = S.savedAt ? '✓ Formazione salvata ' + fmtDate(S.savedAt) : 'Formazione non ancora salvata';
+    else el.textContent = (S.savedAt ? '✓ Formazione salvata ' + fmtDate(S.savedAt) : 'Formazione non ancora salvata')
+      + (S.modifiche.length ? ' · modificata dall’amministratore' : '');
     renderConto();
   }
 
-  // Ogni secondo: il conto alla rovescia; e se nel frattempo è iniziata una
-  // partita, i giocatori di quella squadra si bloccano da soli.
+  // Ogni secondo: il conto alla rovescia; e se nel frattempo si è arrivati a mezz'ora
+  // da una partita, o alla scadenza, i giocatori si bloccano da soli.
   let tick;
   function startTicker() {
     clearInterval(tick);
     if (!online()) return;
-    let prima = lockedRows().join(',');
+    const stato = () => lockedRows().join(',') + '|' + scaduta() + '|' + mioRoster().filter(giocatoP).length;
+    let prima = stato();
     tick = setInterval(() => {
       if (!online() || !S.team) { clearInterval(tick); return; }
-      const ora = lockedRows().join(',');
+      const ora = stato();
       const finita = S.matchday && !timeLeft(closeTime(S.matchday));
       if (ora !== prima || (finita && !S.closed)) {
+        const scadutaOra = !prima.includes('|true|') && ora.includes('|true|');
         prima = ora;
         if (finita) S.closed = true;
+        if (scadutaOra && !S.adm) { closeSheet(); notice(testoScaduta(), 'warn'); }
         render();
         avvisaSito();
       } else renderConto();
     }, 1000);
   }
+  const testoScaduta = () => 'Scadenza passata (' + fmtDate(scadOf(S.matchday)) + '): la formazione non si può più cambiare. Per una modifica scrivi all’amministratore.';
 
   function rosterFromDb(players) {
     const out = [];
@@ -453,28 +556,70 @@
     return out;
   }
 
-  async function startOnline() {
+  // la giornata corrente; se il database non ha ancora le scadenze (db/12_scadenze.sql)
+  // si legge senza
+  async function giornataCorrente() {
+    const base = 'id,label,deadline,first_kickoff,last_kickoff,closes_at';
+    try { return (await SB.select('matchdays', 'select=' + base + ',scadenza,scadenza_auto,scadenza_admin&is_current=is.true&limit=1'))[0] || null; }
+    catch (e) { return (await SB.select('matchdays', 'select=' + base + '&is_current=is.true&limit=1'))[0] || null; }
+  }
+
+  // Entra: profilo, giornata, calendario; poi la formazione della propria squadra
+  // (o, per l'amministratore, di quella indicata)
+  async function startOnline(teamId) {
     clearNotices();
     const uid = (SB.user() || {}).id || ((await SB.me()) || {}).id;
     const prof = (await SB.select('profiles', 'select=display_name,role,team_id,teams(name,sheet_name)&id=eq.' + uid))[0];
-    if (!prof) throw new SB.SbError('Profilo non trovato: scrivi all\u2019amministratore.', 'no_profile');
+    if (!prof) throw new SB.SbError('Profilo non trovato: scrivi all’amministratore.', 'no_profile');
     S.profile = prof;
-    S.team = prof.teams ? Object.assign({ id: prof.team_id }, prof.teams) : null;
-    if (!S.team) throw new SB.SbError('Questo account non è ancora collegato a una squadra: scrivi all\u2019amministratore.', 'no_team');
-    S.sheet = S.team.sheet_name || S.team.name;
+    S.mioTeam = prof.teams ? Object.assign({ id: prof.team_id }, prof.teams) : null;
+    if (!S.mioTeam && !isAdmin()) throw new SB.SbError('Questo account non è ancora collegato a una squadra: scrivi all’amministratore.', 'no_team');
     S.mode = 'online';
-    const mds = await SB.select('matchdays', 'select=id,label,deadline,first_kickoff,last_kickoff,closes_at&is_current=is.true&limit=1');
-    S.matchday = mds[0] || null;
+    S.matchday = await giornataCorrente();
     S.closed = !!(S.matchday && new Date(closeTime(S.matchday)) <= new Date());
     S.fixtures = S.matchday
       ? await SB.select('fixtures', 'select=id,home,away,kickoff,status&matchday=eq.' + S.matchday.id + '&order=kickoff')
       : [];
     // se il database della stagione c'è, da lì arriva la numerazione della lega
     try { S.rounds = await SB.select('rounds', 'select=id,serie_a&order=id'); } catch (e) { S.rounds = []; }
+    S.teams = [];
+    if (isAdmin()) {
+      try { S.teams = await SB.select('teams', 'select=id,name,sheet_name&order=name'); } catch (e) { S.teams = []; }
+      riempiSquadre();
+    }
+    if (!S.mioTeam) throw new SB.SbError('Questo account non è ancora collegato a una squadra: scrivi all’amministratore.', 'no_team');
+    S.mia = null;
+    await caricaSquadra(teamId && teamId !== S.mioTeam.id ? teamId : S.mioTeam.id, true);
+  }
+
+  // il menu "Formazione di" per l'amministratore: la sua squadra e, sotto, le altre
+  function riempiSquadre() {
+    const sel = $('#sheetSel');
+    if (!sel || !S.mioTeam) return;
+    const lbl = $('#teamField label');
+    if (lbl) lbl.textContent = 'Formazione di';
+    const altre = S.teams.filter(t => t.id !== S.mioTeam.id);
+    sel.innerHTML = `<option value="${esc(S.mioTeam.id)}">${esc(S.mioTeam.name)} (la tua)</option>` +
+      (altre.length ? `<optgroup label="Come amministratore">${altre.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</optgroup>` : '');
+  }
+
+  // Carica rosa e formazione di una squadra. La propria: con blocchi e scadenze. Un'altra
+  // (solo l'amministratore): senza, e quando salva la modifica diventa pubblica.
+  async function caricaSquadra(teamId, inizio) {
+    const mia = !S.mioTeam || teamId === S.mioTeam.id;
+    if (!mia && !isAdmin()) return;
+    if (!mia && !S.adm) S.mia = { roster: S.roster, savedAt: S.savedAt, vuoti: S.vuoti };   // la propria, per il sito
+    if (mia) S.mia = null;
+    S.adm = !mia;
+    S.team = mia ? S.mioTeam : S.teams.find(t => t.id === teamId);
+    if (!S.team) { S.adm = false; S.team = S.mioTeam; }
+    S.sheet = S.team.sheet_name || S.team.name;
+    if ($('#sheetSel') && isAdmin()) $('#sheetSel').value = S.team.id;
+    if (!inizio) { clearNotices(); closeSheet(); }
     const players = await SB.select('players', 'select=id,slot,role,name,club&team_id=eq.' + S.team.id + '&slot=not.is.null&order=slot');
     S.roster = rosterFromDb(players);
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
-    S.savedAt = null; S.vuoti = [];
+    S.savedAt = null; S.vuoti = []; S.modifiche = []; S.lineupId = null;
     if (S.matchday) {
       const l = (await SB.select('lineups', 'select=id,module,bench_free,updated_at,lineup_slots(pos,player_id)&team_id=eq.' + S.team.id + '&matchday=eq.' + S.matchday.id))[0];
       if (l) {
@@ -485,32 +630,75 @@
         S.free = !!l.bench_free;
         applyPositions(pos);
         S.savedAt = l.updated_at;
+        S.lineupId = l.id;
         // posti rimasti vuoti perché il giocatore non è più in rosa (mercato): da rifare
         try { S.vuoti = await SB.select('lineup_vuoti', 'select=pos,nome,ruolo,motivo&lineup_id=eq.' + l.id + '&order=pos'); }
         catch (e) { S.vuoti = []; }
       }
+      S.modifiche = await modificheAdmin(S.team.id, S.matchday.id);
     }
+    S.base = numMap(); S.baseMod = S.module;
     show('#uploadCard', false);
     show('#fileBar', true);
     show('#onlineTools', true);
     show('#restoreBtn', true);
     $('#freeToggle').checked = S.free;
-    if (!S.matchday) notice('Nessuna giornata aperta: l\u2019amministratore deve aggiornare il calendario.');
-    else if (S.closed) notice('Giornata finita il ' + fmtDate(closeTime(S.matchday)) + ': la formazione non si può più cambiare.');
-    else {
-      if (S.vuoti.length) notice(testoVuoti(), 'warn');
-      else if (S.savedAt) notice('Formazione salvata il ' + fmtDate(S.savedAt) + '. Puoi cambiarla finché la tua squadra non scende in campo.');
-      const bloccati = lockedRows().filter(r => placeOf(r));
-      if (bloccati.length) notice(bloccati.length === 1
-        ? P(bloccati[0]).name + ' è già sceso in campo: resta dov\u2019è.'
-        : bloccati.length + ' giocatori sono già scesi in campo: restano dove sono.');
-      const senza = S.roster.filter(p => p.name && !p.club).length;
-      if (senza && S.fixtures.length && isAdmin())
-        notice(senza + ' giocatori senza squadra di Serie A: si bloccano tutti alla prima partita della giornata.', '', 'Sistema', clubsSheet);
-    }
+    avvisiSquadra();
     startTicker();
     render();
     avvisaSito();
+  }
+
+  // le modifiche dell'amministratore a una formazione (pubbliche); senza db/12 nessuna
+  async function modificheAdmin(teamId, md) {
+    try {
+      return await SB.select('lineup_log', 'select=at,changes,nota,autore&team_id=eq.' + teamId + '&matchday=eq.' + md + '&da_admin=is.true&order=at.desc');
+    } catch (e) { return []; }
+  }
+  function testoModifica(m, tua) {
+    const list = changesText(m.changes);
+    const t = (tua ? 'L’amministratore' : 'Modifica dell’amministratore') + (m.autore ? ' (' + m.autore + ')' : '') +
+      (tua ? ' ha modificato la tua formazione il ' : ' del ') + fmtDate(m.at) + (list.length ? ': ' + list.join(' · ') : '');
+    return t.replace(/\.$/, '') + '.' + (m.nota ? ' Nota: «' + m.nota + '».' : '');
+  }
+
+  function avvisiSquadra() {
+    if (!S.matchday) { notice('Nessuna giornata aperta: l’amministratore deve aggiornare il calendario.'); return; }
+    if (S.adm) {
+      notice('Stai modificando la formazione di ' + S.team.name + ' come amministratore: blocchi e scadenze non valgono. Quando salvi, la modifica compare a tutti sulla pagina della sua formazione, con il tuo nome e una nota.',
+        'warn', 'Torna alla tua', () => caricaSquadra(S.mioTeam.id));
+      if (S.modifiche.length) notice(testoModifica(S.modifiche[0], false));
+      return;
+    }
+    if (S.modifiche.length) {
+      notice(testoModifica(S.modifiche[0], true) + (S.modifiche.length > 1 ? ' (' + S.modifiche.length + ' modifiche in tutto: le trovi in Storico modifiche)' : ''), 'warn');
+    }
+    if (S.closed) { notice('Giornata finita il ' + fmtDate(closeTime(S.matchday)) + ': la formazione non si può più cambiare.'); return; }
+    if (scaduta()) return;            // lo dice il riquadro della scadenza, in cima
+    const scad = scadOf(S.matchday);
+    if (S.vuoti.length) notice(testoVuoti(), 'warn');
+    else if (S.savedAt) notice('Formazione salvata il ' + fmtDate(S.savedAt) + '. Puoi cambiarla ' + (scad ? 'fino a ' + fmtDate(scad) : 'finché la giornata è aperta') + ': ogni giocatore si blocca 30 minuti prima della sua partita.');
+    // chi è già bloccato, in un avviso solo: e, se è in panchina, chi del suo reparto lo
+    // precede (e non è a sua volta bloccato) resta fermo
+    const bloccati = lockedRows().filter(r => placeOf(r)).sort((x, y) => S.base.get(x) - S.base.get(y));
+    if (bloccati.length) {
+      const nomi = elenco(bloccati.map(r => P(r).name));
+      let t = nomi + (bloccati.length === 1 ? ' è già bloccato e resta dov\u2019è' : ' sono già bloccati e restano dove sono') +
+        ' (la partita è iniziata o inizia fra meno di 30 minuti).';
+      [...S.base.entries()].filter(([r, n]) => n >= 12 && isLocked(r)).sort((x, y) => x[1] - y[1]).forEach(([r, n]) => {
+        const ro = P(r).role;
+        const liberi = [...S.base.entries()].filter(([x, k]) => k < n && P(x).role === ro && !isLocked(x)).sort((x, y) => x[1] - y[1]).map(([x]) => P(x).name);
+        if (!liberi.length) return;
+        const tit = ro !== 'P' && MODULES.includes(S.baseMod) ? counts(S.baseMod)[ro] : null;
+        t += ' ' + P(r).name + ' è in ' + (n >= 19 ? 'panchina extra' : 'panchina') + ' (' + n + '): ' + elenco(liberi) +
+          (liberi.length === 1 ? ', messo prima di lui, non si può togliere' : ', messi prima di lui, si possono solo scambiare fra loro') +
+          (tit != null ? ' e i titolari ' + REPARTO[ro] + ' restano ' + tit : '') + '.';
+      });
+      notice(t);
+    }
+    const senza = S.roster.filter(p => p.name && !p.club).length;
+    if (senza && S.fixtures.length && isAdmin())
+      notice(senza + ' giocatori senza squadra di Serie A: si bloccano tutti 30 minuti prima della prima partita della giornata.', '', 'Sistema', clubsSheet);
   }
 
   // "La tua formazione ha un posto vuoto: Contini è stato svincolato."
@@ -522,13 +710,36 @@
       '. Completala e salvala di nuovo, poi scarica il file .xls e mandalo all\u2019amministratore.';
   }
 
-  async function saveOnline() {
+  async function saveOnline(nota) {
     const slots = [];
     S.starters.forEach((r, i) => { if (r != null && P(r).id) slots.push({ pos: i + 1, player_id: P(r).id }); });
     S.bench.forEach((r, i) => { if (r != null && P(r).id) slots.push({ pos: 12 + i, player_id: P(r).id }); });
     S.extra.forEach((r, i) => { if (r != null && P(r).id) slots.push({ pos: 19 + i, player_id: P(r).id }); });
+    // l'amministratore che modifica un'altra squadra: senza blocchi, con la nota pubblica
+    if (S.adm) return SB.rpc('admin_save_lineup', {
+      p_team: S.team.id, p_matchday: S.matchday.id, p_module: S.module, p_bench_free: S.free, p_slots: slots, p_nota: nota || null
+    });
     return SB.rpc('save_lineup', {
       p_matchday: S.matchday.id, p_module: S.module, p_bench_free: S.free, p_slots: slots
+    });
+  }
+
+  // prima di salvare la formazione di un'altra squadra: la nota che vedranno tutti
+  function chiediNota(fatto) {
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Modifica dell\u2019amministratore</h4><p>${esc(S.team.name)} · ${esc(nomeGiornata(S.matchday))}</p></div></div>
+      <div class="sheet-b"><div style="padding:12px 16px;display:grid;gap:10px">
+        <p style="margin:0">La modifica compare a tutti sulla pagina della formazione di <b>${esc(S.team.name)}</b>, con il tuo nome e questa nota; ${esc(S.team.name)} la vede anche in Schiera.</p>
+        <label class="small muted" for="admNota">Nota (facoltativa)</label>
+        <textarea id="admNota" rows="3" maxlength="300" placeholder="Es.: formazione comunicata su WhatsApp alle 11.40" style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:inherit;font:inherit;resize:vertical"></textarea>
+      </div></div>
+      <div class="sheet-f"><button type="button" class="btn btn-ghost" data-act="close">Annulla</button><button type="button" class="btn btn-primary" data-act="go">Salva la modifica</button></div>`);
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      const nota = el.querySelector('#admNota').value.trim();
+      closeSheet();
+      if (b.dataset.act === 'go') fatto(nota);
     });
   }
 
@@ -551,9 +762,11 @@
     };
     const el = sheet(`
       <div class="sheet-h"><div style="display:flex;gap:12px;align-items:center"><span class="done-mark" aria-hidden="true">✓</span>
-        <div><h4>Formazione salvata</h4><p>${esc(S.team.name)} · ${esc(nomeGiornata(S.matchday))} · ${esc(S.module)}</p></div></div></div>
+        <div><h4>${res.da_admin ? 'Modifica salvata' : 'Formazione salvata'}</h4><p>${esc(S.team.name)} · ${esc(nomeGiornata(S.matchday))} · ${esc(S.module)}</p></div></div></div>
       <div class="sheet-b">
-        <p style="margin:12px 16px 0">${res.action === 'creata' ? 'Registrata adesso.' : 'Ho aggiornato quella di prima.'} <b>Ora scarica il file .xls e mandalo all\u2019amministratore</b>, come sempre (WhatsApp o e-mail).</p>
+        <p style="margin:12px 16px 0">${res.da_admin
+          ? `Modifica dell\u2019amministratore registrata: la vedono tutti nella pagina Formazioni, ${esc(S.team.name)} anche in Schiera.`
+          : (res.action === 'creata' ? 'Registrata adesso.' : 'Ho aggiornato quella di prima.') + ' <b>Ora scarica il file .xls e mandalo all\u2019amministratore</b>, come sempre (WhatsApp o e-mail).'}</p>
         ${list.length ? `<div class="xl">${list.map(t => `<div class="xr" style="grid-template-columns:1fr">${esc(t)}</div>`).join('')}</div>` : ''}
         <div class="xl" aria-label="Formazione salvata">
           <div class="xh">Titolari</div>${[1,2,3,4,5,6,7,8,9,10,11].map(line).join('')}
@@ -586,7 +799,7 @@
       const res = wb.build(S.sheet, nums);
       const d = await deliver(res.bytes, outName());
       if (diff.length) notice('Attenzione: nel modello ' + diff.length + ' giocatori hanno un nome diverso dalla rosa nel database. L\u2019amministratore dovrebbe aggiornare il modello.');
-      SB.rpc('log_export', { p_matchday: S.matchday.id }).catch(() => {});
+      if (!S.adm) SB.rpc('log_export', { p_matchday: S.matchday.id }).catch(() => {});
       showResult(res, d);
     } catch (e) {
       console.error(e);
@@ -596,10 +809,14 @@
 
   async function showLog() {
     try {
-      const rows = await SB.select('lineup_log', 'select=at,action,changes&team_id=eq.' + S.team.id + '&matchday=eq.' + S.matchday.id + '&order=at.desc&limit=30');
+      const q = '&team_id=eq.' + S.team.id + '&matchday=eq.' + S.matchday.id + '&order=at.desc&limit=30';
+      let rows;
+      try { rows = await SB.select('lineup_log', 'select=at,action,changes,da_admin,autore,nota' + q); }
+      catch (e) { rows = await SB.select('lineup_log', 'select=at,action,changes' + q); }
       const body = rows.length ? rows.map(r => {
         const list = changesText(r.changes);
-        return `<div class="xr" style="grid-template-columns:1fr"><div><b>${esc(fmtDate(r.at))}</b> · ${esc(r.action)}<div class="muted small">${list.length ? esc(list.join(' · ')) : 'nessun dettaglio'}</div></div></div>`;
+        const chi = r.da_admin ? ` · <b class="adm">dall\u2019amministratore${r.autore ? ' (' + esc(r.autore) + ')' : ''}</b>` : '';
+        return `<div class="xr${r.da_admin ? ' da-admin' : ''}" style="grid-template-columns:1fr"><div><b>${esc(fmtDate(r.at))}</b> · ${esc(r.action)}${chi}<div class="muted small">${list.length ? esc(list.join(' · ')) : 'nessun dettaglio'}${r.nota ? '<br>Nota: «' + esc(r.nota) + '»' : ''}</div></div></div>`;
       }).join('') : '<p class="muted" style="padding:12px 16px">Ancora nessuna modifica per questa giornata.</p>';
       sheet(`<div class="sheet-h"><div><h4>Storico modifiche</h4><p>${esc(S.team.name)} · ${esc(nomeGiornata(S.matchday))}</p></div></div>
         <div class="sheet-b"><div class="xl">${body}</div></div>
@@ -859,6 +1076,55 @@
     });
   }
 
+  // La scadenza della formazione completa della giornata corrente: di norma dal calendario
+  // (domenica 12.00, mercoledì 20.00); qui l'amministratore la sposta per una giornata.
+  function askScadenza() {
+    const md = S.matchday;
+    if (!md) { notice('Nessuna giornata aperta: prima aggiorna il calendario.'); return; }
+    if (!('scadenza' in md)) { notice('Nel database mancano le scadenze: esegui db/12_scadenze.sql nel SQL Editor di Supabase.', 'error'); return; }
+    const loc = t => new Date(ms(t) - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const auto = md.scadenza_auto, scelta = md.scadenza_admin;
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Scadenza delle formazioni</h4><p>${esc(nomeGiornata(md))}</p></div></div>
+      <div class="sheet-b"><div style="padding:12px 16px;display:grid;gap:10px">
+        <p style="margin:0">Dopo la scadenza nessuno può più cambiare la formazione (tu sì, come amministratore). Prima, ogni giocatore si blocca 30 minuti prima della sua partita.</p>
+        <p class="small muted" style="margin:0">Dal calendario: <b>${auto ? esc(fmtDate(auto)) : '—'}</b> (domenica alle 12 nei turni del weekend, mercoledì alle 20 in quelli infrasettimanali)${scelta ? `<br>Adesso vale quella scelta da te: <b>${esc(fmtDate(scelta))}</b>` : ''}</p>
+        <label class="small muted" for="scadVal">Scadenza di questa giornata</label>
+        <input id="scadVal" type="datetime-local" value="${md.scadenza ? loc(md.scadenza) : ''}" style="padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)">
+      </div></div>
+      <div class="sheet-f">${scelta ? '<button type="button" class="btn btn-ghost" data-act="auto">Torna a quella del calendario</button>' : '<button type="button" class="btn btn-ghost" data-act="close">Annulla</button>'}<button type="button" class="btn btn-primary" data-act="go">Salva</button></div>`);
+    el.addEventListener('click', async ev => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'close') { closeSheet(); return; }
+      const v = el.querySelector('#scadVal').value;
+      if (b.dataset.act === 'go' && !v) { toast('Scegli giorno e ora'); return; }
+      b.disabled = true;
+      try {
+        const r = await SB.rpc('set_scadenza', { p_matchday: md.id, p_scadenza: b.dataset.act === 'auto' ? null : new Date(v).toISOString() });
+        closeSheet();
+        await startOnline(S.adm ? S.team.id : null);
+        notice('Scadenza di ' + nomeGiornata(md) + ': ' + (r && r.scadenza ? fmtDate(r.scadenza) : '—') + (b.dataset.act === 'auto' ? ' (dal calendario).' : '.'));
+      } catch (e) { b.disabled = false; notice(e.message || 'Non riesco a cambiare la scadenza.', 'error'); }
+    });
+  }
+
+  // Per l'amministratore: di quale squadra modificare la formazione
+  function scegliSquadra() {
+    if (!isAdmin()) return;
+    const altre = S.teams.filter(t => !S.mioTeam || t.id !== S.mioTeam.id);
+    if (!altre.length) { notice('Non trovo le altre squadre della lega.', 'error'); return; }
+    const el = sheet(`
+      <div class="sheet-h"><div><h4>Modifica una formazione</h4><p>Come amministratore: blocchi e scadenze non valgono, la modifica diventa pubblica.</p></div></div>
+      <div class="sheet-b">${altre.map(t => `<button type="button" class="row" data-sq="${esc(t.id)}"><span class="badge any">·</span><span class="who">${esc(t.name)}</span><span class="chev">›</span></button>`).join('')}</div>
+      <div class="sheet-f"><button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
+    el.addEventListener('click', ev => {
+      if (ev.target.closest('[data-act="close"]')) { closeSheet(); return; }
+      const b = ev.target.closest('[data-sq]');
+      if (b) { closeSheet(); caricaSquadra(b.dataset.sq).catch(e => notice(e.message || 'Non riesco a caricare la squadra.', 'error')); }
+    });
+  }
+
   // ------------------------------------------------------------- nuova password
   // dal link dell'email (obbligatoria) oppure dal menu "Cambia password" (si può annullare)
   function askNewPassword(fatto, opts) {
@@ -881,8 +1147,8 @@
     const r = S.starters[i];
     const dis = canEdit() ? '' : 'disabled';
     if (r == null) return `<button type="button" class="slot empty" data-z="s" data-i="${i}" data-r="${ro}" ${dis} aria-label="${i + 1}: scegli ${ROLE[ro]}"><span class="token">${ro}</span><span class="nm">${i + 1} · ${ROLE[ro].slice(0, 3)}.</span></button>`;
-    const lk = isLocked(r);
-    return `<button type="button" class="slot${lk ? ' locked' : ''}" data-z="s" data-i="${i}" data-r="${ro}" ${lk ? 'disabled' : dis} aria-label="${i + 1}: ${esc(P(r).name)}${lk ? ', partita già iniziata' : ''}"><span class="token">${lk ? '●' : i + 1}</span><span class="nm">${esc(P(r).name)}</span></button>`;
+    const lk = isLocked(r), gi = !lk && S.adm && giocato(r);
+    return `<button type="button" class="slot${lk ? ' locked' : ''}${gi ? ' giocato' : ''}" data-z="s" data-i="${i}" data-r="${ro}" ${lk ? 'disabled' : dis} aria-label="${i + 1}: ${esc(P(r).name)}${lk || gi ? ', bloccato' : ''}"><span class="token">${lk ? '●' : i + 1}</span><span class="nm">${esc(P(r).name)}</span></button>`;
   }
   function rowHtml(z, i, r) {
     const ro = slotRole(z, i);
@@ -893,8 +1159,8 @@
       const label = ro ? 'Scegli ' + ROLE[ro].toLowerCase() : 'Scegli giocatore';
       return `<button type="button" class="row empty" data-z="${z}" data-i="${i}" ${dis}><span class="num">${num}</span>${badge}<span class="who">${label}</span><span class="chev">›</span></button>`;
     }
-    const p = P(r), lk = isLocked(r);
-    return `<button type="button" class="row${lk ? ' locked' : ''}" data-z="${z}" data-i="${i}" ${lk ? 'disabled' : dis}><span class="num">${num}</span><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span>${lk ? '<span class="tag">in campo</span>' : '<span class="chev">›</span>'}</button>`;
+    const p = P(r), lk = isLocked(r), gi = !lk && S.adm && giocato(r);
+    return `<button type="button" class="row${lk ? ' locked' : ''}${gi ? ' giocato' : ''}" data-z="${z}" data-i="${i}" ${lk ? 'disabled' : dis}><span class="num">${num}</span><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span>${lk ? '<span class="tag">bloccato</span>' : gi ? '<span class="tag">già bloccato</span>' : '<span class="chev">›</span>'}</button>`;
   }
 
   function flash(pl) {
@@ -909,21 +1175,32 @@
     const cands = S.roster.filter(p => p.name && (!ro || p.role === ro));
     const order = p => { const pl = placeOf(p.row); return pl ? (pl.z === z && pl.i === i ? 0 : 2) : 1; };
     cands.sort((a, b) => order(a) - order(b) || 'PDCA'.indexOf(a.role) - 'PDCA'.indexOf(b.role) || a.row - b.row);
-    const rows = cands.map(p => {
+    // chi è libero ma non può andare qui: un panchinaro bloccato lo tiene fermo (o tiene
+    // fermo chi c'è adesso in questo posto)
+    const info = cands.map(p => {
       const pl = placeOf(p.row);
-      const here = pl && pl.z === z && pl.i === i;
+      const here = !!(pl && pl.z === z && pl.i === i);
       const lk = isLocked(p.row);
-      const tag = lk ? `<span class="tag">in campo${p.club ? ' · ' + esc(p.club) : ''}</span>`
+      return { p, pl, here, lk, gi: !lk && S.adm && giocato(p.row), no: !lk && !here ? prova(() => assign(z, i, p.row)) : null };
+    });
+    const rows = info.map(({ p, pl, here, lk, gi, no }) => {
+      const tag = lk ? `<span class="tag">bloccato${p.club ? ' · ' + esc(p.club) : ''}</span>`
+        : no ? `<span class="tag">fermo per ${esc(P(no.row).name)}</span>`
         : here ? '<span class="tag here">qui</span>'
-        : pl ? `<span class="tag">${zoneName(pl.z)} ${slotNum(pl.z, pl.i)} · scambia</span>` : '';
-      return `<button type="button" class="row${lk ? ' locked' : ''}" data-pick="${p.row}" ${lk ? 'disabled' : ''}><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span>${tag}</button>`;
+        : pl ? `<span class="tag">${zoneName(pl.z)} ${slotNum(pl.z, pl.i)} · scambia${gi ? ' · già bloccato' : ''}</span>`
+        : gi ? '<span class="tag">già bloccato</span>' : '';
+      return `<button type="button" class="row${lk || no ? ' locked' : ''}" data-pick="${p.row}" ${lk || no ? 'disabled' : ''}${no ? ` title="${esc(testoProblema(no))}"` : ''}><span class="badge" data-r="${p.role}">${p.role}</span><span class="who">${esc(p.name)}</span>${tag}</button>`;
     }).join('') || '<p class="muted" style="padding:12px 16px">Nessun giocatore disponibile per questo ruolo.</p>';
+    // la spiegazione, se qualcuno è fermo per un panchinaro bloccato
+    const fermo = (info.find(x => x.no && x.no.tipo === 'reparto') || {}).no;
+    const spiega = fermo ? `<p class="muted small spiega">${esc(testoProblema(fermo))}.</p>` : '';
+    const svuota = cur != null && !isLocked(cur) && !prova(() => { arr(z)[i] = null; });
     const title = `${num} · ${ro ? ROLE[ro] : 'Qualsiasi ruolo'}`;
     const sub = z === 's' ? 'Titolare' : z === 'b' ? 'Riserva — entra in ordine di numero' : 'Panchina extra';
     const el = sheet(`
       <div class="sheet-h"><div><h4>${esc(title)}</h4><p>${sub}</p></div></div>
-      <div class="sheet-b">${rows}</div>
-      <div class="sheet-f">${cur != null && !isLocked(cur) ? '<button type="button" class="btn btn-ghost" data-act="clear">Svuota posto</button>' : ''}<button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
+      <div class="sheet-b">${spiega}${rows}</div>
+      <div class="sheet-f">${svuota ? '<button type="button" class="btn btn-ghost" data-act="clear">Svuota posto</button>' : ''}<button type="button" class="btn btn-primary" data-act="close">Chiudi</button></div>`);
     el.addEventListener('click', ev => {
       const b = ev.target.closest('[data-pick],[data-act]');
       if (!b) return;
@@ -969,11 +1246,12 @@
   }
   let toastT;
   function toast(t) {
+    if (S.muto) return;
     document.querySelectorAll('.toast').forEach(x => x.remove());
     const d = document.createElement('div');
     d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = t;
     document.body.appendChild(d);
-    clearTimeout(toastT); toastT = setTimeout(() => d.remove(), 2600);
+    clearTimeout(toastT); toastT = setTimeout(() => d.remove(), Math.max(2600, Math.min(7000, t.length * 55)));
   }
 
   // ------------------------------------------------------------ salvataggio
@@ -1002,14 +1280,17 @@
     });
   }
 
-  async function doSave() {
+  async function doSave(nota) {
     if (online()) {
+      if (S.adm && nota === undefined) { chiediNota(n => doSave(n)); return; }
       const btn = $('#saveBtn');
       btn.disabled = true;
       try {
-        const res = await saveOnline();
+        const res = await saveOnline(nota);
         S.savedAt = new Date().toISOString();
         S.vuoti = [];          // salvata di nuovo: il database toglie l'avviso
+        S.base = numMap(); S.baseMod = S.module;     // da qui si contano le regole sui bloccati
+        if (res && res.da_admin) S.modifiche.unshift({ at: S.savedAt, changes: res.changes, nota: nota || null, autore: S.profile && S.profile.display_name });
         clearNotices();
         showSaved(res);
         avvisaSito();
@@ -1017,6 +1298,8 @@
         console.error(e);
         notice(e && e.message ? e.message : 'Salvataggio non riuscito.', 'error');
         if (e && e.code === 'P0002') { S.closed = true; }
+        // la scadenza è passata (o l'amministratore l'ha anticipata): da qui è chiusa
+        if (e && e.code === 'P0008' && S.matchday) { S.matchday.scadenza = new Date().toISOString(); }
       }
       render();
       return;
@@ -1147,7 +1430,11 @@
     ['dragleave', 'drop'].forEach(t => up.addEventListener(t, e => { e.preventDefault(); up.classList.remove('drag'); }));
     up.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
   }
-  on('#sheetSel', 'change', e => { const p = prefs(); p.lastSheet = e.target.value; setPrefs(p); loadSheet(e.target.value); });
+  on('#sheetSel', 'change', e => {
+    // online: l'amministratore sceglie di quale squadra modificare la formazione
+    if (online()) { caricaSquadra(e.target.value).catch(err => notice(err.message || 'Non riesco a caricare la squadra.', 'error')); return; }
+    const p = prefs(); p.lastSheet = e.target.value; setPrefs(p); loadSheet(e.target.value);
+  });
 
   on('#modules', 'click', e => { const b = e.target.closest('[data-mod]'); if (!b) return; guarded(() => setModule(b.dataset.mod)); render(); });
   on('#editor', 'click', e => {
@@ -1156,9 +1443,9 @@
     const a = e.target.closest('[data-add]');
     if (a && canEdit()) {
       const row = +a.dataset.add;
-      if (isLocked(row)) { toast(P(row).name + ': la partita è già iniziata'); return; }
-      const pl = autoPlace(row);
-      if (!pl) { toast('Nessun posto libero per un ' + ROLE[P(row).role].toLowerCase()); return; }
+      if (isLocked(row)) { toast(P(row).name + ' è già bloccato: la sua partita è iniziata o inizia fra meno di 30 minuti'); return; }
+      const { pl, no } = autoPlaceOk(row);
+      if (!pl) { toast(no ? testoProblema(no) : 'Nessun posto libero per un ' + ROLE[P(row).role].toLowerCase()); return; }
       render(); flash(pl);
     }
   });
@@ -1179,10 +1466,19 @@
   });
   on('#restoreBtn', 'click', () => { online() ? restoreOnline() : restoreSaved(); });
   on('#clearBtn', 'click', () => {
-    // chi è già sceso in campo resta al suo posto
-    ['s', 'b', 'e'].forEach(z => { const a = arr(z); a.forEach((r, i) => { if (r != null && !isLocked(r)) a[i] = null; }); });
+    // chi è già bloccato resta al suo posto, e con lui chi del suo reparto lo precede
+    let restano = 0;
+    ['s', 'b', 'e'].forEach(z => {
+      // arr(z) ogni volta: le prove rimettono a posto la formazione con array nuovi
+      for (let i = 0; i < arr(z).length; i++) {
+        const r = arr(z)[i];
+        if (r == null) continue;
+        if (isLocked(r) || prova(() => { arr(z)[i] = null; })) { restano++; continue; }
+        arr(z)[i] = null;
+      }
+    });
     render();
-    toast(lockedRows().some(r => placeOf(r)) ? 'Svuotata, tranne chi è già in campo' : 'Formazione svuotata');
+    toast(restano ? 'Svuotata, tranne chi è già bloccato e chi lo precede nel reparto' : 'Formazione svuotata');
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!ROOT.querySelector('.scrim[data-modal]')) closeSheet(); toggleMenu(false); } });
 
@@ -1192,6 +1488,7 @@
   function reset() {
     clearInterval(tick);
     S.team = null; S.profile = null; S.matchday = null; S.fixtures = []; S.roster = []; S.savedAt = null; S.vuoti = []; S.closed = false;
+    S.mioTeam = null; S.adm = false; S.mia = null; S.teams = []; S.modifiche = []; S.base = new Map();
     S.starters = Array(11).fill(null); S.bench = Array(7).fill(null); S.extra = Array(4).fill(null);
     closeSheet(); clearNotices();
     show('#fileBar', false); show('#onlineTools', false); show('#restoreBtn', false);
@@ -1223,9 +1520,10 @@
     esci() { avvio = null; reset(); avvisaSito(); },
     scadenza,
     pezzi,
-    salvata: () => !!S.savedAt,
+    // sempre della propria squadra, anche mentre l'amministratore ne modifica un'altra
+    salvata: () => !!(S.adm ? S.mia && S.mia.savedAt : S.savedAt),
     // formazione salvata con posti rimasti vuoti (giocatore svincolato): da rifare
-    daRifare: () => !!S.vuoti.length,
+    daRifare: () => !!(S.adm ? S.mia && S.mia.vuoti.length : S.vuoti.length),
     // per il sito: scaricare un file con lo stesso meccanismo dell'export (anche nel visore)
     scarica: (bytes, nome) => deliver(bytes, nome),
     giornata: () => S.matchday ? nomeGiornata(S.matchday) : '',
@@ -1233,7 +1531,11 @@
       rose: () => $('#adminFile').click(),
       calendario: () => syncCalendar(),
       squadre: () => clubsSheet(),
-      giornata: () => askMatchday()
+      giornata: () => askMatchday(),
+      scadenza: async () => { if (avvio) await avvio; askScadenza(); },
+      formazione: async () => { if (avvio) await avvio; scegliSquadra(); },
+      // dalla pagina Formazioni del sito: modifica la formazione di quella squadra
+      modifica: async teamId => { if (avvio) await avvio; if (S.team) await caricaSquadra(teamId); }
     },
     nuovaPassword: (fatto, opts) => askNewPassword(fatto, opts)
   };

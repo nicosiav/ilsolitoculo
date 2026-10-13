@@ -20,15 +20,51 @@ versione offline a file singolo.
 4. Tocchi **Salva formazione**: la formazione finisce nel database, la vedono tutti e ogni modifica resta nel log.
 5. Tocchi **Scarica il file .xls** (compare subito dopo il salvataggio, e sta anche in fondo alla pagina) e lo mandi all'amministratore come sempre, su WhatsApp o per e-mail. **Il file resta obbligatorio**: è quello con cui si calcola la giornata.
 
-### Il conto alla rovescia e i blocchi
+### Il conto alla rovescia, i blocchi e la scadenza
 
-In cima alla pagina c'è il **conto alla rovescia al primo fischio** della
-giornata (giorni, ore, minuti, secondi); lo stesso numero compare nel riquadro
-verde della Home. Da lì in poi **ogni giocatore si blocca quando la sua squadra
-scende in campo**: chi è già in campo resta dov'è (segnato con un pallino, non
-selezionabile), tutti gli altri si cambiano a piacere, e il conto passa al
-prossimo dei tuoi che scende in campo. La giornata si chiude dopo l'ultima
-partita. È il database ad applicare la regola, non solo la pagina.
+Le regole sono quelle del regolamento (punti 7.1, 7.2 e 7.4), con mezz'ora al
+posto dell'ora:
+
+- **ogni giocatore si blocca 30 minuti prima della partita della sua squadra**
+  di Serie A: da lì resta dov'è (segnato con un pallino, non selezionabile),
+  dentro o fuori dalla formazione. Chi non ha una squadra assegnata si blocca 30
+  minuti prima della prima partita della giornata; chi gioca una partita rinviata
+  o un recupero lontano resta libero fino alla scadenza;
+- **un panchinaro bloccato tiene fermi quelli del suo reparto messi prima di
+  lui**: se il primo panchinaro dell'attacco ha già giocato, gli attaccanti
+  titolari restano quelli (si possono scambiare fra loro, non sostituire con il
+  secondo panchinaro o con uno della panchina extra) e il modulo non può cambiare
+  il numero dei titolari in attacco. Vale anche per la panchina extra (19–22): lì
+  contano i giocatori dello stesso ruolo messi prima. Nel selettore i giocatori
+  che non si possono mettere in quel posto sono spenti con la scritta «fermo per
+  …», e i moduli non ammessi sono barrati;
+- **alla scadenza della formazione completa si blocca tutto**: domenica alle
+  12.00 nei turni del weekend, mercoledì alle 20.00 in quelli infrasettimanali.
+  La data si ricava dal calendario (conta il giorno della partita «di mezzo»
+  della giornata) e l'amministratore la può spostare giornata per giornata. Dopo,
+  per una modifica bisogna scrivere all'amministratore.
+
+In cima alla pagina il **conto alla rovescia** segue l'evento più vicino: il
+prossimo dei tuoi che si blocca (con nome e orario) oppure la scadenza; lo stesso
+numero compare nel riquadro verde della Home. La giornata si chiude due ore dopo
+l'ultima partita. È il database ad applicare le regole (`db/12_scadenze.sql`),
+non solo la pagina.
+
+### L'amministratore
+
+L'amministratore può **modificare la formazione di qualsiasi squadra**, sempre:
+blocchi e scadenze per lui non valgono. In Schiera sceglie la squadra dal menu
+«Formazione di» (oppure dal pulsante «✎ Modifica come amministratore» nella
+pagina Formazioni del sito, o dalla voce «Modifica una formazione» del menu), la
+cambia e salva con una nota facoltativa (per esempio «comunicata su WhatsApp alle
+11.40»). La modifica resta nel log come «dell'amministratore», con il suo nome e
+la nota, ed è **pubblica**: compare sulla pagina della formazione di quella
+squadra in Giornata → Formazioni (con ✎ nel selettore), nella partita con le due
+formazioni affiancate, e la squadra la vede in Schiera e nello Storico modifiche.
+La sua formazione l'amministratore la schiera come tutti, con le stesse regole.
+
+Dal menu, «Scadenza delle formazioni» mostra la scadenza ricavata dal calendario
+e permette di spostarla (o di tornare a quella del calendario).
 
 Finché la formazione della giornata non è salvata, sul pulsante Schiera della
 barra c'è un pallino rosso.

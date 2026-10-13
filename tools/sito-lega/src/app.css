@@ -360,6 +360,14 @@ a.chip { text-decoration: none; display: inline-block; }
 .sq-sel .chip span.ok::before { content: '✓ '; }
 .sq-sel .chip span.warn { color: var(--warn-ink); font-weight: 700; }
 .sq-sel .chip span.warn::before { content: '⚠ '; }
+.sq-sel .chip span.adm { color: var(--warn-ink); font-weight: 600; }
+.sq-sel .chip span.adm::before { content: '✎ '; }
+/* modifica dell'amministratore: si vede sulla pagina della formazione della squadra */
+.avv-admin { display: grid; gap: 6px; margin: 2px 0 8px; padding: 9px 12px; border-radius: 12px; background: var(--warn-bg, var(--surface-2));
+  color: var(--warn-ink); box-shadow: inset 4px 0 0 var(--warn-ink); font-size: 13.5px; line-height: 1.35; }
+.avv-admin p { margin: 0; overflow-wrap: anywhere; }
+.avv-admin .nota { display: block; font-style: italic; margin-top: 2px; }
+.form-pan .adm-mod { margin-top: 10px; width: 100%; }
 .form-testa { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 4px; }
 .form-testa > div { min-width: 0; }
 .form-testa h3 { margin: 0; font: 700 19px/1.1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
