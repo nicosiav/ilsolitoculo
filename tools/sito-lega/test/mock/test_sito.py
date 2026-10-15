@@ -404,30 +404,37 @@ async def main():
             assert gol2 == sorted(gol2), gol2[:8]
             print('  filtri (ruolo, nome, squadra) e ordinamento (Gol ↓ e ↑): ok')
             assert not await pg.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth')
-            # l'operazione: Bleve (P, Lecce) a Valerio al posto di Contini, 5 crediti
+            # l'operazione: Bleve (P, Lecce) a Valerio per 5 crediti, poi Contini svincolato
             await pg.select_option('[data-mf="ord"]', 'fm')
             await pg.fill('[data-mf="q"]', 'Bleve'); await pg.wait_for_timeout(200)
             await pg.click('tr[data-svinc]:has-text("Bleve")'); await pg.wait_for_timeout(700)
             nt = await pg.locator('.sheet .tiles.compatti .tile').count()
             assert nt == 8, (nt, (await pg.inner_text('.sheet'))[:300])
-            await pg.select_option('[data-op="team"]', 'team-Valerio'); await pg.wait_for_timeout(300)
-            scelte = [x.strip() for x in await pg.locator('.sheet label.scelta .who b').all_inner_texts()]
-            print('  chi può uscire (solo portieri):', scelte)
-            assert 'Contini' in scelte and all(await pg.locator('.sheet label.scelta .badge').all_inner_texts()) and \
-                set(await pg.locator('.sheet label.scelta .badge').all_inner_texts()) == {'P'}
-            await pg.click('.sheet label.scelta:has-text("Contini")'); await pg.fill('[data-op="acquisto"]', '5'); await pg.wait_for_timeout(200)
-            riep = await pg.inner_text('[data-op="riep"]')
-            print('  riepilogo:', riep)
-            assert '73 → 68' in riep
-            await pg.fill('[data-op="acquisto"]', '500'); await pg.wait_for_timeout(100)
-            assert await pg.is_disabled('.sheet [data-act="go"]') and 'insufficienti' in await pg.inner_text('[data-op="riep"]')
-            await pg.fill('[data-op="acquisto"]', '5'); await pg.wait_for_timeout(100)
-            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(3000)
+            assert await pg.is_disabled('.sheet [data-act="go"]')
+            await pg.select_option('.sheet [data-op="team"]', 'team-Valerio'); await pg.fill('.sheet [data-op="acquisto"]', '5')
+            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(600)
+            assert await pg.locator('tr.preso:has-text("Bleve")').count() == 1 and '1 movimento' in await pg.inner_text('.op-corso')
+            assert 'Operazione (1)' in await pg.inner_text('.schede')
+            await pg.click('.op-corso'); await pg.wait_for_timeout(1000)
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            print('  solo l\'acquisto:', sim)
+            assert 'giocatori 30 (massimo 29)' in sim and await pg.is_disabled('[data-opx="conferma"]')
+            await pg.select_option('[data-opa="svTeam"]', 'team-Valerio'); await pg.wait_for_timeout(200)
+            await pg.select_option('[data-opa="svGioc"]', 'pl-team-Valerio-3'); await pg.click('[data-opx="add-sv"]'); await pg.wait_for_timeout(300)
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            print('  con lo svincolo di Contini:', sim)
+            assert '73 → 68' in sim and 'rosa 29 → 29' in sim and await pg.is_enabled('[data-opx="conferma"]')
+            await pg.fill('[data-opi="acquisti.0.costo"]', '500'); await pg.wait_for_timeout(100)
+            assert await pg.is_disabled('[data-opx="conferma"]') and 'crediti sotto zero' in await pg.inner_text('#opSim')
+            await pg.fill('[data-opi="acquisti.0.costo"]', '5'); await pg.wait_for_timeout(100)
+            await pg.click('[data-opx="conferma"]'); await pg.wait_for_timeout(3000)
             avvisi = (await pg.inner_text('#notices')).replace(chr(10), ' ')
-            print('  avvisi:', avvisi[:220])
-            assert 'Bleve va a Valerio' in avvisi and 'formazione salvata' in avvisi
+            print('  avvisi:', avvisi[:240])
+            assert 'Valerio svincola Contini; Bleve a Valerio' in avvisi and 'Valerio 73 → 68' in avvisi and 'formazione salvata' in avvisi
             op = json.load(open('/tmp/mercato_op.json'))
-            assert op['esce_nome'] == 'Contini' and op['entra_nome'] == 'Bleve' and op['crediti_dopo'] == 68
+            mv = {v['tipo']: v for v in op['market_moves']}
+            assert mv['svincolo']['nome'] == 'Contini' and mv['acquisto']['nome'] == 'Bleve' and mv['acquisto']['slot_a'] == 3
+            assert op['crediti'] == [{'team_id': 'team-Valerio', 'prima': 73, 'dopo': 68}]
             mo = modello()
             print('  modello dopo:', mo['posto3'], mo['crediti'], '| Contini nel LISTONE:', 'Contini' in mo['listone'], '| Bleve:', 'Bleve' in mo['listone'])
             assert mo['posto3'] == 'Bleve' and mo['crediti'] == 68 and 'Contini' in mo['listone'] and 'Bleve' not in mo['listone']
@@ -435,7 +442,7 @@ async def main():
             await pg.goto(BASE + '#/mercato'); await pg.wait_for_timeout(1000)
             await pg.fill('[data-mf="q"]', ''); await pg.wait_for_timeout(200)
             nomi = [x.strip() for x in await pg.locator('tr[data-svinc] td:first-child b').all_inner_texts()]
-            assert 'Contini' in nomi and 'Bleve' not in nomi
+            assert 'Contini' in nomi and 'Bleve' not in nomi and await pg.locator('.op-corso').count() == 0
             await pg.goto(BASE + '#/squadre/rosa'); await pg.wait_for_timeout(1000)
             rosa = await pg.inner_text('#view')
             assert 'Bleve' in rosa and 'Contini' not in rosa and '68' in await pg.inner_text('.tiles'), rosa[:200]
@@ -443,26 +450,32 @@ async def main():
             # operazioni: l'elenco da riportare, poi l'annullamento
             await pg.goto(BASE + '#/mercato/operazioni'); await pg.wait_for_timeout(1000)
             testo = await pg.inner_text('#view')
-            print('  operazioni:', testo.replace(chr(10), ' ')[:200])
-            assert 'ROSE, riga 4: Contini → Bleve' in testo and 'da riportare' in testo
+            print('  operazioni:', testo.replace(chr(10), ' ')[:260])
+            assert 'ROSE, riga 4: Contini → Bleve, costo 5' in testo and 'da riportare' in testo
+            assert 'VALERIO | Scarto (-0) di CONTINI' in testo and 'VALERIO | Acquisto (-5) di BLEVE' in testo and 'Crediti: VALERIO 73 → 68' in testo
             await pg.click('[data-op-annulla]'); await pg.wait_for_timeout(400)
+            assert 'Contini torna a Valerio' in await pg.inner_text('.sheet')
             await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(3000)
             mo = modello()
             print('  modello dopo l\'annullamento:', mo['posto3'], mo['crediti'])
             assert mo['posto3'] == 'Contini' and mo['crediti'] == 73 and 'Bleve' in mo['listone'] and 'Contini' not in mo['listone']
             assert 'annullata' in await pg.inner_text('#view')
-            # di nuovo l'operazione, poi il file di giornata che ancora non la contiene
-            await pg.goto(BASE + '#/mercato'); await pg.wait_for_timeout(1000)
-            await pg.fill('[data-mf="q"]', 'Bleve'); await pg.wait_for_timeout(200)
-            await pg.click('tr[data-svinc]:has-text("Bleve")'); await pg.wait_for_timeout(600)
-            await pg.select_option('[data-op="team"]', 'team-Valerio'); await pg.wait_for_timeout(300)
-            await pg.click('.sheet label.scelta:has-text("Contini")'); await pg.fill('[data-op="acquisto"]', '5')
-            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(2500)
+            # di nuovo, tutta dal foglio dell'operazione; poi il file di giornata che ancora non la contiene
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(1000)
+            await pg.select_option('[data-opa="acTeam"]', 'team-Valerio'); await pg.wait_for_timeout(200)
+            await pg.type('[data-opa="acQ"]', 'Blev'); await pg.wait_for_timeout(300)
+            assert await pg.evaluate("document.activeElement.dataset.opa") == 'acQ', 'la ricerca perde il cursore'
+            await pg.click('.trovati .chip:has-text("Bleve")'); await pg.wait_for_timeout(300)
+            assert await pg.input_value('[data-opi="acquisti.0.team_id"]') == 'team-Valerio'
+            await pg.fill('[data-opi="acquisti.0.costo"]', '5')
+            await pg.select_option('[data-opa="svTeam"]', 'team-Valerio'); await pg.wait_for_timeout(200)
+            await pg.select_option('[data-opa="svGioc"]', 'pl-team-Valerio-3'); await pg.click('[data-opx="add-sv"]'); await pg.wait_for_timeout(300)
+            await pg.click('[data-opx="conferma"]'); await pg.wait_for_timeout(2500)
             await pg.click('#userBtn'); await pg.wait_for_timeout(200)
             await pg.set_input_files('#roundFile', XLS); await pg.wait_for_timeout(2500)
             ante = await pg.inner_text('.sheet')
             print('  anteprima del file:', [r for r in ante.split(chr(10)) if 'Mercato' in r])
-            assert 'non ancora' in ante and 'Bleve al posto di Contini' in ante
+            assert 'non ancora' in ante and 'Valerio svincola Contini; Bleve a Valerio' in ante
             await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(2500)
             dal = json.load(open('/tmp/mercato_dal_file.json'))
             diff = await pg.inner_text('.sheet')
@@ -480,6 +493,9 @@ async def main():
             await pg.click('.sheet [data-act="close"]')
             await pg.goto(BASE + '#/mercato/operazioni'); await pg.wait_for_timeout(800)
             assert 'Ancora nessuna operazione' in await pg.inner_text('#view') and await pg.locator('[data-op-annulla]').count() == 0
+            assert 'operazione' not in (await pg.inner_text('.schede')).lower().replace('operazioni', '')
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(800)
+            assert await pg.locator('#opBuilder').count() == 0 and await pg.locator('tr[data-svinc]').count() > 0
         await apri(pw, {'FC': FC}, s14, '14 mercato: chi gioca')
 
         async def s15(pg):
@@ -518,5 +534,154 @@ async def main():
             assert 'salvata' in meta and 'da rifare' not in meta
             assert await pg.locator('#nav .tb-schiera[data-da-fare]').count() == 0
         await apri(pw, {'PRELOAD': '1', 'VUOTO': '1', 'FORMAZIONI': FORMAZIONI}, s16, '16 formazione da rifare')
+
+        # 17) operazioni composte: scambio D↔A con crediti, svincolo con rimborso, acquisti in un
+        #     altro ruolo con i limiti delle rose, cessione senza contropartita, annullamento
+        def rose_modello():
+            js = ("const E=require(process.argv[1]),fs=require('fs');const wb=E.load(new Uint8Array(fs.readFileSync('/tmp/modello_mercato.xls')));"
+                  "const g=wb.grid('ROSE'),o={},cr={};for(let b=0;b<8;b++){const t=g.str(0,b*3);cr[t]=g.num(0,b*3+1);o[t]={};"
+                  "for(let r=1;r<=31;r++)o[t][r]=[g.str(r,b*3),g.num(r,b*3+1),g.num(r,b*3+2)]}"
+                  "const L=wb.grid('LISTONE'),l=[];for(let r=1;r<400;r++){const n=L.str(r,1);if(n)l.push(n)}"
+                  "console.log(JSON.stringify({rose:o,crediti:cr,listone:l}))")
+            return json.loads(subprocess.run(['node', '-e', js, ENGINE], capture_output=True, text=True, check=True).stdout)
+
+        async def s17(pg):
+            for f in ('/tmp/modello_mercato.xls', '/tmp/mercato_op.json', '/tmp/mercato_richiesta.json'):
+                if os.path.exists(f):
+                    os.remove(f)
+            await login(pg)
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(1200)
+            assert await pg.locator('#opBuilder').count() == 1 and await pg.is_disabled('[data-opx="conferma"]')
+
+            async def cedi(da, gioc, a):
+                await pg.select_option('[data-opa="ceDa"]', da); await pg.wait_for_timeout(150)
+                await pg.select_option('[data-opa="ceGioc"]', gioc); await pg.select_option('[data-opa="ceA"]', a)
+                await pg.click('[data-opx="add-ce"]'); await pg.wait_for_timeout(250)
+
+            async def svincola(team, gioc, costo):
+                await pg.select_option('[data-opa="svTeam"]', team); await pg.wait_for_timeout(150)
+                await pg.select_option('[data-opa="svGioc"]', gioc); await pg.click('[data-opx="add-sv"]'); await pg.wait_for_timeout(250)
+                n = await pg.locator('[data-opi^="svincoli."][data-opi$=".costo"]').count()
+                await pg.fill(f'[data-opi="svincoli.{n - 1}.costo"]', str(costo)); await pg.wait_for_timeout(100)
+
+            async def compra(team, nome, costo):
+                await pg.select_option('[data-opa="acTeam"]', team); await pg.wait_for_timeout(150)
+                await pg.fill('[data-opa="acQ"]', nome); await pg.wait_for_timeout(250)
+                await pg.click(f'.trovati .chip:has-text("{nome}")'); await pg.wait_for_timeout(250)
+                n = await pg.locator('[data-opi^="acquisti."][data-opi$=".costo"]').count()
+                await pg.fill(f'[data-opi="acquisti.{n - 1}.costo"]', str(costo)); await pg.wait_for_timeout(100)
+
+            async def conferma():
+                assert await pg.is_enabled('[data-opx="conferma"]'), await pg.inner_text('#opBuilder')
+                await pg.click('[data-opx="conferma"]'); await pg.wait_for_timeout(3000)
+                return (await pg.inner_text('#notices')).replace(chr(10), ' ')
+
+            # 1) scambio: Davis K. (A, Valerio) per Miranda J. (D, Massimo) più 5 crediti da Valerio a Massimo;
+            #    il costo di Davis resta il suo (40), quello di Miranda si cambia a mano (2 → 3)
+            await cedi('team-Valerio', 'pl-team-Valerio-25', 'team-Massimo')
+            await cedi('team-Massimo', 'pl-team-Massimo-5', 'team-Valerio')
+            assert await pg.input_value('[data-opi="cessioni.0.costo"]') == '40' and await pg.input_value('[data-opi="cessioni.1.costo"]') == '2'
+            await pg.fill('[data-opi="cessioni.1.costo"]', '3')
+            await pg.click('[data-opx="add-cr"]'); await pg.wait_for_timeout(200)
+            await pg.select_option('[data-opi="crediti.0.da"]', 'team-Valerio'); await pg.select_option('[data-opi="crediti.0.a"]', 'team-Massimo')
+            await pg.fill('[data-opi="crediti.0.crediti"]', '5'); await pg.wait_for_timeout(150)
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            print('  scambio:', sim)
+            assert 'D 9→10' in sim and 'A 7→6' in sim and '73 → 68' in sim and '62 → 67' in sim and 'D 9→8' in sim and 'A 6→7' in sim
+            for w in (390, 1100):
+                await pg.set_viewport_size({'width': w, 'height': 900}); await pg.wait_for_timeout(250)
+                assert not await pg.evaluate('document.documentElement.scrollWidth > document.documentElement.clientWidth'), w
+            await pg.set_viewport_size({'width': 390, 'height': 900})
+            avvisi = await conferma()
+            print('  avvisi:', avvisi[:220])
+            assert 'Davis K. da Valerio a Massimo; Miranda J. da Massimo a Valerio; 5 crediti da Valerio a Massimo' in avvisi
+            req = json.load(open('/tmp/mercato_richiesta.json'))
+            assert req['cessioni'] == [{'player_id': 'pl-team-Valerio-25', 'team_id': 'team-Massimo'},
+                                       {'player_id': 'pl-team-Massimo-5', 'team_id': 'team-Valerio', 'costo': 3}], req['cessioni']
+            mo = rose_modello()
+            V, M = mo['rose']['VALERIO'], mo['rose']['MASSIMO']
+            print('  modello: Valerio 14', V['14'], '25', V['25'], '| Massimo 5', M['5'], '31', M['31'], '| crediti', mo['crediti']['VALERIO'], mo['crediti']['MASSIMO'])
+            assert V['14'][:2] == ['Miranda J.', 3] and V['25'][:2] == ['', None] and M['31'][:2] == ['Davis K.', 40] and M['5'][0] == ''
+            # il secondo numero è la formula della riga: si ricalcola dal costo
+            assert isinstance(V['14'][2], (int, float)) and isinstance(M['31'][2], (int, float)) and M['31'][2] in (8, 10, 13)
+            assert mo['crediti']['VALERIO'] == 68 and mo['crediti']['MASSIMO'] == 67
+
+            # 2) svincolo senza acquisto, con rimborso: Ramon (D) da Valerio, costo -1
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(1000)
+            await svincola('team-Valerio', 'pl-team-Valerio-6', -1)
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            assert '68 → 69' in sim and 'D 10→9' in sim, sim
+            avvisi = await conferma()
+            assert 'Valerio svincola Ramon' in avvisi and 'Valerio 68 → 69' in avvisi, avvisi[:200]
+
+            # 3) acquisti in un altro ruolo: via Couto (D), dentro un attaccante e un centrocampista:
+            #    i centrocampisti sarebbero 11 (massimo 10), la conferma resta spenta finché non si toglie
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(1000)
+            await svincola('team-Valerio', 'pl-team-Valerio-5', 0)
+            await compra('team-Valerio', 'Borrelli', 2)
+            await compra('team-Valerio', 'Addai', 1)
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            print('  troppi centrocampisti:', sim)
+            assert 'centrocampisti 11 (massimo 10)' in sim and await pg.locator('.sim.ko').count() == 1 and await pg.is_disabled('[data-opx="conferma"]')
+            await pg.click('[data-opx="togli"][data-k="acquisti"][data-i="1"]'); await pg.wait_for_timeout(250)
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            assert 'D 9→8' in sim and 'A 6→7' in sim and '69 → 67' in sim and await pg.locator('.sim.ko').count() == 0, sim
+            avvisi = await conferma()
+            assert 'Valerio svincola Couto; Borrelli a Valerio' in avvisi, avvisi[:200]
+            mo = rose_modello()
+            V = mo['rose']['VALERIO']
+            print('  modello: Valerio 5', V['5'], '6', V['6'], '25', V['25'], '| crediti', mo['crediti']['VALERIO'])
+            assert V['5'][0] == '' and V['6'][0] == '' and V['25'][:2] == ['Borrelli', 2] and mo['crediti']['VALERIO'] == 67
+            assert 'Ramon' in mo['listone'] and 'Couto' in mo['listone'] and 'Borrelli' not in mo['listone']
+
+            # 4) cessione senza contropartita: Viery (D) da Giuseppe a Massimo; poi si annulla
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(1000)
+            await cedi('team-Giuseppe', 'pl-team-Giuseppe-14', 'team-Massimo')
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            assert 'rosa 29 → 28' in sim and 'rosa 29 → 29' not in sim and 'D 8→9' in sim, sim
+            avvisi = await conferma()
+            assert 'Viery da Giuseppe a Massimo' in avvisi, avvisi[:200]
+            mo = rose_modello()
+            assert mo['rose']['MASSIMO']['5'][:2] == ['Viery', 1] and mo['rose']['GIUSEPPE']['14'][0] == ''
+
+            # l'elenco da riportare, nel vostro formato
+            await pg.goto(BASE + '#/mercato/operazioni'); await pg.wait_for_timeout(1000)
+            testo = await pg.inner_text('#view')
+            print('  da riportare:', [r for r in testo.split(chr(10)) if 'Registro' in r])
+            assert '[VALERIO] --- [MASSIMO] | Scambio: [DAVIS K.] --- [MIRANDA J.] (+5 crediti a MASSIMO)' in testo
+            assert 'VALERIO · ROSE, riga 15: scrivi Miranda J., costo 3 (a Massimo il secondo numero era 0); riga 26: togli Davis K. (lascia vuota)' in testo
+            assert 'MASSIMO · ROSE, riga 6: togli Miranda J. (lascia vuota); riga 32: scrivi Davis K., costo 40 (a Valerio il secondo numero era 10)' in testo
+            assert 'VALERIO | Scarto (+1) di RAMON' in testo and 'VALERIO | Acquisto (-2) di BORRELLI' in testo
+            assert '[GIUSEPPE] --- [MASSIMO] | Cessione: [VIERY]' in testo
+            assert await pg.locator('[data-op-annulla]').count() == 1
+            await pg.click('[data-op-annulla]'); await pg.wait_for_timeout(400)
+            assert 'Viery torna da Massimo a Giuseppe' in await pg.inner_text('.sheet')
+            await pg.click('.sheet [data-act="go"]'); await pg.wait_for_timeout(3000)
+            mo = rose_modello()
+            assert mo['rose']['MASSIMO']['5'][0] == '' and mo['rose']['GIUSEPPE']['14'][:2] == ['Viery', 1]
+            print('  annullata la cessione: Viery di nuovo a Giuseppe nel modello')
+            # «È già nel file» per lo svincolo di Ramon
+            n0 = await pg.locator('.tag:has-text("da riportare")').count()
+            await pg.click('.op:has-text("Ramon") [data-op-riportata]'); await pg.wait_for_timeout(1200)
+            assert await pg.locator('.tag:has-text("da riportare")').count() == n0 - 1 and await pg.locator('.op:has-text("Ramon") .tag.ok').count() == 1
+            # Massimo ha ora 28 giocatori, 7 attaccanti: un attaccante in più non passa
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(1000)
+            await compra('team-Massimo', 'Bobcek', 1)
+            sim = (await pg.inner_text('#opSim')).replace(chr(10), ' ')
+            assert 'attaccanti 8 (massimo 7)' in sim and await pg.is_disabled('[data-opx="conferma"]'), sim
+            await pg.click('[data-opx="svuota"]'); await pg.wait_for_timeout(200)
+            assert await pg.locator('.mov').count() == 0 and 'Nuova operazione' in await pg.inner_text('.schede')
+        await apri(pw, {'ADMIN': '1', 'FORMAZIONI': FORMAZIONI}, s17, '17 mercato: operazioni composte')
+
+        # 18) il database senza 13_mercato_operazioni.sql: niente operazioni nuove, il resto va
+        async def s18(pg):
+            await login(pg)
+            await pg.goto(BASE + '#/mercato/nuova'); await pg.wait_for_timeout(1000)
+            t = await pg.inner_text('#view')
+            assert '13_mercato_operazioni.sql' in t and await pg.locator('#opBuilder').count() == 0, t[:200]
+            await pg.goto(BASE + '#/mercato/operazioni'); await pg.wait_for_timeout(800)
+            assert 'Ancora nessuna operazione' in await pg.inner_text('#view')
+            print('  senza 13: avviso, le operazioni si vedono')
+        await apri(pw, {'ADMIN': '1', 'NOOP13': '1'}, s18, '18 mercato: database senza 13')
 
 asyncio.run(main())

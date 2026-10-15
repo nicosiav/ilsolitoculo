@@ -507,7 +507,9 @@ a.chip { text-decoration: none; display: inline-block; }
 
 /* mercato: l'operazione dell'amministratore */
 .op-form { display: grid; gap: 10px; }
-.op-form > label, .due-campi label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.op-form > label, .due-campi label { display: grid; gap: 4px; align-content: start; font-size: 13px; font-weight: 600; }
+/* i due campi affiancati alla stessa altezza, anche se uno ha la nota sotto */
+.due-campi select, .due-campi input { height: 40px; padding-block: 0; }
 .op-form label small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
 .due-campi { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .mercato > *, .op-form > *, .due-campi > * { min-width: 0; }
@@ -543,6 +545,59 @@ a.chip { text-decoration: none; display: inline-block; }
 .tag.ok { background: color-mix(in srgb, var(--ok) 14%, var(--surface)); color: var(--ok); }
 .tag.no { background: var(--surface-2); color: var(--muted); }
 .riep { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
+.riep ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 3px; font-size: 12.5px; }
+.io.out { color: var(--ko); }
+.tbl.svinc tbody tr.preso td { background: color-mix(in srgb, var(--ok) 11%, transparent); }
+
+/* mercato: l'operazione in costruzione (svincoli, acquisti, cessioni, crediti) */
+.op-corso {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px;
+  border-radius: 14px; background: var(--warn-bg); color: var(--warn-ink); text-decoration: none; font-size: 14px;
+}
+#opBuilder .group-h { padding-bottom: 0; }
+.mov {
+  display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) auto; grid-template-areas: "io b who x" "ctl ctl ctl ctl";
+  gap: 6px 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px;
+}
+.mov > .io { grid-area: io; }
+.mov > .badge { grid-area: b; }
+.mov > .who { grid-area: who; min-width: 0; }
+.mov > .who b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mov > .who span { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mov > .x { grid-area: x; }
+.mov > .ctl { grid-area: ctl; display: flex; align-items: end; justify-content: flex-end; gap: 8px; min-width: 0; }
+.mov .ctl > select { flex: 1 1 auto; min-width: 0; }
+.mov.cr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "io x" "ctl ctl"; }
+.mov.cr .ctl { flex-wrap: wrap; justify-content: flex-start; }
+.mov.cr .ctl > select { flex: 1 1 110px; }
+.mov .freccia { color: var(--muted); padding-bottom: 9px; }
+.costo { display: grid; gap: 2px; flex: 0 0 104px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.mov select, .mov input, .mov-add select, .mov-add input, .nota-op input {
+  width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface-2); color: var(--ink); font: inherit; font-size: 14px;
+}
+.x {
+  width: 32px; height: 32px; border: 0; border-radius: 999px; background: var(--surface-2); color: var(--muted);
+  font-size: 19px; line-height: 1; cursor: pointer;
+}
+.mov-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.mov-add > select, .mov-add > input { flex: 1 1 140px; }
+.mov-add > .btn { flex: none; padding-block: 8px; }
+.trovati { display: flex; flex-wrap: wrap; gap: 6px; }
+.trovati .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.trovati .chip > span:not(.badge) { color: var(--muted); font-size: 12px; }
+.nota-op { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.sims { display: grid; gap: 6px; }
+.sim { display: grid; gap: 2px; padding: 8px 12px; border-radius: 12px; background: var(--surface-2); font-size: 13px; }
+.sim > b { font: 700 14px/1.2 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.sim.ko { background: color-mix(in srgb, var(--ko) 10%, var(--surface)); }
+.sim .pr { color: var(--ko); font-weight: 600; }
+.op-azioni { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+@media (min-width: 720px) {
+  .mov { grid-template-columns: 44px 20px minmax(0, 1fr) minmax(0, 320px) auto; grid-template-areas: "io b who ctl x"; }
+  .mov.cr { grid-template-columns: 64px minmax(0, 1fr) auto; grid-template-areas: "io ctl x"; }
+  .mov.cr .ctl { flex-wrap: nowrap; }
+}
 
 /* i numeri di un giocatore nel foglio: quattro per riga anche al telefono */
 .tiles.compatti { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }

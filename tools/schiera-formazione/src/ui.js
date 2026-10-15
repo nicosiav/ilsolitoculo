@@ -702,7 +702,7 @@
   }
 
   // "La tua formazione ha un posto vuoto: Contini è stato svincolato."
-  const PERCHE = { svincolato: 'è stato svincolato', 'fuori rosa': 'non è più in rosa', annullata: 'non è più in rosa (operazione di mercato annullata)' };
+  const PERCHE = { svincolato: 'è stato svincolato', ceduto: 'è stato ceduto a un’altra squadra', 'fuori rosa': 'non è più in rosa', annullata: 'non è più in rosa (operazione di mercato annullata)' };
   function testoVuoti() {
     const n = S.vuoti.length;
     const chi = S.vuoti.map(v => v.nome + ' ' + (PERCHE[v.motivo] || PERCHE['fuori rosa'])).join('; ');

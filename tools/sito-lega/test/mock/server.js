@@ -71,8 +71,10 @@ const scorers = [].concat.apply([], dati.gol_reali.map(g => g.giocatori.map(p =>
   ({ round: dati.giornata, team_id: idOf(g.squadra), nome: p.nome, gol: p.totali, gol_sfruttati: p.sfruttati }))))
   .sort((a, b) => b.gol - a.gol);
 const roster_costs = dati.rose.map(r => ({ team_id: idOf(r.squadra), slot: r.slot, nome: r.nome, costo: r.costo, valore: r.valore }));
+// il ruolo viene dalla riga di ROSE: P 1–4, D 5–14, C 15–24, A 25–31
+const ruoloDi = slot => slot <= 4 ? 'P' : slot <= 14 ? 'D' : slot <= 24 ? 'C' : 'A';
 const players = dati.rose.map(r => ({ id: 'pl-' + idOf(r.squadra) + '-' + r.slot, team_id: idOf(r.squadra), slot: r.slot, name: r.nome, club: null,
-  role: (dati.voti.find(v => v.nome === r.nome && idOf(v.squadra) === idOf(r.squadra)) || {}).ruolo || 'C' }));
+  role: ruoloDi(r.slot) }));
 const player_votes = dati.voti.map(v => ({ round: dati.giornata, team_id: idOf(v.squadra), nome: v.nome, ruolo: v.ruolo, voto: v.voto, fantavoto: v.fantavoto }));
 // Le giornate prima di quella del file: voti e formazioni inventati (sempre gli stessi) partendo
 // da quelli veri, così le statistiche hanno più di una giornata. NOSTORICO per farne a meno.
@@ -122,22 +124,32 @@ if (FC) {
   });
 }
 
-// mercato (db/11_mercato.sql): il LISTONE del file e le operazioni. NOMERCATO = script non eseguito
+// mercato (db/11 e 13): il LISTONE del file e le operazioni composte (movimenti).
+// NOMERCATO = 11 non eseguito, NOOP13 = 13 non eseguito
 let listoneId = 0;
 const listone = (dati.listone || []).map(x => ({ id: ++listoneId, ruolo: x.ruolo, nome: x.nome, club: x.squadra || null, origine: 'file' }));
 const market_ops = [];
+const rosa_limiti = [
+  { ruolo: 'T', minimo: 22, massimo: 29, riga_da: 1, riga_a: 31 }, { ruolo: 'P', minimo: 3, massimo: 4, riga_da: 1, riga_a: 4 },
+  { ruolo: 'D', minimo: 7, massimo: 10, riga_da: 5, riga_a: 14 }, { ruolo: 'C', minimo: 7, massimo: 10, riga_da: 15, riga_a: 24 },
+  { ruolo: 'A', minimo: 5, massimo: 7, riga_da: 25, riga_a: 31 }];
 let modello = null;                         // il modello .xls caricato dal sito (dopo un'operazione)
 const MODELLO = process.env.FORMAZIONI || '/home/claude/Formazioni.xls';
 const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const aperte = () => market_ops.filter(o => !o.annullata_at && !o.riportata_at);
+// quanto spende ogni squadra nelle operazioni non ancora nel file (come mercato_spesa)
+const spesaDi = (id, ops) => (ops || aperte()).reduce((a, o) => a + o.market_moves.reduce((b, v) =>
+  b + ((v.tipo === 'svincolo' || v.tipo === 'crediti') && v.team_da === id ? v.costo : 0)
+    + (v.tipo === 'acquisto' && v.team_a === id ? v.costo : 0) - (v.tipo === 'crediti' && v.team_a === id ? v.costo : 0), 0), 0);
 const creditiDi = id => {
   const ts = team_season.find(t => t.team_id === id);
-  if (!ts || ts.crediti == null) return null;
-  return ts.crediti - market_ops.filter(o => o.team_id === id && !o.annullata_at && !o.riportata_at)
-    .reduce((a, o) => a + o.costo_svincolo + o.costo_acquisto, 0);
+  return !ts || ts.crediti == null ? null : ts.crediti - spesaDi(id);
 };
+const RUOLI_PL = { T: 'giocatori', P: 'portieri', D: 'difensori', C: 'centrocampisti', A: 'attaccanti' };
+const nomeSq = id => (teams.find(t => t.id === id) || {}).name;
 const errore = (res, code, message) => json(res, 400, { code, message });
 
-const TAB = { teams, rounds, matches, round_teams, standings, team_season, scorers, roster_costs, players, player_votes, player_stats, albo, fc_stats, fc_stats_meta, listone, market_ops };
+const TAB = { teams, rounds, matches, round_teams, standings, team_season, scorers, roster_costs, players, player_votes, player_stats, albo, fc_stats, fc_stats_meta, listone, market_ops, rosa_limiti };
 
 // filtri PostgREST minimi: eq, lt, is, in
 function filtra(righe, q) {
@@ -230,50 +242,131 @@ http.createServer((req, res) => {
       res.writeHead(200, { 'content-type': 'application/vnd.ms-excel', 'access-control-allow-origin': '*' });
       return res.end(modello || fs.readFileSync(MODELLO));
     }
+    if (process.env.NOOP13 && (['/rest/v1/rpc/mercato_operazione', '/rest/v1/rpc/mercato_riportata'].includes(p) || (m && m[1] === 'rosa_limiti'))) {
+      return json(res, 404, m && !p.includes('/rpc/') ? { code: 'PGRST205', message: "Could not find the table 'public." + m[1] + "' in the schema cache" }
+        : { code: 'PGRST202', message: 'Could not find the function in the schema cache' });
+    }
+    if (process.env.NOOP13 && m && m[1] === 'market_ops' && String(q.select || '').includes('market_moves')) {
+      return json(res, 400, { code: 'PGRST200', message: "Could not find a relationship between 'market_ops' and 'market_moves' in the schema cache" });
+    }
     if (p === '/rest/v1/rpc/mercato_crediti') {
       return json(res, 200, teams.map(t => ({ team_id: t.id, crediti: creditiDi(t.id), dal_file: (team_season.find(x => x.team_id === t.id) || {}).crediti, round: dati.giornata,
-        in_sospeso: market_ops.filter(o => o.team_id === t.id && !o.annullata_at && !o.riportata_at).length })));
+        in_sospeso: aperte().filter(o => o.market_moves.some(v => v.team_da === t.id || v.team_a === t.id)).length })));
     }
-    if (p === '/rest/v1/rpc/mercato_sostituisci') {
+    if (p === '/rest/v1/rpc/mercato_operazione') {
       if (!process.env.ADMIN) return errore(res, 'P0005', "Solo l'amministratore può fare operazioni di mercato");
-      const pe = players.find(x => x.id === b.p_esce), li = listone.find(x => x.id === b.p_entra);
-      if (!pe || pe.slot == null) return errore(res, 'P0010', 'Il giocatore da svincolare non è più in rosa');
-      if (!li) return errore(res, 'P0011', 'Il giocatore da prendere non è più fra gli svincolati');
-      if (li.ruolo !== pe.role) return errore(res, 'P0012', `Ruoli diversi: ${pe.name} è ${pe.role}, ${li.nome} è ${li.ruolo}`);
-      if (b.p_costo_acquisto < 0) return errore(res, 'P0013', "Il costo dell'acquisto non può essere negativo");
-      const cr = creditiDi(pe.team_id), tot = (b.p_costo_svincolo || 0) + (b.p_costo_acquisto || 0);
-      if (cr != null && cr - tot < 0) return errore(res, 'P0014', `Crediti insufficienti: ne ha ${cr}, l'operazione ne costa ${tot}`);
-      const rc = roster_costs.find(x => x.team_id === pe.team_id && x.slot === pe.slot);
-      const slot = pe.slot;
-      pe.slot = null; pe.fuori_rosa_at = new Date().toISOString();
-      const nuovo = { id: 'pl-nuovo-' + (market_ops.length + 1), team_id: pe.team_id, slot, role: pe.role, name: li.nome, club: li.club };
-      players.push(nuovo);
-      listone.splice(listone.indexOf(li), 1);
-      listone.push({ id: ++listoneId, ruolo: pe.role, nome: pe.name, club: pe.club, origine: 'svincolo' });
-      if (rc) Object.assign(rc, { nome: li.nome, costo: b.p_costo_acquisto, valore: null });
-      const op = { id: market_ops.length + 1, at: new Date().toISOString(), team_id: pe.team_id, slot, ruolo: pe.role,
-        esce_id: pe.id, esce_nome: pe.name, esce_club: pe.club, esce_costo: rc && norm(rc.nome) === norm(li.nome) ? b.p_costo_acquisto : (rc ? rc.costo : null), esce_valore: null,
-        entra_id: nuovo.id, entra_nome: li.nome, entra_club: li.club, costo_svincolo: b.p_costo_svincolo || 0, costo_acquisto: b.p_costo_acquisto || 0,
-        crediti_prima: cr, crediti_dopo: cr == null ? null : cr - tot, note: b.p_note || null,
-        formazioni: process.env.PRELOAD && pe.team_id === 'team-Valerio' ? [{ team_id: pe.team_id, matchday: 7, pos: 12 }] : [],
-        modello_at: null, riportata_at: null, riportata_round: null, annullata_at: null };
-      market_ops.unshift(op);
-      fs.writeFileSync('/tmp/mercato_op.json', JSON.stringify(op));
-      return json(res, 200, { id: op.id, entra_id: nuovo.id, crediti_prima: cr, crediti_dopo: op.crediti_dopo, formazioni: op.formazioni });
+      const op = b.p || {}, mov = [];
+      fs.writeFileSync('/tmp/mercato_richiesta.json', JSON.stringify(op));
+      const rc = pl => roster_costs.find(x => x.team_id === pl.team_id && x.slot === pl.slot && norm(x.nome) === norm(pl.name)) || {};
+      for (const e of op.svincoli || []) {
+        const pl = players.find(x => x.id === e.player_id);
+        if (!pl || pl.slot == null) return errore(res, 'P0010', 'Un giocatore da svincolare non è più in rosa');
+        mov.push({ tipo: 'svincolo', pl, ruolo: pl.role, nome: pl.name, club: pl.club, team_da: pl.team_id, slot_da: pl.slot, da_id: pl.id,
+          costo: Math.round(e.costo || 0), costo_prima: rc(pl).costo, valore_prima: rc(pl).valore });
+      }
+      for (const e of op.cessioni || []) {
+        const pl = players.find(x => x.id === e.player_id);
+        if (!pl || pl.slot == null) return errore(res, 'P0010', 'Un giocatore da cedere non è più in rosa');
+        if (!teams.some(t => t.id === e.team_id)) return errore(res, 'P0016', `Cessione di ${pl.name}: squadra di arrivo non trovata`);
+        if (e.team_id === pl.team_id) return errore(res, 'P0016', `${pl.name} è già di quella squadra`);
+        const c = rc(pl);
+        mov.push({ tipo: 'cessione', pl, ruolo: pl.role, nome: pl.name, club: pl.club, team_da: pl.team_id, team_a: e.team_id, slot_da: pl.slot, da_id: pl.id,
+          costo: e.costo != null ? e.costo : (c.costo != null ? c.costo : 0), valore: c.valore, costo_prima: c.costo, valore_prima: c.valore });
+      }
+      for (const e of op.acquisti || []) {
+        const li = listone.find(x => x.id === e.listone_id);
+        if (!li) return errore(res, 'P0011', 'Un giocatore da prendere non è più fra gli svincolati');
+        if (!teams.some(t => t.id === e.team_id)) return errore(res, 'P0016', `Acquisto di ${li.nome}: squadra non trovata`);
+        if ((e.costo || 0) < 0) return errore(res, 'P0013', `Il costo dell'acquisto di ${li.nome} non può essere negativo`);
+        mov.push({ tipo: 'acquisto', li, ruolo: li.ruolo, nome: li.nome, club: li.club, team_a: e.team_id, costo: Math.round(e.costo || 0) });
+      }
+      for (const e of op.crediti || []) {
+        if (!e.da || !e.a || e.da === e.a || !(e.crediti > 0)) return errore(res, 'P0016', 'Passaggio di crediti non valido: servono due squadre diverse e almeno un credito');
+        mov.push({ tipo: 'crediti', team_da: e.da, team_a: e.a, costo: Math.round(e.crediti) });
+      }
+      if (!mov.length) return errore(res, 'P0016', "L'operazione è vuota");
+      const visti = new Set(), doppi = [];
+      mov.filter(v => v.pl || v.li).forEach(v => { const k = v.pl ? v.pl.id : 'l' + v.li.id; if (visti.has(k)) doppi.push(v.nome); visti.add(k); });
+      if (doppi.length) return errore(res, 'P0016', 'Nella stessa operazione due volte: ' + doppi.join(', '));
+      // limiti delle rose alla fine
+      const delta = {};
+      const d = (t, r, n) => { delta[t] = delta[t] || { P: 0, D: 0, C: 0, A: 0 }; delta[t][r] += n; };
+      mov.forEach(v => { if (v.tipo === 'svincolo' || v.tipo === 'cessione') d(v.team_da, v.ruolo, -1); if (v.tipo === 'acquisto' || v.tipo === 'cessione') d(v.team_a, v.ruolo, 1); });
+      const fuori = Object.keys(delta).sort((x, y) => nomeSq(x).localeCompare(nomeSq(y))).map(t => {
+        const n = { P: 0, D: 0, C: 0, A: 0 };
+        players.filter(x => x.team_id === t && x.slot != null).forEach(x => n[x.role]++);
+        Object.keys(n).forEach(r => { n[r] += delta[t][r]; });
+        n.T = n.P + n.D + n.C + n.A;
+        const pr = ['T', 'P', 'D', 'C', 'A'].map(r => { const l = rosa_limiti.find(y => y.ruolo === r);
+          return n[r] < l.minimo ? `${RUOLI_PL[r]} ${n[r]} (minimo ${l.minimo})` : n[r] > l.massimo ? `${RUOLI_PL[r]} ${n[r]} (massimo ${l.massimo})` : null; }).filter(Boolean);
+        return pr.length ? nomeSq(t) + ': ' + pr.join(', ') : null;
+      }).filter(Boolean);
+      if (fuori.length) return errore(res, 'P0017', 'Limiti della rosa: ' + fuori.join('; '));
+      // crediti
+      const tocca = [...new Set(mov.map(v => v.team_da).concat(mov.map(v => v.team_a)).filter(Boolean))].sort((x, y) => nomeSq(x).localeCompare(nomeSq(y)));
+      const finta = [{ market_moves: mov }];
+      const crediti = tocca.map(t => { const pr = creditiDi(t); return { team_id: t, prima: pr, dopo: pr == null ? null : pr - spesaDi(t, finta) }; });
+      const neg = crediti.filter(c => c.dopo != null && c.dopo < 0);
+      if (neg.length) return errore(res, 'P0014', 'Crediti insufficienti: ' + neg.map(c => `${nomeSq(c.team_id)} ne ha ${c.prima}, l'operazione gliene toglie ${c.prima - c.dopo}`).join('; '));
+      // fatto: chi esce, poi chi entra
+      const id = market_ops.length + 1, ora = new Date().toISOString(), formazioni = [];
+      mov.forEach((v, i) => { v.n = i + 1; });
+      mov.filter(v => v.tipo === 'svincolo' || v.tipo === 'cessione').forEach(v => {
+        v.pl.slot = null; v.pl.fuori_rosa_at = ora;
+        const k = roster_costs.findIndex(x => x.team_id === v.team_da && x.slot === v.slot_da); if (k >= 0) roster_costs.splice(k, 1);
+        v.formazioni = process.env.PRELOAD && v.team_da === 'team-Valerio' ? [{ team_id: v.team_da, matchday: 7, pos: 12, nome: v.nome }] : [];
+        formazioni.push(...v.formazioni);
+        if (v.tipo === 'svincolo') listone.push({ id: ++listoneId, ruolo: v.ruolo, nome: v.nome, club: v.club, origine: 'svincolo' });
+      });
+      mov.filter(v => v.tipo === 'acquisto' || v.tipo === 'cessione').forEach(v => {
+        const l = rosa_limiti.find(y => y.ruolo === v.ruolo);
+        const libero = s => !players.some(x => x.team_id === v.team_a && x.slot === s);
+        const via = mov.find(w => (w.tipo === 'svincolo' || w.tipo === 'cessione') && w.team_da === v.team_a && w.ruolo === v.ruolo && libero(w.slot_da));
+        let slot = via ? via.slot_da : null;
+        for (let s = l.riga_da; slot == null && s <= l.riga_a; s++) if (libero(s)) slot = s;
+        const nuovo = { id: 'pl-nuovo-' + id + '-' + v.n, team_id: v.team_a, slot, role: v.ruolo, name: v.nome, club: v.club || null };
+        players.push(nuovo);
+        roster_costs.push({ team_id: v.team_a, slot, nome: v.nome, costo: v.costo, valore: v.tipo === 'cessione' ? v.valore : null });
+        if (v.tipo === 'acquisto') listone.splice(listone.indexOf(v.li), 1);
+        v.slot_a = slot; v.a_id = nuovo.id;
+      });
+      const moves = mov.map(v => ({ id: id * 100 + v.n, op_id: id, n: v.n, tipo: v.tipo, ruolo: v.ruolo || null, nome: v.nome || null, club: v.club || null,
+        team_da: v.team_da || null, team_a: v.team_a || null, slot_da: v.slot_da != null ? v.slot_da : null, slot_a: v.slot_a != null ? v.slot_a : null,
+        da_id: v.da_id || null, a_id: v.a_id || null, costo: v.costo, valore: v.valore != null ? v.valore : null,
+        costo_prima: v.costo_prima != null ? v.costo_prima : null, valore_prima: v.valore_prima != null ? v.valore_prima : null, formazioni: v.formazioni || null }));
+      const o = { id, at: ora, tipo: 'composta', crediti, note: op.note || null, formazioni: formazioni.length ? formazioni : null,
+        modello_at: null, riportata_at: null, riportata_round: null, annullata_at: null, market_moves: moves };
+      market_ops.unshift(o);
+      fs.writeFileSync('/tmp/mercato_op.json', JSON.stringify(o));
+      return json(res, 200, { id, movimenti: moves.length, crediti, formazioni,
+        righe: moves.map(v => ({ n: v.n, tipo: v.tipo, nome: v.nome, team_da: v.team_da, team_a: v.team_a, slot_da: v.slot_da, slot_a: v.slot_a })) });
     }
     if (p === '/rest/v1/rpc/mercato_annulla') {
-      if (!process.env.ADMIN) return errore(res, 'P0005', "Solo l'amministratore");
+      if (!process.env.ADMIN) return errore(res, 'P0005', "Solo l'amministratore può annullare le operazioni");
       const o = market_ops.find(x => x.id === b.p_op);
       if (!o || o.annullata_at) return errore(res, 'P0015', 'Operazione non trovata o già annullata');
       if (market_ops.some(x => x.id > o.id && !x.annullata_at)) return errore(res, 'P0015', "Si può annullare solo l'ultima operazione");
       if (o.riportata_at) return errore(res, 'P0015', "È già nel file di giornata: per tornare indietro fai l'operazione inversa");
-      players.splice(players.findIndex(x => x.id === o.entra_id), 1);
-      const pe = players.find(x => x.id === o.esce_id); pe.slot = o.slot; pe.fuori_rosa_at = null;
-      const li = listone.findIndex(x => norm(x.nome) === norm(o.esce_nome)); if (li >= 0) listone.splice(li, 1);
-      listone.push({ id: ++listoneId, ruolo: o.ruolo, nome: o.entra_nome, club: o.entra_club, origine: 'file' });
-      const rc = roster_costs.find(x => x.team_id === o.team_id && x.slot === o.slot); if (rc) Object.assign(rc, { nome: o.esce_nome, costo: o.esce_costo });
+      const mv = o.market_moves;
+      mv.filter(v => v.tipo === 'acquisto' || v.tipo === 'cessione').forEach(v => {
+        const k = players.findIndex(x => x.id === v.a_id); if (k >= 0) players.splice(k, 1);
+        const c = roster_costs.findIndex(x => x.team_id === v.team_a && x.slot === v.slot_a); if (c >= 0) roster_costs.splice(c, 1);
+        if (v.tipo === 'acquisto') listone.push({ id: ++listoneId, ruolo: v.ruolo, nome: v.nome, club: v.club, origine: 'file' });
+      });
+      mv.filter(v => v.tipo === 'svincolo' || v.tipo === 'cessione').forEach(v => {
+        const pl = players.find(x => x.id === v.da_id); pl.slot = v.slot_da; pl.fuori_rosa_at = null;
+        roster_costs.push({ team_id: v.team_da, slot: v.slot_da, nome: v.nome, costo: v.costo_prima, valore: v.valore_prima });
+        if (v.tipo === 'svincolo') { const k = listone.findIndex(x => norm(x.nome) === norm(v.nome)); if (k >= 0) listone.splice(k, 1); }
+      });
       o.annullata_at = new Date().toISOString();
-      return json(res, 200, { id: o.id, formazioni: o.formazioni });
+      return json(res, 200, { id: o.id, formazioni: o.formazioni, rimessi: 0 });
+    }
+    if (p === '/rest/v1/rpc/mercato_riportata') {
+      if (!process.env.ADMIN) return errore(res, 'P0005', "Solo l'amministratore");
+      const o = market_ops.find(x => x.id === b.p_op);
+      if (!o || o.annullata_at) return errore(res, 'P0015', 'Operazione non trovata o annullata');
+      o.riportata_at = o.riportata_at || new Date().toISOString(); o.riportata_round = o.riportata_round || dati.giornata;
+      return json(res, 200, { id: o.id });
     }
     if (p === '/rest/v1/rpc/mercato_modello') {
       const o = market_ops.find(x => x.id === b.p_op); if (o) o.modello_at = b.p_ok ? new Date().toISOString() : null;
@@ -286,23 +379,35 @@ http.createServer((req, res) => {
         listone.length = 0;
         b.p_listone.forEach(x => listone.push({ id: ++listoneId, ruolo: x.ruolo, nome: x.nome, club: x.squadra || null, origine: 'file' }));
       }
+      const rose = b.p_rose || [];
+      const nelFile = (t, s, n) => rose.some(r => idOf(r.squadra) === t && r.slot === s && norm(r.nome) === norm(n));
       let riportate = 0;
-      market_ops.filter(o => !o.annullata_at && !o.riportata_at).forEach(o => {
-        if ((b.p_rose || []).some(r => idOf(r.squadra) === o.team_id && r.slot === o.slot && norm(r.nome) === norm(o.entra_nome))) {
+      aperte().forEach(o => {
+        const mv = o.market_moves;
+        if (rose.length && mv.some(v => v.tipo !== 'crediti') &&
+            mv.filter(v => v.tipo === 'acquisto' || v.tipo === 'cessione').every(v => nelFile(v.team_a, v.slot_a, v.nome)) &&
+            !mv.filter(v => v.tipo === 'svincolo' || v.tipo === 'cessione').some(v => nelFile(v.team_da, v.slot_da, v.nome))) {
           o.riportata_at = new Date().toISOString(); o.riportata_round = b.p_round; riportate++;
-        } else if (!listone.some(l => norm(l.nome) === norm(o.esce_nome))) {
-          listone.push({ id: ++listoneId, ruolo: o.ruolo, nome: o.esce_nome, club: o.esce_club, origine: 'svincolo' });
         }
       });
+      aperte().forEach(o => o.market_moves.filter(v => v.tipo === 'svincolo').forEach(v => {
+        if (!listone.some(l => norm(l.nome) === norm(v.nome)) && !players.some(x => x.slot != null && norm(x.name) === norm(v.nome)))
+          listone.push({ id: ++listoneId, ruolo: v.ruolo, nome: v.nome, club: v.club, origine: 'svincolo' });
+      }));
       const differenze = [];
-      (b.p_rose || []).forEach(r => {
+      rose.forEach(r => {
         const t = idOf(r.squadra), sul = players.find(x => x.team_id === t && x.slot === r.slot);
         if (t && norm(sul && sul.name) !== norm(r.nome)) {
-          const op = market_ops.find(o => !o.annullata_at && !o.riportata_at && o.team_id === t && o.slot === r.slot);
+          const op = aperte().find(o => o.market_moves.some(v => (v.team_a === t && v.slot_a === r.slot) || (v.team_da === t && v.slot_da === r.slot)));
           differenze.push({ team_id: t, slot: r.slot, nel_file: r.nome, sul_sito: sul ? sul.name : null, operazione: op ? op.id : null });
         }
       });
-      return json(res, 200, { listone: listone.length, riportate, in_sospeso: market_ops.filter(o => !o.annullata_at && !o.riportata_at).length, differenze });
+      // posti occupati sul sito e vuoti nel file
+      players.filter(x => x.slot != null && !rose.some(r => idOf(r.squadra) === x.team_id && r.slot === x.slot)).forEach(x => {
+        const op = aperte().find(o => o.market_moves.some(v => v.team_a === x.team_id && v.slot_a === x.slot));
+        differenze.push({ team_id: x.team_id, slot: x.slot, nel_file: null, sul_sito: x.name, operazione: op ? op.id : null });
+      });
+      return json(res, 200, { listone: listone.length, riportate, in_sospeso: aperte().length, differenze });
     }
     if (m && TAB[m[1]]) {
       let righe = filtra(TAB[m[1]], q);

@@ -1127,10 +1127,12 @@
     let bytes = modelli.size ? cfbReplaceStream(book.cfb, book.ent, serialize(book, [...modelli.values()])) : null;
     let b2 = bytes ? openWorkbook(bytes) : book;
     const daScrivere = [];
+    // ricalcola: nomi di fogli squadra (righe 1–31, colonne A–G) o {foglio, r0, r1, c0, c1}
     for (const n of ricalcola || []) {
-      const m = buildSheet(b2, sheetByName(b2, n));
+      const z = typeof n === 'string' ? { foglio: n, r0: 0, r1: 31, c0: 0, c1: 7 } : n;
+      const m = buildSheet(b2, sheetByName(b2, z.foglio));
       let cambiato = false;
-      for (let r = 0; r < 31; r++) for (let c = 0; c < 7; c++) {
+      for (let r = z.r0; r < z.r1; r++) for (let c = z.c0; c < z.c1; c++) {
         const cell = m.idx.get(key(r, c));
         if (!cell || cell.sid !== SID.FORMULA) continue;
         const f = freshValue(m, r, c);
