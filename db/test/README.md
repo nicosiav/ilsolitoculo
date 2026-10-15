@@ -42,6 +42,20 @@ dell'amministratore (senza blocchi, nel log con autore e nota) e i permessi dell
 funzioni interne. Ogni controllo è un `ASSERT` o un rifiuto atteso con il suo
 codice: se qualcosa non torna lo script si ferma.
 
+`05_prova_operazioni.sql` prova `13_mercato_operazioni.sql` (database con 00 e
+db/01..13 senza 03, 07, 09; stessi tre file JSON di 03, `-v dir=CARTELLA`): i
+limiti delle rose (totale e reparti, sul risultato e solo per le squadre toccate),
+i rifiuti (giocatore non in rosa o due volte, svincolato già preso, costo negativo,
+cessione alla propria squadra, crediti fra la stessa squadra, operazione vuota,
+crediti sotto zero, limiti), lo svincolo senza acquisto con rimborso, l'acquisto in
+un altro ruolo nella riga giusta, lo scambio difensore↔attaccante con crediti (il
+costo resta il suo, il ceduto esce dalla formazione salvata con il motivo
+«ceduto»), la cessione senza contropartita, i passaggi di crediti, l'annullamento a
+ritroso (formazione compresa), il file di giornata che riconosce le operazioni
+riportate (non quelle di soli crediti), «È già nel file», le operazioni fatte con
+11 viste come movimenti e lo script rieseguibile. `03_prova_mercato.sql` passa
+anche con 13 (alla fine riesegue 11: dopo va rieseguito 13).
+
 `00_finto_supabase.sql` rifà le poche cose che su Supabase ci sono già
 (`auth.users`, `auth.uid()`, i ruoli, lo storage). `01_prova_regole.sql` crea
 due squadre, importa tre partite (una già giocata) e verifica che:

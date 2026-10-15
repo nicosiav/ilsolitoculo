@@ -70,37 +70,61 @@ Nel menu in alto a destra, oltre a **Carica la giornata** (qui sotto):
 
 ## Mercato
 
-In **Mercato → Svincolati** l'amministratore tocca un giocatore, sceglie la
-squadra e chi esce (solo giocatori dello stesso ruolo), scrive il costo dello
-svincolo (negativo se è un rimborso) e quello dell'acquisto, e vede i crediti
-prima e dopo. Alla conferma ([`db/11_mercato.sql`](../../db/11_mercato.sql),
-`mercato_sostituisci()`):
+L'amministratore mette insieme un'**operazione** in **Mercato → Nuova operazione**
+([`db/13_mercato_operazioni.sql`](../../db/13_mercato_operazioni.sql),
+`mercato_operazione()`): in una sola operazione, anche fra più squadre,
 
-- chi esce va fra gli svincolati; resta nel database senza posto, così le
-  formazioni passate lo mostrano ancora, ed esce dalle formazioni salvate delle
-  giornate non iniziate. Il posto resta vuoto (il nuovo non entra da solo) e la
-  squadra in Schiera vede l'avviso «La tua formazione ha un posto vuoto: X è stato
-  svincolato», lo stato «da rifare» e il pallino rosso, finché non la salva di
-  nuovo; anche in Giornata → Formazioni risulta «da rifare»;
-- chi entra prende il suo posto in rosa, e quindi in Schiera, con la squadra di
-  Serie A del LISTONE;
-- i crediti scendono, e il costo dell'acquisto diventa il suo costo in rosa;
+- **svincoli**: chi esce, con il costo dello svincolo scritto a mano (negativo se
+  è un rimborso), anche senza nessun acquisto in cambio;
+- **acquisti dagli svincolati**, in qualsiasi ruolo (si cercano per nome lì, o si
+  toccano in Mercato → Svincolati → «Aggiungi all'operazione»), con la squadra e il
+  costo, che diventa il costo in rosa;
+- **cessioni fra squadre**, senza vincoli di reparto: uno scambio sono due
+  cessioni, una per verso, e una cessione da sola dà un giocatore senza riceverne
+  uno. Il costo in rosa resta il suo, ma si può cambiare;
+- **passaggi di crediti** da una squadra all'altra.
+
+Sotto, «Dopo l'operazione» mostra per ogni squadra toccata la rosa prima e dopo
+(totale e reparti) e i crediti: limiti delle rose (da 22 a 29 giocatori; portieri
+3–4, difensori 7–10, centrocampisti 7–10, attaccanti 5–7, nella tabella
+`rosa_limiti`) e crediti si controllano sul risultato, e se qualcosa non torna
+**Conferma l'operazione** resta spenta (il database rifà gli stessi controlli).
+L'operazione in costruzione resta finché non si conferma o si svuota.
+
+Alla conferma:
+
+- chi esce va fra gli svincolati (o nella squadra nuova, se ceduto); resta nel
+  database senza posto, così le formazioni passate lo mostrano ancora, ed esce
+  dalle formazioni salvate delle giornate non iniziate. La squadra in Schiera vede
+  l'avviso «La tua formazione ha un posto vuoto: X è stato svincolato» (o «è stato
+  ceduto a un'altra squadra»), lo stato «da rifare» e il pallino rosso, finché non
+  la salva di nuovo; anche in Giornata → Formazioni risulta «da rifare»;
+- chi entra prende la riga lasciata libera da chi esce dalla stessa squadra con lo
+  stesso ruolo, altrimenti la prima riga libera del suo ruolo (P 1–4, D 5–14,
+  C 15–24, A 25–31 del foglio ROSE, cioè posti 1–31);
 - il sito aggiorna il modello delle formazioni (`modelli/formazioni.xls`): nel
-  foglio ROSE nome, costo e crediti della squadra, nel LISTONE chi entra lascia il
-  posto a chi esce. I fogli squadra prendono i nomi da ROSE, così il file che
-  ognuno scarica da Schiera ha già il nuovo giocatore.
+  foglio ROSE nome, costo e crediti delle squadre toccate (il "secondo numero" è una
+  formula della riga e si ricalcola dal costo), nel LISTONE chi è svincolato entra
+  e chi è preso esce. I fogli squadra prendono i nomi da ROSE, così il file che
+  ognuno scarica da Schiera ha già i giocatori nuovi.
 
-In **Mercato → Operazioni** ci sono tutte le operazioni (le vedono tutti) e, solo
-per l'amministratore, l'elenco di cosa riportare nel file di giornata (foglio
-ROSE, riga, nomi, costo, crediti; LISTONE), con **Copia l'elenco**. L'ultima
-operazione si annulla finché il file di giornata non l'ha recepita: chi era uscito
-torna anche nella formazione salvata, se il suo posto è ancora libero e la
-giornata non è iniziata.
+In **Mercato → Operazioni** ci sono tutte le operazioni con i loro movimenti (le
+vedono tutti) e, solo per l'amministratore, l'elenco di cosa riportare nel file di
+giornata: per ogni squadra le righe di ROSE da cambiare, i crediti, il LISTONE e le
+righe del registro MERCATO nel vostro formato («VALERIO | Scarto (+1) di RAMON»,
+«[VALERIO] --- [MASSIMO] | Scambio: [DAVIS K.] --- [MIRANDA J.] (+5 crediti a
+MASSIMO)»), con **Copia l'elenco**. L'ultima operazione si annulla finché il file
+di giornata non l'ha recepita: torna tutto com'era, anche nelle formazioni salvate
+se il posto è ancora libero e la giornata non è iniziata. **È già nel file** segna
+a mano un'operazione già riportata (serve per quelle di soli crediti).
 
 Quando carichi il file di giornata l'anteprima dice quali operazioni ci sono già
 e quali no; dopo il caricamento il LISTONE del file diventa la lista degli
 svincolati, le operazioni trovate nel foglio ROSE escono dall'elenco, i crediti si
 allineano e il sito segnala le rose diverse fra file e sito.
+
+Senza `13_mercato_operazioni.sql` il sito mostra le operazioni già fatte e chiede
+di eseguirlo per farne di nuove.
 
 ## Ogni settimana: carica la giornata
 

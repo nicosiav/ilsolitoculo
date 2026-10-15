@@ -99,13 +99,16 @@ if (wb.allSheets.includes('ROSE') && wb.allSheets.includes('LISTONE')) {
     const L = wb.grid('LISTONE');
     const nuovo = L.str(1, 1);
     const bytes = wb.modifica([
-      { foglio: 'ROSE', r: chi.row + 1, c: col, v: nuovo }, { foglio: 'ROSE', r: chi.row + 1, c: col + 1, v: 7 },
-      { foglio: 'ROSE', r: chi.row + 1, c: col + 2, v: null }, { foglio: 'ROSE', r: 0, c: col + 1, v: 41 },
+      { foglio: 'ROSE', r: chi.row + 1, c: col, v: nuovo }, { foglio: 'ROSE', r: chi.row + 1, c: col + 1, v: 60 },
+      { foglio: 'ROSE', r: 0, c: col + 1, v: 41 },
       { foglio: 'LISTONE', r: 1, c: 1, v: chi.name }
-    ], [sheet]);
+    ], [sheet, { foglio: 'ROSE', r0: 1, r1: 32, c0: 0, c1: 36 }]);
     const w2 = E.load(bytes);
     assert.strictEqual(w2.roster(sheet)[chi.row].name, nuovo, 'il foglio squadra non ha preso il nome nuovo');
     assert.strictEqual(w2.grid('ROSE').num(0, col + 1), 41);
+    // il "secondo numero" di ROSE è una formula della riga (costo diviso 3, 4 o 5): si ricalcola
+    const sec = w2.grid('ROSE').num(chi.row + 1, col + 2);
+    assert.ok([12, 15, 20].includes(sec), 'secondo numero non ricalcolato: ' + sec);
     assert.strictEqual(w2.grid('LISTONE').str(1, 1), chi.name);
     const c2 = I.openWorkbook(bytes);
     b1.sheets.filter(s => !['ROSE', 'LISTONE', sheet].includes(s.name)).forEach(s => {
@@ -116,6 +119,6 @@ if (wb.allSheets.includes('ROSE') && wb.allSheets.includes('LISTONE')) {
     // dal modello aggiornato si scarica ancora una formazione
     const n = Array(31).fill(null); n[chi.row] = 1;
     assert.strictEqual(w2.build(sheet, n).lineup[0].name, nuovo);
-    console.log('ok  mercato nel modello:', chi.name, '→', nuovo, 'nel foglio', sheet);
+    console.log('ok  mercato nel modello:', chi.name, '→', nuovo, 'nel foglio', sheet, '· secondo numero ricalcolato', sec);
   }
 }

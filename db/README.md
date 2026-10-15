@@ -100,11 +100,23 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
      rieseguito anche questo. Toglie anche all'app la possibilità di chiamare
      direttamente `togli_dalle_formazioni()` (la usano solo le funzioni
      dell'amministratore).
+   - `13_mercato_operazioni.sql` — le operazioni di mercato composte: in una
+     sola operazione svincoli (anche senza acquisto, costo a mano), acquisti in
+     qualsiasi ruolo, cessioni fra squadre (scambi senza vincoli di reparto) e
+     passaggi di crediti (`mercato_operazione()`, movimenti in `market_moves`),
+     con i limiti delle rose controllati sul risultato (`rosa_limiti`: da 22 a 29
+     giocatori, P 3–4, D 7–10, C 7–10, A 5–7) e i crediti che non vanno sotto
+     zero. Riscrive per i movimenti l'annullamento, i crediti di adesso e il
+     controllo del file di giornata, e aggiunge `mercato_riportata()` («È già nel
+     file»). Le operazioni fatte prima restano e si vedono come movimenti. Si può
+     rieseguire; va eseguito dopo `11_mercato.sql`, e se si riesegue l'11 poi va
+     rieseguito anche questo.
 3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
 4. Crea gli account dei partecipanti e collegali alle squadre: vedi
    [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.
-5. Esegui `05_admin.sql` e poi di nuovo `06_calendario.sql`, `11_mercato.sql` e
-   `12_scadenze.sql` (l'ordine conta: ognuno aggiorna le funzioni dei precedenti):
+5. Esegui `05_admin.sql` e poi di nuovo `06_calendario.sql`, `11_mercato.sql`,
+   `12_scadenze.sql` e `13_mercato_operazioni.sql` (l'ordine conta: ognuno
+   aggiorna le funzioni dei precedenti):
    ruolo `admin` agli amministratori e funzioni di amministrazione.
    Poi pubblica la funzione `sync-calendario` seguendo
    [`supabase/functions/README.md`](../supabase/functions/README.md) ed esegui
