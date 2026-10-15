@@ -76,7 +76,16 @@
   // chi è uscito dalla rosa resta nel database senza posto (per lo storico delle formazioni)
   const rose = () => carica('players', () =>
     forse('players', 'select=id,team_id,slot,role,name,club&slot=not.is.null&order=team_id,slot'));
-  const costi = () => carica('costi', () => forse('roster_costs', 'select=team_id,slot,nome,costo,valore'));
+  // costo in rosa, penale di svincolo (il "secondo numero" di ROSE) e anno di contratto
+  const costi = () => carica('costi', async () => {
+    try { return await SB.select('roster_costs', 'select=team_id,slot,nome,costo,valore,anno'); }
+    catch (e) { return forse('roster_costs', 'select=team_id,slot,nome,costo,valore'); }
+  });
+  // la penale di svincolo: il costo diviso 3, 4 o 5 al 1°, 2° o 3° anno di contratto
+  const penale = (costo, anno) => anno >= 1 && anno <= 3 && costo !== '' && costo != null && isFinite(+costo) ? Math.round(+costo / (anno + 2)) : null;
+  const annoEt = a => a ? a + '° anno' : '';
+  // "3° anno · penale 7", senza andare a capo dentro "3° anno" e "penale 7"
+  const contratto = c => [c && c.anno ? c.anno + '°\u00a0anno' : null, c && c.valore != null ? 'penale\u00a0' + n1(c.valore) : null].filter(Boolean).join(' · ');
   const statGiocatori = () => carica('pstats', () => forse('player_stats', 'select=*'));
   const marcatori = () => carica('scorers', async () => {
     const u = ultima();
@@ -748,18 +757,20 @@
         const sa = conA ? `<span class="val"><b>${a && a.pv ? n1(a.fm) : '—'}</b><span>${a ? (a.pv ? a.pv + ' pv · ' + n1(a.mv) : 'mai a voto') : 'non trovato'}</span></span>` : '';
         return `<div class="prow${conA ? ' quattro' : ''}">
           <span class="badge" data-r="${esc(p.role)}">${esc(p.role)}</span>
-          <span class="who"><b>${esc(p.name)}</b><span>${esc([p.club, c.costo != null ? n1(c.costo) + ' cr' : null].filter(Boolean).join(' · ') || 'squadra da assegnare')}</span></span>
+          <span class="who"><b>${esc(p.name)}</b><span>${esc([p.club, c.costo != null ? n1(c.costo) + ' cr' : null].filter(Boolean).join(' · ') || 'squadra da assegnare')}</span>${contratto(c) ? `<span class="contr">${esc(contratto(c))}</span>` : ''}</span>
           ${lega}${sa}
         </div>`;
       }).join('')}</div>`;
     }).join('');
     const testata = conA ? `<div class="prow quattro testata"><span></span><span></span><span class="val">Lega</span><span class="val">Serie A</span></div>` : '';
     const data = f.meta && f.meta.aggiornate_at ? new Date(f.meta.aggiornate_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' }) : '';
-    const fonte = conA
+    const contr = cs.some(x => x.team_id === scelta && x.anno)
+      ? '<p class="small muted" style="margin:0">Sotto ogni giocatore: costo in rosa, anno di contratto con la squadra e penale di svincolo (il costo diviso 3 al 1° anno, 4 al 2°, 5 al 3°).</p>' : '';
+    const fonte = (conA
       ? `<p class="small muted" style="margin:0"><b>Lega</b>: fantamedia, presenze e media voto nelle giornate della lega. <b>Serie A</b>: fantamedia (FM), partite a voto (pv) e media voto di tutto il campionato${data ? ', aggiornate al ' + esc(data) : ''}. Fonte: <a href="https://www.fantacalcio.it/statistiche-serie-a" target="_blank" rel="noopener">Fantacalcio.it</a>.</p>`
       : `<p class="small muted" style="margin:0">Fantamedia e presenze sono calcolate sulle giornate caricate.${isAdmin() ? (f.manca
           ? ' Per mostrare anche le medie di Serie A esegui db/10_fantacalcio.sql nel SQL Editor di Supabase, poi caricale dal menu.'
-          : ' Le medie di Serie A di Fantacalcio.it le carichi dal menu: "Carica le medie di Fantacalcio.it".') : ''}</p>`;
+          : ' Le medie di Serie A di Fantacalcio.it le carichi dal menu: "Carica le medie di Fantacalcio.it".') : ''}</p>`) + contr;
 
     return `<div class="card">
         <div class="sec-h"><h2>${esc(t ? bel(t.name) : '')}</h2><span>${miei.length} giocatori</span></div>
@@ -1657,7 +1668,7 @@
         <div class="due-campi">
           <label>Per la squadra<select data-op="team"><option value="">Scegli…</option>${S.teams.map(t =>
             `<option value="${t.id}"${gia && gia.team_id === t.id ? ' selected' : ''}>${esc(bel(t.name))}</option>`).join('')}</select></label>
-          <label>Costo dell’acquisto<input type="number" step="1" min="0" data-op="acquisto" value="${gia ? gia.costo : 0}"><small>diventa il costo in rosa</small></label>
+          <label>Costo dell’acquisto<input type="number" step="1" min="0" data-op="acquisto" value="${gia ? gia.costo : 0}"><small data-op="pen">diventa il costo in rosa · 1° anno di contratto, penale ${n1(penale(gia ? gia.costo : 0, 1))}</small></label>
         </div>
         <p class="small muted" style="margin:0">Va nell’operazione in corso (Mercato → ${nMov(S.op) ? 'Operazione' : 'Nuova operazione'}): lì aggiungi chi esce, in qualsiasi ruolo, e confermi.</p>
       </div>`;
@@ -1668,7 +1679,11 @@
         : '<button type="button" class="btn btn-primary" data-act="close">Chiudi</button>'}</div>`);
     if (!isAdmin()) return;
     const team = el.querySelector('[data-op="team"]'), costo = el.querySelector('[data-op="acquisto"]'), go = el.querySelector('[data-act="go"]');
-    const ok = () => { go.disabled = !team.value || !(intero(costo.value) >= 0); };
+    const pen = el.querySelector('[data-op="pen"]');
+    const ok = () => {
+      go.disabled = !team.value || !(intero(costo.value) >= 0);
+      pen.textContent = 'diventa il costo in rosa · 1° anno di contratto, penale ' + n1(penale(intero(costo.value), 1));
+    };
     team.addEventListener('change', ok); costo.addEventListener('input', ok);
     go.addEventListener('click', () => {
       const a = { listone_id: x.id, team_id: team.value, costo: intero(costo.value), nome: x.nome, ruolo: x.ruolo, club: x.club };
@@ -1755,22 +1770,24 @@
     const sim = simula(op, pl, cr, lim);
     const opz = (sel, vuota, escludi) => `<option value="">${esc(vuota)}</option>` + S.teams.filter(t => t.id !== escludi)
       .map(t => `<option value="${t.id}"${t.id === sel ? ' selected' : ''}>${esc(bel(t.name))}</option>`).join('');
-    const costoDi = p => { const c = cs.find(y => y.team_id === p.team_id && y.slot === p.slot); return c && NORM(c.nome) === NORM(p.name) && c.costo != null ? +c.costo : null; };
+    const rcDi = p => { const c = cs.find(y => y.team_id === p.team_id && y.slot === p.slot); return c && NORM(c.nome) === NORM(p.name) ? c : null; };
+    const costoDi = p => { const c = rcDi(p); return c && c.costo != null ? +c.costo : null; };
     const usati = new Set(op.svincoli.map(x => x.player_id).concat(op.cessioni.map(x => x.player_id)));
     const giocatori = (team, cosa, sel) => `<option value="">${esc(cosa)}</option>` + pl.filter(p => p.team_id === team && !usati.has(p.id))
-      .sort((a, b) => a.slot - b.slot).map(p => { const c = costoDi(p); return `<option value="${p.id}"${p.id === sel ? ' selected' : ''}>${esc(p.role + ' · ' + p.name + (c != null ? ' · ' + n1(c) + ' cr' : ''))}</option>`; }).join('');
+      .sort((a, b) => a.slot - b.slot).map(p => { const c = costoDi(p), r = rcDi(p) || {};
+        return `<option value="${p.id}"${p.id === sel ? ' selected' : ''}>${esc([p.role + ' · ' + p.name, c != null ? n1(c) + ' cr' : null, r.anno ? annoEt(r.anno) : null, r.valore != null ? 'penale ' + n1(r.valore) : null].filter(Boolean).join(' · '))}</option>`; }).join('');
     const badge = r => `<span class="badge" data-r="${esc(r)}">${esc(r)}</span>`;
     const togli = (k, i) => `<button type="button" class="x" data-opx="togli" data-k="${k}" data-i="${i}" aria-label="Togli">×</button>`;
     const campo = (k, i, f, v, et, min) => `<label class="costo">${esc(et)}<input type="number" step="1"${min != null ? ` min="${min}"` : ''} data-opi="${k}.${i}.${f}" value="${esc(v == null ? '' : v)}"></label>`;
 
     const sv = op.svincoli.map((x, i) => `<div class="mov"><span class="io out">esce</span>${badge(x.ruolo)}
-      <span class="who"><b>${esc(x.nome)}</b><span>${esc(teamName(x.team_id))} · svincolo</span></span>
+      <span class="who"><b>${esc(x.nome)}</b><span>${esc([teamName(x.team_id), x.anno ? annoEt(x.anno) : null, x.penale != null ? 'penale ' + n1(x.penale) : 'svincolo'].filter(Boolean).join(' · '))}</span></span>
       <span class="ctl">${campo('svincoli', i, 'costo', x.costo, 'costo (negativo = rimborso)', null)}</span>${togli('svincoli', i)}</div>`).join('');
     const ac = op.acquisti.map((x, i) => `<div class="mov"><span class="io in">entra</span>${badge(x.ruolo)}
-      <span class="who"><b>${esc(x.nome)}</b><span>${esc(x.club || 'svincolato')}</span></span>
+      <span class="who"><b>${esc(x.nome)}</b><span>${esc(x.club || 'svincolato')} · <span data-pen="acquisti.${i}">${esc(contratto({ anno: 1, valore: penale(x.costo, 1) }))}</span></span></span>
       <span class="ctl"><select data-opi="acquisti.${i}.team_id" aria-label="Squadra">${opz(x.team_id, 'Squadra…')}</select>${campo('acquisti', i, 'costo', x.costo, 'costo', 0)}</span>${togli('acquisti', i)}</div>`).join('');
     const ce = op.cessioni.map((x, i) => `<div class="mov"><span class="io">cede</span>${badge(x.ruolo)}
-      <span class="who"><b>${esc(x.nome)}</b><span>da ${esc(teamName(x.da))}</span></span>
+      <span class="who"><b>${esc(x.nome)}</b><span>da ${esc(teamName(x.da))}${x.anno ? ` · <span data-pen="cessioni.${i}">${esc(contratto({ anno: x.anno, valore: penale(x.costo, x.anno) }))}</span>` : ''}</span></span>
       <span class="ctl"><select data-opi="cessioni.${i}.team_id" aria-label="Squadra di arrivo">${opz(x.team_id, 'a…', x.da)}</select>${campo('cessioni', i, 'costo', x.costo, 'costo in rosa', 0)}</span>${togli('cessioni', i)}</div>`).join('');
     const crs = op.crediti.map((x, i) => `<div class="mov cr"><span class="io">crediti</span>
       <span class="ctl"><select data-opi="crediti.${i}.da" aria-label="Da">${opz(x.da, 'da…')}</select><span class="freccia">→</span>
@@ -1838,19 +1855,22 @@
     const { pl, cs } = S.opCtx || {};
     const op = S.op, ui = S.opUi;
     const a = b.dataset.opx;
-    const costoDi = p => { const c = (cs || []).find(y => y.team_id === p.team_id && y.slot === p.slot); return c && NORM(c.nome) === NORM(p.name) && c.costo != null ? +c.costo : 0; };
+    const rcDi = p => { const c = (cs || []).find(y => y.team_id === p.team_id && y.slot === p.slot); return c && NORM(c.nome) === NORM(p.name) ? c : {}; };
+    const costoDi = p => { const c = rcDi(p); return c.costo != null ? +c.costo : 0; };
     const val = s => { const e = document.querySelector('[data-opa="' + s + '"]'); return e ? e.value : ''; };
     if (a === 'togli') { op[b.dataset.k].splice(+b.dataset.i, 1); }
     else if (a === 'add-sv') {
       const p = pl.find(y => y.id === val('svGioc'));
       if (!p) { toast('Scegli squadra e giocatore'); return; }
-      op.svincoli.push({ player_id: p.id, costo: 0, nome: p.name, ruolo: p.role, team_id: p.team_id });
+      // lo svincolo costa la penale (il secondo numero di ROSE), ma si può cambiare
+      const r = rcDi(p), pen = r.valore != null ? +r.valore : null;
+      op.svincoli.push({ player_id: p.id, costo: pen != null ? pen : 0, penale: pen, anno: r.anno || null, nome: p.name, ruolo: p.role, team_id: p.team_id });
       ui.svGioc = '';
     } else if (a === 'add-ce') {
       const p = pl.find(y => y.id === val('ceGioc'));
       if (!p) { toast('Scegli la squadra e chi cede'); return; }
       const c = costoDi(p);
-      op.cessioni.push({ player_id: p.id, team_id: val('ceA') || '', costo: c, costoOrig: c, nome: p.name, ruolo: p.role, da: p.team_id });
+      op.cessioni.push({ player_id: p.id, team_id: val('ceA') || '', costo: c, costoOrig: c, anno: rcDi(p).anno || null, nome: p.name, ruolo: p.role, da: p.team_id });
       ui.ceGioc = '';
     } else if (a === 'add-ac') {
       const x = (S.svinc || []).find(y => y.id === +b.dataset.l);
@@ -1887,6 +1907,8 @@
     const x = S.op[lista] && S.op[lista][+i];
     if (!x) return;
     x[f] = e.type === 'number' ? (e.value === '' ? '' : intero(e.value)) : e.value;
+    const pen = document.querySelector('[data-pen="' + lista + '.' + i + '"]');
+    if (pen && f === 'costo') pen.textContent = contratto({ anno: lista === 'acquisti' ? 1 : x.anno, valore: penale(x.costo, lista === 'acquisti' ? 1 : x.anno) });
     if (ridisegna) ridisegnaOperazione();
     else {
       const s = document.getElementById('opSim');
@@ -2056,7 +2078,12 @@
       fuori.push({ t: v.team_da, r: v.slot_da, txt: `riga ${v.slot_da + 1}: togli ${v.nome}` }));
     o.mov.filter(v => v.tipo === 'acquisto' || v.tipo === 'cessione').forEach(v => {
       const f = fuori.find(x => x.t === v.team_a && x.r === v.slot_a);
-      const testo = `riga ${v.slot_a + 1}: ${f ? f.txt.replace(/^riga \d+: togli /, '') + ' → ' : 'scrivi '}${v.nome}, costo ${n1(v.costo)}${v.tipo === 'cessione' && v.valore != null ? ` (a ${bel(teamName(v.team_da))} il secondo numero era ${n1(v.valore)})` : ''}`;
+      // chi arriva dagli svincolati è al 1° anno; chi è ceduto tiene il suo: il secondo numero
+      // (la penale) è la formula della riga, con il divisore del suo anno
+      const anno = v.tipo === 'acquisto' ? 1 : v.anno;
+      const pen = anno ? `, ${annoEt(anno)} (secondo numero = costo/${anno + 2}${penale(v.costo, anno) != null ? ' = ' + penale(v.costo, anno) : ''})`
+        : v.tipo === 'cessione' && v.valore != null ? ` (a ${bel(teamName(v.team_da))} il secondo numero era ${n1(v.valore)})` : '';
+      const testo = `riga ${v.slot_a + 1}: ${f ? f.txt.replace(/^riga \d+: togli /, '') + ' → ' : 'scrivi '}${v.nome}, costo ${n1(v.costo)}${pen}`;
       if (f) f.txt = testo; else fuori.push({ t: v.team_a, r: v.slot_a, txt: testo });
     });
     const perSq = new Map();
@@ -2105,11 +2132,11 @@
       : !isAdmin() ? '' : o.riportata_at ? `<span class="tag ok">nel file${o.riportata_round ? ' (' + o.riportata_round + 'ª)' : ''}</span>` : '<span class="tag">da riportare</span>';
     const badge = r => r ? `<span class="badge" data-r="${esc(r)}">${esc(r)}</span>` : '<span></span>';
     const mov = v => v.tipo === 'svincolo'
-      ? `<div class="op-r"><span class="io out">esce</span>${badge(v.ruolo)}<span class="who"><b>${esc(v.nome)}</b><span>${esc(teamName(v.team_da))}${v.club ? ' · ' + esc(v.club) : ''}</span></span><span class="val"><b>${n1(Math.abs(v.costo || 0))}</b><span>${v.costo < 0 ? 'rimborso' : 'svincolo'}</span></span></div>`
+      ? `<div class="op-r"><span class="io out">esce</span>${badge(v.ruolo)}<span class="who"><b>${esc(v.nome)}</b><span>${esc(teamName(v.team_da))}${v.club ? ' · ' + esc(v.club) : ''}${v.anno ? ' · ' + annoEt(v.anno) : ''}</span></span><span class="val"><b>${n1(Math.abs(v.costo || 0))}</b><span>${v.costo < 0 ? 'rimborso' : 'svincolo'}</span></span></div>`
       : v.tipo === 'acquisto'
-      ? `<div class="op-r"><span class="io in">entra</span>${badge(v.ruolo)}<span class="who"><b>${esc(v.nome)}</b><span>${esc(teamName(v.team_a))}${v.club ? ' · ' + esc(v.club) : ''}</span></span><span class="val"><b>${n1(v.costo || 0)}</b><span>crediti</span></span></div>`
+      ? `<div class="op-r"><span class="io in">entra</span>${badge(v.ruolo)}<span class="who"><b>${esc(v.nome)}</b><span>${esc(teamName(v.team_a))}${v.club ? ' · ' + esc(v.club) : ''}${v.anno ? ' · ' + annoEt(v.anno) : ''}</span></span><span class="val"><b>${n1(v.costo || 0)}</b><span>crediti</span></span></div>`
       : v.tipo === 'cessione'
-      ? `<div class="op-r"><span class="io">cede</span>${badge(v.ruolo)}<span class="who"><b>${esc(v.nome)}</b><span>${esc(teamName(v.team_da))} → ${esc(teamName(v.team_a))}</span></span><span class="val"><b>${n1(v.costo || 0)}</b><span>in rosa</span></span></div>`
+      ? `<div class="op-r"><span class="io">cede</span>${badge(v.ruolo)}<span class="who"><b>${esc(v.nome)}</b><span>${esc(teamName(v.team_da))} → ${esc(teamName(v.team_a))}${v.anno ? ' · ' + annoEt(v.anno) : ''}</span></span><span class="val"><b>${n1(v.costo || 0)}</b><span>in rosa</span></span></div>`
       : `<div class="op-r"><span class="io">crediti</span><span></span><span class="who"><b>${esc(teamName(v.team_da))} → ${esc(teamName(v.team_a))}</b></span><span class="val"><b>${n1(v.costo)}</b><span>crediti</span></span></div>`;
     const crediti = o => (o.cred || []).filter(c => c.prima != null && c.prima !== c.dopo).map(c => `${teamName(c.team_id)} ${c.prima} → ${c.dopo}`).join(' · ');
     const riga = o => `<div class="op${o.annullata_at ? ' annullata' : ''}">

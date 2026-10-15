@@ -52,8 +52,11 @@ un altro ruolo nella riga giusta, lo scambio difensore↔attaccante con crediti 
 costo resta il suo, il ceduto esce dalla formazione salvata con il motivo
 «ceduto»), la cessione senza contropartita, i passaggi di crediti, l'annullamento a
 ritroso (formazione compresa), il file di giornata che riconosce le operazioni
-riportate (non quelle di soli crediti), «È già nel file», le operazioni fatte con
-11 viste come movimenti e lo script rieseguibile. `03_prova_mercato.sql` passa
+riportate (non quelle di soli crediti), «È già nel file», gli anni di contratto
+(letti dal file, penale costo/3, /4, /5, svincolo che costa la penale, cessione che
+tiene l'anno con la penale ricalcolata, acquisto al 1° anno, file che non cancella le
+righe delle operazioni da riportare, annullamento che rimette gli anni), le
+operazioni fatte con 11 viste come movimenti e lo script rieseguibile. `03_prova_mercato.sql` passa
 anche con 13 (alla fine riesegue 11: dopo va rieseguito 13).
 
 `00_finto_supabase.sql` rifà le poche cose che su Supabase ci sono già

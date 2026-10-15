@@ -563,7 +563,7 @@ a.chip { text-decoration: none; display: inline-block; }
 .mov > .badge { grid-area: b; }
 .mov > .who { grid-area: who; min-width: 0; }
 .mov > .who b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mov > .who span { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mov > .who > span { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .mov > .x { grid-area: x; }
 .mov > .ctl { grid-area: ctl; display: flex; align-items: end; justify-content: flex-end; gap: 8px; min-width: 0; }
 .mov .ctl > select { flex: 1 1 auto; min-width: 0; }
