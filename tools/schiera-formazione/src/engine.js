@@ -928,6 +928,13 @@
         return {
           get,
           num(r, c) { const v = get(r, c); return typeof v === 'number' ? v : null; },
+          // i token della formula di una cella (anche condivisa), o null: per leggerne le costanti
+          tokens(r, c) {
+            const cell = m.idx.get(key(r, c));
+            if (!cell || cell.sid !== SID.FORMULA) return null;
+            const t = formulaTokens(m, cell);
+            return t ? t.map(x => Object.assign({}, x)) : null;
+          },
           str(r, c) { const v = get(r, c); return typeof v === 'string' ? v.trim() : (v == null || v === false ? '' : String(v)); },
           // cerca un testo nella zona indicata e ritorna {r, c}
           find(re, r0, r1, c0, c1) {

@@ -26,6 +26,14 @@ const prova = C.formazioneIdeale([
 ]);
 assert.strictEqual(prova.totale, 7 + 8 + 7 + 6 + 9 + 7 + 6 + 6 + 6 + 12 + 9);   // 3-5-2
 assert.strictEqual(prova.modulo, '3-5-2');
+// anni di contratto dal divisore della formula del secondo numero (la penale) in ROSE
+{
+  const conAnno = d.rose.filter(r => r.anno);
+  assert.ok(conAnno.length === d.rose.length, 'anni di contratto: ' + conAnno.length + ' di ' + d.rose.length);
+  conAnno.forEach(r => assert.strictEqual(Math.round(r.costo / (r.anno + 2)), r.valore, 'penale di ' + r.nome));
+  const per = [1, 2, 3].map(a => conAnno.filter(r => r.anno === a).length);
+  console.log('ok  anni di contratto: 1° ' + per[0] + ', 2° ' + per[1] + ', 3° ' + per[2] + '; penale = costo / (anno + 2) per tutti');
+}
 console.log('ok  formazione ideale:', ide.map(x => x.team_id + ' +' + x.lasciati).join(', '));
 
 // 2) reparti: la somma dei reparti è il punteggio

@@ -108,9 +108,15 @@ Sono regole di Row Level Security: valgono anche se qualcuno chiama il database 
      giocatori, P 3–4, D 7–10, C 7–10, A 5–7) e i crediti che non vanno sotto
      zero. Riscrive per i movimenti l'annullamento, i crediti di adesso e il
      controllo del file di giornata, e aggiunge `mercato_riportata()` («È già nel
-     file»). Le operazioni fatte prima restano e si vedono come movimenti. Si può
+     file»). Le operazioni fatte prima restano e si vedono come movimenti. Aggiunge
+     anche gli **anni di contratto**: `roster_costs.anno` (1°, 2°, 3°, dal divisore
+     della formula del secondo numero di ROSE, scritto da `mercato_dal_file()` a ogni
+     file di giornata) e `penale_svincolo(costo, anno)` = costo / (anno + 2)
+     arrotondato; lo svincolo senza costo scritto costa la penale, chi viene
+     acquistato parte dal 1° anno, chi viene ceduto tiene i suoi anni. Si può
      rieseguire; va eseguito dopo `11_mercato.sql`, e se si riesegue l'11 poi va
-     rieseguito anche questo.
+     rieseguito anche questo. Dopo averlo eseguito ricarica l'ultimo file di giornata:
+     porta gli anni di contratto.
 3. In **Authentication → Sign In / Providers → Email** togli **Allow new users to sign up**: la chiave `anon` è pubblica, quindi senza questo chiunque potrebbe crearsi un account.
 4. Crea gli account dei partecipanti e collegali alle squadre: vedi
    [Aggiungere i partecipanti](#aggiungere-i-partecipanti) qui sotto.

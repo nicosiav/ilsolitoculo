@@ -21,7 +21,7 @@ conto alla rovescia in cima a ogni sezione.
 | Giornata | Partite · Formazioni | le partite di ogni giornata: toccandone una si aprono le due squadre affiancate, casa a sinistra e fuori a destra (tabellino con i fantavoti se è giocata, formazioni salvate in Schiera se è da giocare); in Formazioni si sceglie la squadra in cima (si vede subito chi ha salvato, e con ✎ chi ha avuto una modifica dell'amministratore) e sotto c'è la sua formazione, salvata in Schiera o, per le giornate giocate, come risulta dal file con i fantavoti, con **contro …** per la partita. All'amministratore: **Scarica tutte in un file .xls** |
 | Schiera | | la formazione della giornata ([dettagli](../schiera-formazione/README.md)) |
 | Classifiche | Campionato · Corretta · Coppa di Lega · Sfigometro · Gol reali · Coppa · Playoff | tutte le classifiche del regolamento, la Coppa con gli accoppiamenti e la Supercoppa, il tabellone e le regole dei playoff |
-| Squadre | Sintesi · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |
+| Squadre | Sintesi · Rosa · Statistiche · Confronto | per ogni squadra: numeri e ultime partite; la rosa con costo, anno di contratto e penale di svincolo, media e fantamedia di lega e (se caricate) di Serie A da Fantacalcio.it; punteggio contro la media, posizione nel tempo, serie, punti per reparto, migliori e peggiori, bonus, formazione ideale; il confronto con un'altra squadra |
 | Lega | Statistiche · Albo d'oro · Premi | record e curiosità, punteggi di ogni giornata, punti lasciati in panchina, cannonieri, migliori medie; la bacheca e tutte le stagioni dal 1991/92; montepremi e crediti |
 | Mercato | Svincolati · Operazioni | gli svincolati (il LISTONE del file di giornata) con le statistiche di Serie A di Fantacalcio.it: filtri per ruolo, squadra e nome, ordinamento su ogni colonna (sul computer toccando l'intestazione, al telefono con "Ordina per"); lo storico delle operazioni. All'amministratore: **prendere** uno svincolato al posto di un giocatore in rosa, l'elenco di cosa riportare nel file e l'annullamento |
 
@@ -74,14 +74,16 @@ L'amministratore mette insieme un'**operazione** in **Mercato → Nuova operazio
 ([`db/13_mercato_operazioni.sql`](../../db/13_mercato_operazioni.sql),
 `mercato_operazione()`): in una sola operazione, anche fra più squadre,
 
-- **svincoli**: chi esce, con il costo dello svincolo scritto a mano (negativo se
-  è un rimborso), anche senza nessun acquisto in cambio;
+- **svincoli**: chi esce, anche senza nessun acquisto in cambio. Il costo dello
+  svincolo parte dalla penale del giocatore e si può cambiare (negativo se è un
+  rimborso);
 - **acquisti dagli svincolati**, in qualsiasi ruolo (si cercano per nome lì, o si
   toccano in Mercato → Svincolati → «Aggiungi all'operazione»), con la squadra e il
   costo, che diventa il costo in rosa;
 - **cessioni fra squadre**, senza vincoli di reparto: uno scambio sono due
   cessioni, una per verso, e una cessione da sola dà un giocatore senza riceverne
-  uno. Il costo in rosa resta il suo, ma si può cambiare;
+  uno. Il costo in rosa resta il suo, ma si può cambiare; gli anni di contratto
+  restano i suoi;
 - **passaggi di crediti** da una squadra all'altra.
 
 Sotto, «Dopo l'operazione» mostra per ogni squadra toccata la rosa prima e dopo
@@ -90,6 +92,15 @@ Sotto, «Dopo l'operazione» mostra per ogni squadra toccata la rosa prima e dop
 `rosa_limiti`) e crediti si controllano sul risultato, e se qualcosa non torna
 **Conferma l'operazione** resta spenta (il database rifà gli stessi controlli).
 L'operazione in costruzione resta finché non si conferma o si svuota.
+
+**Anni di contratto e penale.** Il "secondo numero" del foglio ROSE è la penale di
+svincolo: `=IF(costo="","",ROUND(costo/k,0))`, con k = 3, 4 o 5 se il giocatore è al
+1°, 2° o 3° anno di contratto con la squadra. Il sito legge l'anno dal divisore della
+formula di ogni riga quando carichi il file di giornata (`src/giornata.js`, con
+`grid().tokens()` del motore) e lo mostra in Squadre → Rosa («3° anno · penale 7»),
+nel foglio dell'operazione, in Operazioni e nell'elenco da riportare. Chi viene preso
+dagli svincolati parte dal 1° anno (penale = costo/3); chi passa a un'altra squadra
+tiene i suoi anni e la penale si ricalcola dal costo con lo stesso divisore.
 
 Alla conferma:
 
@@ -101,7 +112,8 @@ Alla conferma:
   la salva di nuovo; anche in Giornata → Formazioni risulta «da rifare»;
 - chi entra prende la riga lasciata libera da chi esce dalla stessa squadra con lo
   stesso ruolo, altrimenti la prima riga libera del suo ruolo (P 1–4, D 5–14,
-  C 15–24, A 25–31 del foglio ROSE, cioè posti 1–31);
+  C 15–24, A 25–31 del foglio ROSE, cioè posti 1–31), con il suo costo, la penale e
+  l'anno di contratto;
 - il sito aggiorna il modello delle formazioni (`modelli/formazioni.xls`): nel
   foglio ROSE nome, costo e crediti delle squadre toccate (il "secondo numero" è una
   formula della riga e si ricalcola dal costo), nel LISTONE chi è svincolato entra
@@ -110,7 +122,9 @@ Alla conferma:
 
 In **Mercato → Operazioni** ci sono tutte le operazioni con i loro movimenti (le
 vedono tutti) e, solo per l'amministratore, l'elenco di cosa riportare nel file di
-giornata: per ogni squadra le righe di ROSE da cambiare, i crediti, il LISTONE e le
+giornata: per ogni squadra le righe di ROSE da cambiare (con l'anno di contratto e il
+divisore del secondo numero: «costo 2, 1° anno (secondo numero = costo/3 = 1)»), i
+crediti, il LISTONE e le
 righe del registro MERCATO nel vostro formato («VALERIO | Scarto (+1) di RAMON»,
 «[VALERIO] --- [MASSIMO] | Scambio: [DAVIS K.] --- [MIRANDA J.] (+5 crediti a
 MASSIMO)»), con **Copia l'elenco**. L'ultima operazione si annulla finché il file

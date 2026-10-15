@@ -14,6 +14,11 @@
 --   - nel foglio ROSE ogni ruolo ha le sue righe (portieri 1–4, difensori 5–14,
 --     centrocampisti 15–24, attaccanti 25–31): chi entra prende la prima libera del suo
 --     ruolo.
+--   - anni di contratto: il "secondo numero" di ROSE è la penale di svincolo, il costo
+--     diviso 3, 4 o 5 (arrotondato) se il giocatore è al 1°, 2° o 3° anno di contratto con
+--     la squadra. Lo svincolo propone la penale come costo; chi viene acquistato dagli
+--     svincolati parte dal 1° anno; chi passa a un'altra squadra con una cessione (o uno
+--     scambio) tiene i suoi anni di contratto.
 --
 -- Le operazioni di prima (uno svincolato al posto di un giocatore dello stesso ruolo)
 -- diventano operazioni con due movimenti, svincolo e acquisto: tutto il resto (crediti,
@@ -63,13 +68,28 @@ create table if not exists public.market_moves (
   costo        numeric(6,1) not null default 0,        -- svincolo: costo (negativo = rimborso) · acquisto: costo, che
                                                        -- diventa il costo in rosa · cessione: costo in rosa nella
                                                        -- squadra nuova (non costa crediti) · crediti: quanti
-  valore       numeric(6,1),                           -- cessione: il "secondo numero" nella squadra nuova
+  valore       numeric(6,1),                           -- cessione e acquisto: la penale (il "secondo numero") nella squadra nuova
   costo_prima  numeric(6,1),                           -- costo e secondo numero in ROSE di chi esce (per annullare)
   valore_prima numeric(6,1),
   formazioni   jsonb,                                  -- formazioni da cui è stato tolto chi esce
   unique (op_id, n)
 );
 create index if not exists market_moves_op_idx on public.market_moves (op_id);
+-- l'anno di contratto (1°, 2°, 3°) del giocatore con la squadra: nelle rose viene dal file
+-- di giornata (il divisore della formula del secondo numero), nei movimenti è quello di chi
+-- esce (che chi viene ceduto si porta dietro) o il 1° di chi viene acquistato
+alter table public.roster_costs add column if not exists anno smallint check (anno between 1 and 9);
+alter table public.market_moves add column if not exists anno smallint;
+comment on column public.roster_costs.valore is 'secondo numero di ROSE: la penale di svincolo (costo / (anno + 2), arrotondato)';
+comment on column public.roster_costs.anno is 'anno di contratto del giocatore con la squadra (1°, 2°, 3°)';
+
+-- la penale di svincolo: 1/3 del costo al 1° anno, 1/4 al 2°, 1/5 al 3°, all'intero più vicino
+create or replace function public.penale_svincolo(p_costo numeric, p_anno integer) returns numeric
+language sql immutable as $$
+  select case when p_costo is not null and p_anno between 1 and 3 then round(p_costo / (p_anno + 2)) end
+$$;
+revoke all on function public.penale_svincolo(numeric, integer) from public, anon;
+grant execute on function public.penale_svincolo(numeric, integer) to authenticated;
 alter table public.market_moves enable row level security;
 drop policy if exists market_moves_read on public.market_moves;
 create policy market_moves_read on public.market_moves for select to authenticated using (true);
@@ -168,7 +188,7 @@ create or replace function public.mercato_operazione(p jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
   e jsonb; m record; v_p public.players; v_l public.listone; v_rc public.roster_costs;
-  v_op bigint; v_n int := 0; v_slot smallint; v_new uuid; v_form jsonb; v_tutte jsonb := '[]'::jsonb;
+  v_op bigint; v_n int := 0; v_slot smallint; v_new uuid; v_form jsonb; v_tutte jsonb := '[]'::jsonb; v_costo numeric;
   v_no text; v_delta jsonb; v_cred jsonb; v_neg text; v_mov int;
 begin
   if not public.is_admin() then
@@ -181,7 +201,7 @@ begin
 
   create temp table if not exists _mov (
     n int, tipo text, pid uuid, lid int, team_da uuid, team_a uuid, ruolo char(1), nome text, club text,
-    slot_da smallint, costo numeric, valore numeric, costo_prima numeric, valore_prima numeric
+    slot_da smallint, costo numeric, valore numeric, costo_prima numeric, valore_prima numeric, anno smallint
   ) on commit drop;
   truncate _mov;
 
@@ -194,8 +214,10 @@ begin
     select * into v_rc from public.roster_costs where team_id = v_p.team_id and slot = v_p.slot
       and public.nome_norm(nome) = public.nome_norm(v_p.name);
     v_n := v_n + 1;
+    -- senza un costo scritto, lo svincolo costa la penale (il secondo numero di ROSE)
     insert into _mov values (v_n, 'svincolo', v_p.id, null, v_p.team_id, null, v_p.role, v_p.name, v_p.club,
-                             v_p.slot, round(coalesce((e ->> 'costo')::numeric, 0)), null, v_rc.costo, v_rc.valore);
+                             v_p.slot, round(coalesce((e ->> 'costo')::numeric, v_rc.valore, 0)), null, v_rc.costo, v_rc.valore,
+                             v_rc.anno);
   end loop;
   for e in select * from jsonb_array_elements(coalesce(p -> 'cessioni', '[]'::jsonb)) loop
     select * into v_p from public.players where id = (e ->> 'player_id')::uuid for update;
@@ -211,9 +233,13 @@ begin
     select * into v_rc from public.roster_costs where team_id = v_p.team_id and slot = v_p.slot
       and public.nome_norm(nome) = public.nome_norm(v_p.name);
     v_n := v_n + 1;
+    -- il costo in rosa resta il suo (se non è scritto) e così gli anni di contratto: la
+    -- penale nella squadra nuova si ricalcola dal costo con lo stesso anno
+    v_costo := coalesce((e ->> 'costo')::numeric, v_rc.costo, 0);
     insert into _mov values (v_n, 'cessione', v_p.id, null, v_p.team_id, (e ->> 'team_id')::uuid, v_p.role, v_p.name,
-                             v_p.club, v_p.slot, coalesce((e ->> 'costo')::numeric, v_rc.costo, 0), v_rc.valore,
-                             v_rc.costo, v_rc.valore);
+                             v_p.club, v_p.slot, v_costo,
+                             coalesce(public.penale_svincolo(v_costo, v_rc.anno), case when v_costo = v_rc.costo then v_rc.valore end),
+                             v_rc.costo, v_rc.valore, v_rc.anno);
   end loop;
   for e in select * from jsonb_array_elements(coalesce(p -> 'acquisti', '[]'::jsonb)) loop
     select * into v_l from public.listone where id = (e ->> 'listone_id')::int for update;
@@ -231,8 +257,10 @@ begin
       raise exception 'Il costo dell''acquisto di % non può essere negativo', v_l.nome using errcode = 'P0013';
     end if;
     v_n := v_n + 1;
+    -- dagli svincolati si parte dal 1° anno di contratto
+    v_costo := round(coalesce((e ->> 'costo')::numeric, 0));
     insert into _mov values (v_n, 'acquisto', null, v_l.id, null, (e ->> 'team_id')::uuid, v_l.ruolo, v_l.nome,
-                             nullif(v_l.club, ''), null, round(coalesce((e ->> 'costo')::numeric, 0)), null, null, null);
+                             nullif(v_l.club, ''), null, v_costo, public.penale_svincolo(v_costo, 1), null, null, 1);
   end loop;
   for e in select * from jsonb_array_elements(coalesce(p -> 'crediti', '[]'::jsonb)) loop
     if (e ->> 'da')::uuid is null or (e ->> 'a')::uuid is null or (e ->> 'da')::uuid = (e ->> 'a')::uuid
@@ -303,14 +331,14 @@ begin
     if m.tipo = 'svincolo' then
       insert into public.listone (ruolo, nome, club, origine) values (m.ruolo, m.nome, m.club, 'svincolo');
       insert into public.market_moves (op_id, n, tipo, ruolo, nome, club, team_da, slot_da, da_id, costo,
-                                       costo_prima, valore_prima, formazioni)
+                                       costo_prima, valore_prima, anno, formazioni)
       values (v_op, m.n, 'svincolo', m.ruolo, m.nome, m.club, m.team_da, m.slot_da, m.pid, m.costo,
-              m.costo_prima, m.valore_prima, v_form);
+              m.costo_prima, m.valore_prima, m.anno, v_form);
     else
       insert into public.market_moves (op_id, n, tipo, ruolo, nome, club, team_da, team_a, slot_da, da_id, costo, valore,
-                                       costo_prima, valore_prima, formazioni)
+                                       costo_prima, valore_prima, anno, formazioni)
       values (v_op, m.n, 'cessione', m.ruolo, m.nome, m.club, m.team_da, m.team_a, m.slot_da, m.pid, m.costo, m.valore,
-              m.costo_prima, m.valore_prima, v_form);
+              m.costo_prima, m.valore_prima, m.anno, v_form);
     end if;
   end loop;
 
@@ -332,13 +360,14 @@ begin
     end if;
     insert into public.players (team_id, slot, role, name, club)
     values (m.team_a, v_slot, m.ruolo, m.nome, m.club) returning id into v_new;
-    insert into public.roster_costs (team_id, slot, nome, costo, valore)
-    values (m.team_a, v_slot, m.nome, m.costo, m.valore)
-    on conflict (team_id, slot) do update set nome = excluded.nome, costo = excluded.costo, valore = excluded.valore;
+    insert into public.roster_costs (team_id, slot, nome, costo, valore, anno)
+    values (m.team_a, v_slot, m.nome, m.costo, m.valore, m.anno)
+    on conflict (team_id, slot) do update
+      set nome = excluded.nome, costo = excluded.costo, valore = excluded.valore, anno = excluded.anno;
     if m.tipo = 'acquisto' then
       delete from public.listone where id = m.lid;
-      insert into public.market_moves (op_id, n, tipo, ruolo, nome, club, team_a, slot_a, a_id, costo)
-      values (v_op, m.n, 'acquisto', m.ruolo, m.nome, m.club, m.team_a, v_slot, v_new, m.costo);
+      insert into public.market_moves (op_id, n, tipo, ruolo, nome, club, team_a, slot_a, a_id, costo, valore, anno)
+      values (v_op, m.n, 'acquisto', m.ruolo, m.nome, m.club, m.team_a, v_slot, v_new, m.costo, m.valore, m.anno);
     else
       update public.market_moves set slot_a = v_slot, a_id = v_new where op_id = v_op and n = m.n;
     end if;
@@ -442,10 +471,11 @@ begin
         (select name from public.teams where id = m.team_da), m.nome using errcode = 'P0015';
     end if;
     update public.players set slot = m.slot_da, fuori_rosa_at = null where id = m.da_id;
-    if m.costo_prima is not null or m.valore_prima is not null then
-      insert into public.roster_costs (team_id, slot, nome, costo, valore)
-      values (m.team_da, m.slot_da, m.nome, m.costo_prima, m.valore_prima)
-      on conflict (team_id, slot) do update set nome = excluded.nome, costo = excluded.costo, valore = excluded.valore;
+    if m.costo_prima is not null or m.valore_prima is not null or m.anno is not null then
+      insert into public.roster_costs (team_id, slot, nome, costo, valore, anno)
+      values (m.team_da, m.slot_da, m.nome, m.costo_prima, m.valore_prima, m.anno)
+      on conflict (team_id, slot) do update
+        set nome = excluded.nome, costo = excluded.costo, valore = excluded.valore, anno = excluded.anno;
     end if;
     if m.tipo = 'svincolo' then
       select id into v_l from public.listone
@@ -495,7 +525,9 @@ grant execute on function public.mercato_riportata(bigint) to authenticated;
 -- quando nel foglio ROSE del file chi è entrato è al suo posto e chi è uscito non c'è più
 -- (le operazioni di soli crediti si segnano a mano); chi è stato svincolato dal sito resta
 -- svincolato anche se il file non lo sa ancora. Ritorna le differenze fra le rose.
--- p_rose = [{ squadra, slot, nome }], p_listone = [{ ruolo, nome, squadra }]
+-- Scrive anche l'anno di contratto di ogni riga (import_round scrive costo e penale) e
+-- rimette costo, penale e anno dei giocatori entrati con operazioni non ancora nel file.
+-- p_rose = [{ squadra, slot, nome, anno }], p_listone = [{ ruolo, nome, squadra }]
 create or replace function public.mercato_dal_file(p_round smallint, p_rose jsonb, p_listone jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
@@ -533,6 +565,28 @@ begin
                                   and f.nome = public.nome_norm(v.nome)));
     get diagnostics v_riportate = row_count;
   end if;
+
+  -- l'anno di contratto di ogni riga del file (costo e penale li ha scritti import_round)
+  if jsonb_array_length(coalesce(p_rose, '[]'::jsonb)) > 0 then
+    update public.roster_costs rc set anno = f.anno
+    from (select public.team_by_name(e ->> 'squadra') team_id, (e ->> 'slot')::smallint slot, e ->> 'nome' nome,
+                 nullif(e ->> 'anno', '')::smallint anno
+          from jsonb_array_elements(p_rose) e) f
+    where rc.team_id = f.team_id and rc.slot = f.slot and public.nome_norm(rc.nome) = public.nome_norm(f.nome)
+      and rc.anno is distinct from f.anno;
+  end if;
+
+  -- chi è entrato con un'operazione che il file non ha ancora: la sua riga tiene costo,
+  -- penale e anno dell'operazione (import_round l'ha appena riscritta con il file)
+  insert into public.roster_costs (team_id, slot, nome, costo, valore, anno)
+  select distinct on (v.team_a, v.slot_a) v.team_a, v.slot_a, v.nome, v.costo, v.valore, v.anno
+  from public.market_moves v
+  join public.market_ops m on m.id = v.op_id
+  join public.players p on p.id = v.a_id and p.team_id = v.team_a and p.slot = v.slot_a
+  where v.tipo in ('acquisto', 'cessione') and m.annullata_at is null and m.riportata_at is null
+  order by v.team_a, v.slot_a, m.id desc
+  on conflict (team_id, slot) do update
+    set nome = excluded.nome, costo = excluded.costo, valore = excluded.valore, anno = excluded.anno;
 
   -- chi è stato svincolato dal sito e il file non lo sa ancora: resta fra gli svincolati
   insert into public.listone (ruolo, nome, club, origine)
@@ -583,3 +637,5 @@ notify pgrst, 'reload schema';
 -- select m.id, m.at, m.tipo, v.n, v.tipo, v.nome, v.team_da, v.team_a, v.slot_da, v.slot_a, v.costo
 --   from public.market_ops m join public.market_moves v on v.op_id = m.id order by m.id desc, v.n;
 -- select * from public.mercato_crediti();
+-- select t.name, rc.slot, rc.nome, rc.costo, rc.valore penale, rc.anno from public.roster_costs rc
+--   join public.teams t on t.id = rc.team_id order by t.name, rc.slot;

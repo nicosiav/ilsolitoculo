@@ -304,6 +304,20 @@
   }
 
   // ------------------------------------------------------------ rose e crediti
+  // Il "secondo numero" di ROSE è la penale di svincolo: =IF(costo="","",ROUND(costo/k,0)),
+  // con k = 3, 4 o 5 per il 1°, 2° o 3° anno di contratto del giocatore con la squadra.
+  // L'anno si legge dal divisore della formula della riga (null se non c'è).
+  function annoDi(g, r, c) {
+    const t = g.tokens ? g.tokens(r, c) : null;
+    if (!t) return null;
+    for (let i = t.length - 1; i > 0; i--) {
+      if (t[i].k === 'op' && t[i].op === 0x06 && t[i - 1].k === 'lit' && t[i - 1].v && t[i - 1].v.t === 'n') {
+        const k = t[i - 1].v.v;
+        return k >= 3 && k <= 5 ? k - 2 : null;
+      }
+    }
+    return null;
+  }
   function readRose(wb) {
     if (!wb.has('ROSE')) return { rose: [], crediti: [] };
     const g = wb.grid('ROSE');
@@ -316,7 +330,7 @@
       for (let r = 1; r <= 31; r++) {
         const nome = g.str(r, c);
         if (!nome) continue;
-        rose.push({ squadra, slot: r, nome, costo: g.num(r, c + 1), valore: g.num(r, c + 2) });
+        rose.push({ squadra, slot: r, nome, costo: g.num(r, c + 1), valore: g.num(r, c + 2), anno: annoDi(g, r, c + 2) });
       }
     }
     return { rose, crediti };

@@ -125,6 +125,8 @@ do $$ begin
   assert pg_temp.conta('Valerio', 'C') = 9 and pg_temp.conta('Valerio', 'D') = 9 and pg_temp.conta('Valerio') = 28, 'B: C 9, D 9, totale 28';
   assert pg_temp.cr('Valerio') = 70, 'B: 74 → 70';
   assert (select costo from public.roster_costs where team_id = pg_temp.tid('Valerio') and slot = 13) = 4, 'B: costo in rosa 4';
+  assert (select anno || '/' || valore from public.roster_costs where team_id = pg_temp.tid('Valerio') and slot = 13) = '1/1.0',
+         'B: Abankwah al 1° anno di contratto, penale 4/3 = 1';
   assert not exists (select 1 from public.roster_costs where team_id = pg_temp.tid('Valerio') and slot = 24), 'B: riga di Bernardeschi vuota';
   raise notice 'ok  B: acquisto in un ruolo diverso da chi esce';
 end $$;
@@ -143,6 +145,10 @@ do $$ begin
   assert pg_temp.conta('Massimo', 'D') = 8 and pg_temp.conta('Massimo', 'A') = 7, 'C: Massimo D 8, A 7';
   assert pg_temp.cr('Valerio') = 65 and pg_temp.cr('Massimo') = 67, 'C: 5 crediti da Valerio a Massimo';
   assert (select costo from public.roster_costs where team_id = pg_temp.tid('Valerio') and slot = 14) = 2, 'C: costo di Birindelli cambiato a 2';
+  assert (select anno || '/' || valore from public.roster_costs where team_id = pg_temp.tid('Valerio') and slot = 14) = '1/1.0',
+         'C: Birindelli tiene il 1° anno, penale ricalcolata sul costo nuovo (2/3 = 1)';
+  assert (select anno || '/' || valore from public.roster_costs where team_id = pg_temp.tid('Massimo') and slot = 31) = '1/14.0',
+         'C: Woltemade tiene il 1° anno e la penale (43/3 = 14)';
   assert exists (select 1 from public.lineup_vuoti where nome = 'Woltemade' and motivo = 'ceduto'), 'C: Woltemade tolto dalla formazione (ceduto)';
   assert exists (select 1 from public.players where name = 'Woltemade' and team_id = pg_temp.tid('Valerio') and slot is null),
          'C: il vecchio record di Woltemade resta nello storico di Valerio';
@@ -235,7 +241,53 @@ select public.mercato_dal_file(3::smallint, (:'payload'::jsonb) -> 'rose', '[]':
 select pg_temp.ok(:'riportate_file_vecchio'::int = 0, 'file vecchio: niente riportato');
 select pg_temp.ok(exists (select 1 from public.listone where nome = 'Lucca'), 'file vecchio: Lucca resta fra gli svincolati');
 
--- 9) le operazioni di prima diventano movimenti (e rieseguire 13 non duplica) ----------
+-- 9) anni di contratto e penale di svincolo -------------------------------------------
+do $$ begin
+  assert (select count(*) from public.roster_costs where anno is not null) >= 200, 'anni: letti dal file di giornata';
+  assert (select anno from public.roster_costs where team_id = pg_temp.tid('MarcoII') and nome = 'Malen') = 2, 'anni: Malen al 2° anno';
+  assert public.penale_svincolo(63, 2) = 16 and public.penale_svincolo(2, 2) = 1 and public.penale_svincolo(1, 1) = 0
+     and public.penale_svincolo(35, 3) = 7 and public.penale_svincolo(10, 9) is null, 'penale: costo/3, /4, /5 arrotondato';
+  raise notice 'ok  anni di contratto dal file, penale';
+end $$;
+-- H: uno svincolo senza costo scritto costa la penale (Malen: 63 al 2° anno = 16)
+select pg_temp.cr('MarcoII') as cr_m2 \gset
+select public.mercato_operazione(jsonb_build_object('svincoli', jsonb_build_array(
+  jsonb_build_object('player_id', pg_temp.pid('MarcoII', 'Malen'))))) ->> 'id' as op_h \gset
+select pg_temp.ok(pg_temp.cr('MarcoII') = :cr_m2 - 16, 'H: lo svincolo costa la penale (16)');
+select pg_temp.ok((select costo || '/' || anno from public.market_moves where op_id = :op_h) = '16.0/2', 'H: movimento con penale e anno');
+-- I: Santos A. da Colombrita a Marco II con il costo cambiato (12 → 20, resta al 2° anno:
+--    penale 20/4 = 5) e Bayo V. dagli svincolati a Colombrita (1° anno: 7/3 = 2)
+select public.mercato_operazione(jsonb_build_object(
+  'cessioni', jsonb_build_array(jsonb_build_object('player_id', pg_temp.pid('Colombrita', 'Santos A.'), 'team_id', pg_temp.tid('MarcoII'), 'costo', 20)),
+  'acquisti', jsonb_build_array(jsonb_build_object('listone_id', pg_temp.lid('Bayo V.'), 'team_id', pg_temp.tid('Colombrita'), 'costo', 7))))
+  ->> 'id' as op_i \gset
+do $$ begin
+  assert pg_temp.slot('MarcoII', 'Santos A.') = 25, 'I: Santos nella riga lasciata da Malen';
+  assert (select costo || '/' || valore || '/' || anno from public.roster_costs where team_id = pg_temp.tid('MarcoII') and slot = 25) = '20.0/5.0/2',
+         'I: Santos costo 20, penale 5, 2° anno';
+  assert (select costo || '/' || valore || '/' || anno from public.roster_costs
+          where team_id = pg_temp.tid('Colombrita') and nome = 'Bayo V.') = '7.0/2.0/1', 'I: Bayo V. costo 7, penale 2, 1° anno';
+  raise notice 'ok  H: svincolo con la penale · I: cessione che tiene l''anno, acquisto al 1° anno';
+end $$;
+-- il file di giornata (che non ha ancora H e I) riscrive le righe: quelle delle operazioni restano
+update public.roster_costs set nome = 'Malen', costo = 63, valore = 16, anno = null
+where team_id = pg_temp.tid('MarcoII') and slot = 25;
+select public.mercato_dal_file(3::smallint, (:'payload'::jsonb) -> 'rose', '[]'::jsonb) ->> 'riportate' as riportate_hi \gset
+select pg_temp.ok((select nome || '/' || costo || '/' || valore || '/' || anno from public.roster_costs
+                   where team_id = pg_temp.tid('MarcoII') and slot = 25) = 'Santos A./20.0/5.0/2',
+                  'file senza l''operazione: la riga di Santos resta quella dell''operazione');
+-- annullare I e H rimette costo, penale e anno di prima
+select public.mercato_annulla(:op_i) is not null as annullata_i;
+select public.mercato_annulla(:op_h) is not null as annullata_h;
+do $$ begin
+  assert (select costo || '/' || valore || '/' || anno from public.roster_costs where team_id = pg_temp.tid('Colombrita') and slot = 28) = '12.0/3.0/2',
+         'annullata I: Santos torna a Colombrita con 12, penale 3, 2° anno';
+  assert (select nome || '/' || costo || '/' || valore || '/' || anno from public.roster_costs where team_id = pg_temp.tid('MarcoII') and slot = 25) = 'Malen/63.0/16.0/2',
+         'annullata H: Malen torna con 63, penale 16, 2° anno';
+  raise notice 'ok  il file non cancella le operazioni da riportare, l''annullamento rimette gli anni';
+end $$;
+
+-- 10) le operazioni di prima diventano movimenti (e rieseguire 13 non duplica) ---------
 insert into public.market_ops (team_id, slot, ruolo, esce_nome, entra_nome, costo_svincolo, costo_acquisto, crediti_prima, crediti_dopo, annullata_at)
 values (pg_temp.tid('Giovanni'), 2, 'P', 'Vecchio Uscito', 'Vecchio Entrato', 1, 3, 87, 83, now());
 \ir ../13_mercato_operazioni.sql
