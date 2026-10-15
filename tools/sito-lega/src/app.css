@@ -507,7 +507,9 @@ a.chip { text-decoration: none; display: inline-block; }
 
 /* mercato: l'operazione dell'amministratore */
 .op-form { display: grid; gap: 10px; }
-.op-form > label, .due-campi label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.op-form > label, .due-campi label { display: grid; gap: 4px; align-content: start; font-size: 13px; font-weight: 600; }
+/* i due campi affiancati alla stessa altezza, anche se uno ha la nota sotto */
+.due-campi select, .due-campi input { height: 40px; padding-block: 0; }
 .op-form label small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
 .due-campi { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .mercato > *, .op-form > *, .due-campi > * { min-width: 0; }
