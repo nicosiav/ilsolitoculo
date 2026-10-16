@@ -119,6 +119,17 @@
     };
   }
 
+  // Le serie più lunghe della lega (vittorie di fila, partite senza perdere): tutte le
+  // squadre a pari merito, se la serie è di almeno 2 partite
+  function serieRecord(matches, teamIds) {
+    const tutte = teamIds.map(id => ({ id, s: serie(risultati(matches, id).map(r => r.esito)) }));
+    const migliori = k => {
+      const n = Math.max.apply(null, [0].concat(tutte.map(x => x.s[k])));
+      return { n, squadre: n > 1 ? tutte.filter(x => x.s[k] === n).map(x => x.id) : [] };
+    };
+    return { vittorie: migliori('vittorie'), imbattuto: migliori('imbattuto') };
+  }
+
   const mediana = a => {
     if (!a.length) return null;
     const s = a.slice().sort((x, y) => x - y), k = Math.floor(s.length / 2);
@@ -157,13 +168,20 @@
     });
     const conPunti = lati.filter(x => x.v != null);
     const sconfitte = conPunti.filter(x => x.gf < x.gs), vittorie = conPunti.filter(x => x.gf > x.gs);
+    // ogni record è la lista di tutti quelli a pari merito, in ordine di giornata
+    const tutti = (a, f, verso) => {
+      if (!a.length) return [];
+      const best = tonda(f((verso > 0 ? maxBy : minBy)(a, f)));
+      return a.filter(x => tonda(f(x)) === best).sort((x, y) => x.round - y.round);
+    };
+    const nette = giocate.filter(m => m.gol_casa !== m.gol_fuori);
     return {
-      piu_alto: maxBy(righe, x => x.v),
-      piu_basso: minBy(righe, x => x.v),
-      vittoria_larga: maxBy(giocate, m => Math.abs(m.gol_casa - m.gol_fuori) * 100 + m.gol_casa + m.gol_fuori),
-      piu_gol: maxBy(giocate, m => m.gol_casa + m.gol_fuori),
-      sconfitta_beffa: maxBy(sconfitte, x => x.v),       // ha perso facendo tanti punti
-      vittoria_fortuna: minBy(vittorie, x => x.v)          // ha vinto facendo pochi punti
+      piu_alto: tutti(righe, x => x.v, 1),
+      piu_basso: tutti(righe, x => x.v, -1),
+      vittoria_larga: tutti(nette, m => Math.abs(m.gol_casa - m.gol_fuori), 1),
+      piu_gol: tutti(giocate, m => m.gol_casa + m.gol_fuori, 1),
+      sconfitta_beffa: tutti(sconfitte, x => x.v, 1),       // ha perso facendo tanti punti
+      vittoria_fortuna: tutti(vittorie, x => x.v, -1)       // ha vinto facendo pochi punti
     };
   }
 
@@ -192,7 +210,7 @@
     return out;
   }
 
-  const api = { MODULI, formazioneIdeale, effettivo, idealePerGiornata, reparti, risultati, serie, distribuzione, record, posizioni, mediana };
+  const api = { MODULI, formazioneIdeale, effettivo, idealePerGiornata, reparti, risultati, serie, serieRecord, distribuzione, record, posizioni, mediana };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Calcoli = api;
 })(typeof window !== 'undefined' ? window : globalThis);

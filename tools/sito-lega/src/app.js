@@ -264,7 +264,7 @@
       : (m.casa && m.fuori && !(opts && opts.fisso) ? 'data-formazioni="' + m.round + ':' + m.slot + '"' : 'disabled');
     return `<button type="button" class="match ${cls}" ${tocco}>
       <span class="t">${esc(casa)}</span>
-      <span><span class="score">${punteggio}</span>${pts}</span>
+      <span class="ris"><span class="score">${punteggio}</span>${pts}</span>
       <span class="t a">${esc(fuori)}</span></button>`;
   }
 
@@ -857,20 +857,21 @@
     const squadre = rtU.slice().sort((a, b) => nz(b.punteggio) - nz(a.punteggio));
 
     // record e curiosità
+    // a pari merito ci sono tutti: ogni record è una lista
     const rec = C.record(S.matches, cdl);
-    const serie = S.teams.map(t => ({ id: t.id, s: C.serie(C.risultati(S.matches, t.id).map(r => r.esito)) }));
-    const migliore = k => serie.reduce((m, x) => (x.s[k] > (m ? m.s[k] : 0) ? x : m), null);
-    const vit = migliore('vittorie'), imb = migliore('imbattuto');
-    const partita = m => `${teamName(m.casa)} ${m.gol_casa}–${m.gol_fuori} ${teamName(m.fuori)}`;
+    const sr = C.serieRecord(S.matches, S.teams.map(t => t.id));
+    const partita = m => `${teamName(m.casa)} ${m.gol_casa}–${m.gol_fuori} ${teamName(m.fuori)} · ${m.round}ª`;
+    const lato = x => `${teamName(x.team_id)} ${x.gf}–${x.gs} con ${teamName(x.avversario)} · ${x.round}ª`;
+    const voce = (titolo, a, riga, valore, nota) => a.length && { titolo, sotto: a.map(riga), valore: valore(a[0]), nota };
     const voci = [
-      rec.piu_alto && { titolo: 'Punteggio più alto', sotto: nomeConGiornata(rec.piu_alto.team_id, rec.piu_alto.round), valore: n1(rec.piu_alto.v) },
-      rec.piu_basso && { titolo: 'Punteggio più basso', sotto: nomeConGiornata(rec.piu_basso.team_id, rec.piu_basso.round), valore: n1(rec.piu_basso.v) },
-      rec.vittoria_larga && { titolo: 'Vittoria più larga', sotto: partita(rec.vittoria_larga) + ' · ' + rec.vittoria_larga.round + 'ª', valore: Math.abs(rec.vittoria_larga.gol_casa - rec.vittoria_larga.gol_fuori) + ' gol', nota: 'di scarto' },
-      rec.piu_gol && { titolo: 'Partita con più gol', sotto: partita(rec.piu_gol) + ' · ' + rec.piu_gol.round + 'ª', valore: (rec.piu_gol.gol_casa + rec.piu_gol.gol_fuori) + ' gol' },
-      rec.sconfitta_beffa && { titolo: 'Sconfitta più beffarda', sotto: teamName(rec.sconfitta_beffa.team_id) + ' ' + rec.sconfitta_beffa.gf + '–' + rec.sconfitta_beffa.gs + ' con ' + teamName(rec.sconfitta_beffa.avversario) + ' · ' + rec.sconfitta_beffa.round + 'ª', valore: n1(rec.sconfitta_beffa.v), nota: 'punti, e ha perso' },
-      rec.vittoria_fortuna && { titolo: 'Vittoria più fortunata', sotto: teamName(rec.vittoria_fortuna.team_id) + ' ' + rec.vittoria_fortuna.gf + '–' + rec.vittoria_fortuna.gs + ' con ' + teamName(rec.vittoria_fortuna.avversario) + ' · ' + rec.vittoria_fortuna.round + 'ª', valore: n1(rec.vittoria_fortuna.v), nota: 'punti, e ha vinto' },
-      vit && vit.s.vittorie > 1 && { titolo: 'Più vittorie di fila', sotto: teamName(vit.id), valore: vit.s.vittorie },
-      imb && imb.s.imbattuto > 1 && { titolo: 'Più partite senza perdere', sotto: teamName(imb.id), valore: imb.s.imbattuto }
+      voce('Punteggio più alto', rec.piu_alto, x => nomeConGiornata(x.team_id, x.round), x => n1(x.v)),
+      voce('Punteggio più basso', rec.piu_basso, x => nomeConGiornata(x.team_id, x.round), x => n1(x.v)),
+      voce('Vittoria più larga', rec.vittoria_larga, partita, m => Math.abs(m.gol_casa - m.gol_fuori) + ' gol', 'di scarto'),
+      voce('Partita con più gol', rec.piu_gol, partita, m => (m.gol_casa + m.gol_fuori) + ' gol'),
+      voce('Sconfitta più beffarda', rec.sconfitta_beffa, lato, x => n1(x.v), 'punti, e ha perso'),
+      voce('Vittoria più fortunata', rec.vittoria_fortuna, lato, x => n1(x.v), 'punti, e ha vinto'),
+      sr.vittorie.squadre.length && { titolo: 'Più vittorie di fila', sotto: [sr.vittorie.squadre.map(teamName).join(', ')], valore: sr.vittorie.n, pari: sr.vittorie.squadre.length > 1 },
+      sr.imbattuto.squadre.length && { titolo: 'Più partite senza perdere', sotto: [sr.imbattuto.squadre.map(teamName).join(', ')], valore: sr.imbattuto.n, pari: sr.imbattuto.squadre.length > 1 }
     ].filter(Boolean);
 
     // punteggi di ogni giornata
@@ -889,8 +890,8 @@
       <div class="card">
         <div class="sec-h"><h2>Record e curiosità</h2><span>dopo la ${u.id}ª</span></div>
         ${voci.length ? `<div class="plist">${voci.map(v => `<div class="prow" style="grid-template-columns:1fr auto">
-          <span class="who"><b>${esc(v.titolo)}</b><span>${esc(v.sotto)}</span></span>
-          <span class="val"><b>${esc(v.valore)}</b>${v.nota ? `<span>${esc(v.nota)}</span>` : ''}</span></div>`).join('')}</div>`
+          <span class="who"><b>${esc(v.titolo)}</b>${v.sotto.map(x => `<span>${esc(x)}</span>`).join('')}</span>
+          <span class="val"><b>${esc(v.valore)}</b>${v.nota ? `<span>${esc(v.nota)}</span>` : ''}${v.sotto.length > 1 || v.pari ? '<span>a pari merito</span>' : ''}</span></div>`).join('')}</div>`
           : '<p class="empty">Servono più giornate.</p>'}
         <p class="small muted" style="margin:0">Punteggi di giornata della Coppa di Lega: la somma dei fantavoti, senza fattore campo e bonus del modulo.</p>
       </div>

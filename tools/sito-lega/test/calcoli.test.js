@@ -52,14 +52,38 @@ const cdl = [];
 ((d.coppa_lega && d.coppa_lega.settimanali && d.coppa_lega.settimanali.righe) || []).forEach(r =>
   Object.keys(r.per_giornata).forEach(g => cdl.push({ round: +g, team_id: r.squadra, valore: r.per_giornata[g] })));
 const rec = C.record(matches, cdl);
-assert.ok(rec.piu_alto.v >= rec.piu_basso.v && rec.vittoria_larga && rec.piu_gol);
+assert.ok(rec.piu_alto.length && rec.piu_basso.length && rec.piu_alto[0].v >= rec.piu_basso[0].v && rec.vittoria_larga.length && rec.piu_gol.length);
+// a pari merito: tutti, con lo stesso valore
+['piu_alto', 'piu_basso', 'piu_gol', 'sconfitta_beffa', 'vittoria_fortuna'].forEach(k => {
+  const vv = rec[k].map(x => k === 'piu_gol' ? x.gol_casa + x.gol_fuori : x.v);
+  assert.ok(vv.every(v => v === vv[0]), k + ': valori diversi fra i pari merito');
+});
+{
+  const finti = [{ round: 1, casa: 'a', fuori: 'b', gol_casa: 2, gol_fuori: 0 }, { round: 2, casa: 'c', fuori: 'd', gol_casa: 3, gol_fuori: 1 },
+    { round: 2, casa: 'a', fuori: 'c', gol_casa: 1, gol_fuori: 1 }];
+  const pf = [{ round: 1, team_id: 'a', valore: 80 }, { round: 2, team_id: 'c', valore: 80 }, { round: 1, team_id: 'b', valore: 60 }];
+  const r2 = C.record(finti, pf);
+  assert.deepStrictEqual(r2.piu_alto.map(x => x.team_id), ['a', 'c'], 'pari merito sul punteggio più alto');
+  assert.deepStrictEqual(r2.vittoria_larga.map(x => x.round), [1, 2], 'pari merito sullo scarto (2–0 e 3–1)');
+  assert.deepStrictEqual(r2.piu_gol.map(x => x.casa), ['c'], 'più gol: 3–1');
+  // le prime quattro giornate vere: Giuseppe (1ª–3ª) e Colombrita (2ª–4ª) 3 partite senza perdere
+  const R = [['MarcoI', 2, 3, 'Giovanni'], ['Valerio', 2, 2, 'MarcoII'], ['Sebi', 2, 4, 'Massimo'], ['Colombrita', 1, 2, 'Giuseppe'],
+    ['MarcoII', 1, 4, 'MarcoI'], ['Giuseppe', 1, 0, 'Giovanni'], ['Massimo', 1, 2, 'Valerio'], ['Sebi', 0, 5, 'Colombrita'],
+    ['MarcoI', 1, 2, 'Sebi'], ['Giovanni', 4, 0, 'Massimo'], ['Valerio', 1, 4, 'Giuseppe'], ['Colombrita', 2, 2, 'MarcoII'],
+    ['MarcoI', 3, 1, 'Valerio'], ['MarcoII', 3, 2, 'Giovanni'], ['Giuseppe', 1, 4, 'Sebi'], ['Massimo', 1, 2, 'Colombrita']]
+    .map((x, i) => ({ round: Math.floor(i / 4) + 1, casa: x[0], gol_casa: x[1], gol_fuori: x[2], fuori: x[3] }));
+  const sq = ['Massimo', 'Giovanni', 'Colombrita', 'Giuseppe', 'MarcoI', 'MarcoII', 'Valerio', 'Sebi'];
+  const sr = C.serieRecord(R, sq);
+  assert.deepStrictEqual(sr.imbattuto, { n: 3, squadre: ['Colombrita', 'Giuseppe'] }, 'senza perdere a pari merito');
+  assert.deepStrictEqual(sr.vittorie, { n: 3, squadre: ['Giuseppe'] }, 'vittorie di fila');
+}
 const dist = C.distribuzione(cdl);
 dist.forEach(x => assert.ok(x.min <= x.mediana && x.mediana <= x.max));
 const pos = C.posizioni(matches, ids, []);
 const ultima = Math.max(...matches.filter(m => m.gol_casa != null).map(m => m.round));
 const posFinali = ids.map(id => pos.get(id).find(p => p.x === ultima).y).sort((a, b) => a - b);
 assert.deepStrictEqual(posFinali, ids.map((_, i) => i + 1));
-console.log('ok  serie, record (più alto ' + rec.piu_alto.v + ', più basso ' + rec.piu_basso.v + '), distribuzione su', dist.length, 'giornate, posizioni');
+console.log('ok  serie, record (più alto ' + rec.piu_alto[0].v + ', più basso ' + rec.piu_basso[0].v + ', pari merito), distribuzione su', dist.length, 'giornate, posizioni');
 
 // 4) l'Excel di Fantacalcio.it (finto, stessa forma del vero)
 const fc = process.argv[3];
