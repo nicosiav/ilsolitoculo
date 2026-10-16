@@ -356,6 +356,13 @@ async def main():
             assert 'Giornata' in tip and 'lasciati' in tip
             await pg.goto(BASE + '#/lega'); await pg.wait_for_timeout(1200)
             rec = await pg.locator('.card:first-of-type .prow').count()
+            # in Giornata il punteggio sta centrato sotto il risultato
+            await pg.goto(BASE + '#/giornata'); await pg.wait_for_timeout(900)
+            scarti = await pg.evaluate("""() => [...document.querySelectorAll('.match .ris')].filter(r => r.querySelector('.pts')).map(r => {
+              const a = r.querySelector('.score').getBoundingClientRect(), b = r.querySelector('.pts').getBoundingClientRect();
+              return Math.abs((a.left + a.right) / 2 - (b.left + b.right) / 2); })""")
+            assert scarti and max(scarti) < 1, scarti
+            await pg.goto(BASE + '#/lega'); await pg.wait_for_timeout(1200)
             print('  lega: record', rec, '| grafici', await pg.locator('svg.chart').count(),
                   '|', (await pg.inner_text('#view')).replace(chr(10), ' ')[60:200])
             assert rec >= 6 and await pg.locator('svg.chart').count() == 1
